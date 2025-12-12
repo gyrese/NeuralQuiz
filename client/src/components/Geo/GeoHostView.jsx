@@ -518,6 +518,7 @@ function GeoHostView({ onBack }) {
                                             { id: 'oceania', name: 'Océanie', icon: '🦘' },
                                             { id: 'france', name: 'France', icon: '🇫🇷' },
                                             { id: 'usa', name: 'USA', icon: '🇺🇸' },
+                                            { id: 'reunion', name: 'La Réunion', icon: '🏝️' },
                                         ].map(region => {
                                             const isSelected = settings.mapType.includes(region.id);
                                             return (

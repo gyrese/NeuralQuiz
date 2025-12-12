@@ -153,7 +153,8 @@ class GeoGameManager {
                 'French Polynesia', 'Palau', 'Guam'
             ],
             france: ['France'],
-            usa: ['USA']
+            usa: ['USA'],
+            reunion: ['Reunion']
         };
 
         // Compiler les lieux de toutes les régions sélectionnées

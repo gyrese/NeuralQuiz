@@ -541,7 +541,31 @@ const WORLD_LOCATIONS = [
     { lat: 41.7151, lng: 44.8271, country: 'Georgia', city: 'Tbilisi' },
     { lat: 41.6941, lng: 44.8337, country: 'Georgia', city: 'Batumi' },
     { lat: 40.4093, lng: 49.8671, country: 'Azerbaijan', city: 'Baku' },
-    { lat: 40.1872, lng: 44.5152, country: 'Armenia', city: 'Yerevan' }
+    { lat: 40.1872, lng: 44.5152, country: 'Armenia', city: 'Yerevan' },
+
+    // ==========================================
+    // LA RÉUNION (DOM-TOM Français - Océan Indien)
+    // ==========================================
+    { lat: -20.8789, lng: 55.4481, country: 'Reunion', city: 'Saint-Denis' },
+    { lat: -21.1151, lng: 55.5364, country: 'Reunion', city: 'Saint-Pierre' },
+    { lat: -21.0742, lng: 55.2247, country: 'Reunion', city: 'Saint-Paul' },
+    { lat: -20.9324, lng: 55.5302, country: 'Reunion', city: 'Saint-André' },
+    { lat: -21.0112, lng: 55.2700, country: 'Reunion', city: 'Le Port' },
+    { lat: -21.2601, lng: 55.6040, country: 'Reunion', city: 'Saint-Joseph' },
+    { lat: -20.9011, lng: 55.4824, country: 'Reunion', city: 'Sainte-Marie' },
+    { lat: -21.2117, lng: 55.2551, country: 'Reunion', city: 'Saint-Leu' },
+    { lat: -21.3185, lng: 55.4837, country: 'Reunion', city: 'Saint-Louis' },
+    { lat: -21.1559, lng: 55.2297, country: 'Reunion', city: "L'Étang-Salé" },
+    { lat: -20.9968, lng: 55.5823, country: 'Reunion', city: 'Bras-Panon' },
+    { lat: -21.0559, lng: 55.6544, country: 'Reunion', city: 'Saint-Benoît' },
+    { lat: -21.2873, lng: 55.3540, country: 'Reunion', city: 'Les Avirons' },
+    { lat: -21.0068, lng: 55.3061, country: 'Reunion', city: 'La Possession' },
+    { lat: -21.1337, lng: 55.4743, country: 'Reunion', city: 'Le Tampon' },
+    { lat: -20.9166, lng: 55.6571, country: 'Reunion', city: 'Sainte-Suzanne' },
+    { lat: -21.0091, lng: 55.7111, country: 'Reunion', city: 'Salazie' },
+    { lat: -21.0807, lng: 55.3833, country: 'Reunion', city: 'Cilaos' },
+    { lat: -21.3656, lng: 55.5940, country: 'Reunion', city: 'Petite-Île' },
+    { lat: -20.9623, lng: 55.6497, country: 'Reunion', city: 'Plaine-des-Palmistes' }
 ];
 
 module.exports = WORLD_LOCATIONS;

@@ -1,0 +1,748 @@
+/* ===================================
+   GEO_TRACKR STYLES
+   =================================== */
+
+.geo-lobby-background,
+.geo-player-background {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('https://cdn.midjourney.com/bf9bd72c-442b-474a-a98e-2c19ea87ddd1/0_2.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: white;
+}
+
+/* General */
+.geo-room-code {
+    font-size: 2.5rem;
+    font-family: var(--font-display);
+    letter-spacing: 8px;
+    padding: 1rem 2rem;
+    background: var(--glass-bg);
+    border: 2px solid var(--neon-green);
+    border-radius: 10px;
+    display: inline-block;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+}
+
+/* Playing Container */
+.geo-playing-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.geo-player-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.geo-header,
+.geo-player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    background: rgba(0, 0, 0, 0.9);
+    border-bottom: 2px solid var(--neon-green);
+    z-index: 100;
+}
+
+.geo-lobby-player-card {
+    display: flex;
+    align-items: center;
+    background: white;
+    color: #333;
+    padding: 0.75rem 1.25rem;
+    border-radius: 15px;
+    /* Slightly less pill-like, more card-like for grid */
+    font-weight: bold;
+    font-size: 1.3rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s;
+    animation: fadeInUp 0.5s ease-out forwards;
+    width: 100%;
+    /* Fill the grid column */
+    overflow: hidden;
+}
+
+.geo-lobby-player-card:hover {
+    transform: translateY(-5px);
+}
+
+.geo-lobby-player-card img {
+    flex-shrink: 0;
+    /* Prevent avatar shrinking */
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 50%;
+    margin-right: 15px;
+    border: 2px solid #333;
+}
+
+.geo-round {
+    font-family: var(--font-display);
+    color: var(--neon-blue);
+    font-size: 1.2rem;
+}
+
+.geo-timer {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--neon-green);
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.geo-timer.danger {
+    color: var(--bs-danger);
+    text-shadow: 0 0 15px rgba(255, 0, 85, 0.8);
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+.geo-guessed,
+.geo-score {
+    font-family: var(--font-display);
+    color: var(--neon-purple);
+}
+
+/* Street View */
+.geo-streetview {
+    flex: 1;
+    width: 100%;
+    min-height: 50vh;
+}
+
+.geo-player-streetview {
+    flex: 1;
+    width: 100%;
+}
+
+/* Controls */
+.geo-controls {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+}
+
+/* Mini Map (Player) */
+.geo-minimap-container {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.geo-minimap {
+    width: 300px;
+    height: 200px;
+    border: 3px solid var(--neon-green);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+}
+
+.geo-guess-btn {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    padding: 0.75rem;
+}
+
+.geo-guessed-message {
+    background: rgba(0, 255, 65, 0.2);
+    border: 2px solid var(--neon-green);
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: center;
+    color: var(--neon-green);
+    font-family: var(--font-display);
+}
+
+/* Results Map */
+.geo-results-map {
+    width: 100%;
+    height: 400px;
+    border-radius: 10px;
+    border: 2px solid var(--neon-blue);
+    display: none;
+    /* Hidden for players as requested */
+}
+
+/* Result Rows */
+.geo-result-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.geo-result-row.winner {
+    background: rgba(0, 255, 65, 0.15);
+    border: 1px solid var(--neon-green);
+}
+
+.geo-result-rank {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--neon-purple);
+    width: 40px;
+    text-align: center;
+}
+
+.geo-result-info {
+    flex: 1;
+}
+
+.geo-result-name {
+    font-weight: bold;
+    color: #fff;
+}
+
+.geo-result-distance {
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.geo-result-score {
+    font-family: var(--font-display);
+    color: var(--neon-green);
+    font-size: 1.1rem;
+}
+
+/* Mini Result Rows */
+.geo-result-mini,
+.geo-final-mini-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-radius: 5px;
+    margin-bottom: 0.25rem;
+}
+
+.geo-result-mini.me,
+.geo-final-mini-row.me {
+    background: rgba(0, 255, 65, 0.2);
+    border: 1px solid var(--neon-green);
+}
+
+/* Podium */
+.geo-podium {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: 2rem 0;
+}
+
+.geo-podium-place {
+    text-align: center;
+    padding: 1.5rem;
+    border-radius: 10px;
+    background: var(--glass-bg);
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.geo-podium-place.place-1 {
+    border-color: gold;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+    order: 2;
+    transform: scale(1.1);
+}
+
+.geo-podium-place.place-2 {
+    border-color: silver;
+    box-shadow: 0 0 20px rgba(192, 192, 192, 0.2);
+    order: 1;
+}
+
+.geo-podium-place.place-3 {
+    border-color: #cd7f32;
+    box-shadow: 0 0 20px rgba(205, 127, 50, 0.2);
+    order: 3;
+}
+
+.geo-podium-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    /* Make it round */
+    margin: 0 auto 0.5rem;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.geo-podium-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.geo-podium-medal {
+    font-size: 2rem;
+    margin: 0.5rem 0;
+}
+
+.geo-podium-name {
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 0.25rem;
+}
+
+.geo-podium-score {
+    color: var(--neon-green);
+    font-family: var(--font-display);
+}
+
+/* Final Row */
+.geo-final-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.geo-final-rank {
+    font-family: var(--font-display);
+    color: var(--neon-purple);
+    width: 50px;
+}
+
+.geo-final-name {
+    flex: 1;
+}
+
+.geo-final-score {
+    font-family: var(--font-display);
+    color: var(--neon-green);
+}
+
+/* Animations */
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 20px, 0);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+
+@keyframes floatUpFadeOut {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, 0) scale(0.5);
+    }
+
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -20px) scale(1.2);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -100px) scale(1);
+    }
+}
+
+.points-anim {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--neon-green);
+    font-size: 4rem;
+    font-weight: 900;
+    text-shadow: 0 0 20px rgba(0, 255, 65, 0.8);
+    pointer-events: none;
+    z-index: 1000;
+    animation: floatUpFadeOut 2s ease-out forwards;
+    font-family: var(--font-display);
+}
+
+.street-view-loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .geo-minimap-container {
+        bottom: 0.5rem;
+        right: 0.5rem;
+        left: 0.5rem;
+    }
+
+    .geo-minimap {
+        width: 100%;
+        height: 150px;
+    }
+
+    .geo-podium {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .geo-podium-place {
+        order: unset !important;
+        transform: none !important;
+    }
+
+    .geo-results-map {
+        height: 300px;
+    }
+}
+
+/* ===================================
+   KAHOOT STYLES (LOBBY)
+   =================================== */
+.kahoot-top-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    pointer-events: none;
+    /* Let clicks pass through if needed, but buttons need events */
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    font-family: 'Segoe UI', "Helvetica Neue", sans-serif;
+}
+
+.kahoot-bar-content {
+    display: flex;
+    height: 100%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+}
+
+.kahoot-join-info {
+    background: white;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 30px;
+    font-size: 1.2rem;
+    font-weight: 500;
+    position: relative;
+    border-bottom-left-radius: 4px;
+}
+
+.kahoot-join-info span {
+    display: block;
+}
+
+.kahoot-join-info strong {
+    font-weight: 800;
+}
+
+.kahoot-pin-box {
+    background: white;
+    color: #333;
+    padding: 0 40px 0 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    clip-path: polygon(40px 0, 100% 0, 100% 100%, 0% 100%);
+    margin-left: -30px;
+    /* Overlap */
+    border-bottom-right-radius: 4px;
+}
+
+.kahoot-pin-label {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: -5px;
+}
+
+.kahoot-pin-value {
+    font-size: 3.5rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.kahoot-qr {
+    background: white;
+    padding: 10px;
+    height: 120px;
+    /* Slightly taller than bar */
+    width: 120px;
+    margin-left: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 4px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kahoot-qr img {
+    width: 100%;
+    height: 100%;
+}
+
+.kahoot-start-btn {
+    position: fixed;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #f2f2f2;
+    color: #333;
+    font-weight: bold;
+    font-size: 1.2rem;
+    padding: 15px 30px;
+    border: none;
+    border-radius: 4px;
+    box-shadow: 0 4px 0 #ccc;
+    transition: all 0.1s;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.kahoot-start-btn:active {
+    transform: translateY(-48%);
+    box-shadow: 0 2px 0 #ccc;
+}
+
+.kahoot-start-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.kahoot-counter-box {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.kahoot-waiting-msg {
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    padding: 15px 40px;
+    border-radius: 4px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 50px;
+    display: inline-block;
+}
+
+/* ===================================
+   HOST DASHBOARD STYLES
+   =================================== */
+
+.geo-host-dashboard {
+    min-height: 100vh;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)), url('https://cdn.midjourney.com/bf9bd72c-442b-474a-a98e-2c19ea87ddd1/0_2.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+
+.geo-host-header {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    background: rgba(0, 0, 0, 0.9);
+    border-bottom: 3px solid var(--neon-blue);
+}
+
+.geo-host-round,
+.geo-host-progress,
+.geo-host-code {
+    text-align: center;
+}
+
+.geo-host-round .label,
+.geo-host-progress .label,
+.geo-host-code .label {
+    display: block;
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 0.25rem;
+}
+
+.geo-host-round .value,
+.geo-host-progress .value,
+.geo-host-code .value {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--neon-blue);
+}
+
+.geo-host-timer {
+    text-align: center;
+}
+
+.geo-host-timer .timer-value {
+    font-family: var(--font-display);
+    font-size: 5rem;
+    color: var(--neon-green);
+    text-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+}
+
+.geo-host-timer.danger .timer-value {
+    color: var(--bs-danger);
+    text-shadow: 0 0 30px rgba(255, 0, 85, 0.8);
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+/* Player Status Cards */
+.geo-player-status-card {
+    background: var(--glass-bg);
+    border: 2px solid #333;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.geo-player-status-card.answered {
+    border-color: var(--neon-green);
+    background: rgba(0, 255, 65, 0.1);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+}
+
+.geo-player-status-card.waiting {
+    border-color: #555;
+    opacity: 0.7;
+}
+
+.geo-player-status-card .player-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    margin: 0 auto 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.geo-player-status-card .player-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.geo-player-status-card .player-name {
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 0.25rem;
+}
+
+.geo-player-status-card .player-status {
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.geo-player-status-card.answered .player-status {
+    color: var(--neon-green);
+}
+
+/* Host Messages */
+.geo-host-message {
+    text-align: center;
+    padding: 2rem;
+}
+
+.geo-host-message .all-answered {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    font-size: 1.5rem;
+    color: var(--neon-green);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.geo-host-message .all-answered .icon {
+    font-size: 3rem;
+}
+
+.geo-host-message .waiting-answers {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: #888;
+}
+
+/* Host Results Map - Full width with player markers */
+.geo-host-results-map {
+    width: 100%;
+    height: 60vh;
+    border-radius: 15px;
+    border: 3px solid var(--neon-blue);
+    box-shadow: 0 0 30px rgba(0, 219, 222, 0.2);
+}

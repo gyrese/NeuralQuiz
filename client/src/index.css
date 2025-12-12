@@ -1,0 +1,223 @@
+:root {
+  /* Bootstrap Overrides */
+  --bs-body-bg: #050505;
+  --bs-body-color: #e0e0e0;
+  --bs-primary: #00ff41;
+  /* Matrix Green */
+  --bs-secondary: #bd00ff;
+  /* Cyberpunk Purple */
+  --bs-info: #00dbde;
+  /* Cyan */
+  --bs-success: #00ff41;
+  --bs-danger: #ff0055;
+  --bs-warning: #f9d71c;
+
+  /* Custom Variables */
+  --neon-green: #00ff41;
+  --neon-purple: #bd00ff;
+  --neon-blue: #00dbde;
+  --glass-bg: rgba(20, 20, 20, 0.7);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --font-display: 'Orbitron', 'Segoe UI', sans-serif;
+  /* Tech font if available, else standard */
+}
+
+/* Import a tech-looking font */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@300;400;700&display=swap');
+
+body {
+  background-color: var(--bs-body-bg);
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(0, 255, 65, 0.15) 0%, transparent 50%),
+    linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(10, 10, 10, 1) 100%);
+  font-family: 'Roboto', sans-serif;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.display-1,
+.display-2,
+.display-3,
+.display-4 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-green);
+}
+
+/* Bootstrap Component Overrides */
+
+/* Cards: Glassmorphism */
+.card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  color: #fff;
+}
+
+.list-group-item {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Inputs */
+.form-control,
+.form-select {
+  background-color: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333;
+  color: #fff;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: rgba(0, 0, 0, 0.8);
+  border-color: var(--neon-green);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+  color: #fff;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: transparent;
+  border: 2px solid var(--neon-green);
+  color: var(--neon-green);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:active,
+.btn-primary:focus {
+  background-color: var(--neon-green) !important;
+  border-color: var(--neon-green) !important;
+  color: #000 !important;
+  box-shadow: 0 0 25px rgba(0, 255, 65, 0.6) !important;
+}
+
+.btn-outline-secondary {
+  color: #aaa;
+  border-color: #555;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #333;
+  color: #fff;
+  border-color: #fff;
+}
+
+/* Custom Classes */
+.text-primary {
+  color: var(--neon-green) !important;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
+}
+
+.text-secondary {
+  color: var(--neon-purple) !important;
+}
+
+.avatar-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--neon-green);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+}
+
+.player-card {
+  transition: all 0.3s ease;
+  cursor: default;
+}
+
+.player-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  border-color: var(--neon-green);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+}
+
+/* Glitch Effect Class (Optional usage) */
+.glitch-text {
+  position: relative;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Loader */
+.spinner-border {
+  width: 3rem;
+  height: 3rem;
+  border-width: 0.25em;
+}
+
+/* Game Buttons */
+.btn-game {
+  font-size: 2rem;
+  font-weight: bold;
+  border: none;
+  transition: transform 0.1s;
+}
+
+.btn-game:active {
+  transform: scale(0.95);
+}
+
+/* Game Cards (Home) */
+.game-card {
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.game-card:hover {
+  transform: translateY(-10px);
+  border-color: var(--neon-green);
+  box-shadow: 0 10px 40px rgba(0, 255, 65, 0.2);
+}
+
+.game-card-icon {
+  font-size: 4rem;
+}
+
+.game-features {
+  margin-top: auto;
+}
+
+.game-features .badge {
+  font-weight: normal;
+  padding: 0.5em 1em;
+}

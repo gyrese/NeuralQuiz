@@ -26,6 +26,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
 
     // UX States
     const [isLoading, setIsLoading] = useState(false);
+    const [isJoining, setIsJoining] = useState(false); // Loading state for join button
     const [pointsAnimation, setPointsAnimation] = useState(null); // { score: 1000 }
 
     const streetViewRef = useRef(null);
@@ -314,11 +315,16 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             return;
         }
 
+        setIsJoining(true); // Start loading
+        setError('');
+
         socket.emit('geo-join-room', {
             roomCode: roomCode.toUpperCase(),
             playerName: pseudo,
             avatar
         }, (response) => {
+            setIsJoining(false); // Stop loading
+
             if (response.error) {
                 setError(response.error);
             } else if (response.reconnected) {
@@ -444,8 +450,16 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                                     />
                                 </div>
 
-                                <button className="btn btn-primary btn-lg w-100" onClick={joinRoom}>
-                                    REJOINDRE
+                                <button
+                                    className="btn btn-primary btn-lg w-100"
+                                    onClick={joinRoom}
+                                    disabled={isJoining}
+                                >
+                                    {isJoining ? (
+                                        <><span className="spinner-border spinner-border-sm me-2" role="status"></span>Connexion...</>
+                                    ) : (
+                                        'REJOINDRE'
+                                    )}
                                 </button>
                             </div>
                         </div>

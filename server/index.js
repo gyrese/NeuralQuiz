@@ -639,7 +639,7 @@ app.use(express.static(path.join(__dirname, '../client/dist')));
 
 // Pour toutes les autres requêtes (SPA), renvoyer index.html
 // Note: Commenté en dev car Vite gère le routing. Décommenter pour la production.
-app.get('/*', (req, res) => {
+app.get('*', (req, res) => {
     const indexPath = path.join(__dirname, '../client/dist/index.html');
     if (require('fs').existsSync(indexPath)) {
         res.sendFile(indexPath);

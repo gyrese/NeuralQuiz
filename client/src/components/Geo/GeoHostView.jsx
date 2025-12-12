@@ -401,7 +401,7 @@ function GeoHostView({ onBack }) {
 
     // RENDER LOBBY
     if (gameState === 'LOBBY') {
-        const joinUrl = `${window.location.protocol}//${window.location.hostname}:5173`;
+        const joinUrl = window.location.origin;
 
         return (
             <div className="geo-lobby-background" style={{ overflow: 'hidden' }}>
@@ -409,8 +409,7 @@ function GeoHostView({ onBack }) {
                 <div className="kahoot-top-bar">
                     <div className="kahoot-bar-content">
                         <div className="kahoot-join-info">
-                            <span>Rejoindre le jeu à l'adresse <strong>{window.location.hostname}:5173</strong></span>
-                            <span>ou avec l'application <strong>Antigravity!</strong></span>
+                            <span>Rejoindre le jeu à l'adresse <strong>{window.location.host}</strong></span>
                         </div>
                         <div className="kahoot-pin-box">
                             <span className="kahoot-pin-label">Code PIN du jeu :</span>
@@ -418,7 +417,7 @@ function GeoHostView({ onBack }) {
                         </div>
                     </div>
                     <div className="kahoot-qr">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${joinUrl}?code=${roomCode}`} alt="QR Code" />
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode)}`} alt="QR Code" />
                     </div>
                 </div>
 

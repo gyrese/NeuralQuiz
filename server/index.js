@@ -493,7 +493,8 @@ io.on('connection', (socket) => {
                     round: result.round,
                     total: result.total,
                     location: result.location,
-                    timePerRound: room.timePerRound
+                    timePerRound: room.timePerRound,
+                    mapType: room.settings.mapType || ['world']
                 });
 
                 console.log(`[GEO] Game started in room ${roomCode}`);

@@ -23,6 +23,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     const [roundResults, setRoundResults] = useState(null);
     const [correctLocation, setCorrectLocation] = useState(null);
     const [finalResults, setFinalResults] = useState(null);
+    const [selectedRegions, setSelectedRegions] = useState(['world']); // Regions from host settings
 
     // UX States
     const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +49,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             setGuessMarker(null);
             markerInstance.current = null;
             setIsLoading(true); // Start loading new street view
+            setSelectedRegions(data.mapType || ['world']);
             soundManager.play('start');
             startTimer(data.timePerRound || 60);
         });
@@ -199,11 +201,28 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             }
         }
 
-        // Mini map for guessing
+        // Mini map for guessing - center on selected region
         if (mapRef.current) {
+            // Define region bounds
+            const regionBounds = {
+                world: { center: { lat: 20, lng: 0 }, zoom: 1 },
+                europe: { center: { lat: 50, lng: 10 }, zoom: 3 },
+                asia: { center: { lat: 35, lng: 100 }, zoom: 3 },
+                africa: { center: { lat: 5, lng: 20 }, zoom: 3 },
+                americas: { center: { lat: 10, lng: -80 }, zoom: 2 },
+                oceania: { center: { lat: -25, lng: 140 }, zoom: 3 },
+                france: { center: { lat: 46.5, lng: 2.5 }, zoom: 5 },
+                usa: { center: { lat: 39, lng: -98 }, zoom: 4 },
+                reunion: { center: { lat: -21.1, lng: 55.5 }, zoom: 9 }
+            };
+
+            // Get center/zoom from first selected region (or world if multiple)
+            const firstRegion = selectedRegions.length === 1 ? selectedRegions[0] : 'world';
+            const bounds = regionBounds[firstRegion] || regionBounds.world;
+
             mapInstance.current = new window.google.maps.Map(mapRef.current, {
-                center: { lat: 20, lng: 0 },
-                zoom: 1,
+                center: bounds.center,
+                zoom: bounds.zoom,
                 styles: darkMapStyle,
                 disableDefaultUI: true,
                 zoomControl: true,
@@ -514,7 +533,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                 <div style={{ position: 'relative', flex: 1, width: '100%' }}>
                     {isLoading && (
                         <div className="street-view-loader">
-                            <div className="spinner-border text-primary" style={{ width: '4rem', height: '4rem' }} role="status"></div>
+                            <div className="globe-spinner">🌍</div>
                             <div className="mt-3 text-white fw-bold">Chargement Street View...</div>
                         </div>
                     )}

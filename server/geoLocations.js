@@ -545,27 +545,28 @@ const WORLD_LOCATIONS = [
 
     // ==========================================
     // LA RÉUNION (DOM-TOM Français - Océan Indien)
+    // Coordonnées sur routes principales avec couverture Street View
     // ==========================================
-    { lat: -20.8789, lng: 55.4481, country: 'Reunion', city: 'Saint-Denis' },
-    { lat: -21.1151, lng: 55.5364, country: 'Reunion', city: 'Saint-Pierre' },
-    { lat: -21.0742, lng: 55.2247, country: 'Reunion', city: 'Saint-Paul' },
-    { lat: -20.9324, lng: 55.5302, country: 'Reunion', city: 'Saint-André' },
-    { lat: -21.0112, lng: 55.2700, country: 'Reunion', city: 'Le Port' },
-    { lat: -21.2601, lng: 55.6040, country: 'Reunion', city: 'Saint-Joseph' },
-    { lat: -20.9011, lng: 55.4824, country: 'Reunion', city: 'Sainte-Marie' },
-    { lat: -21.2117, lng: 55.2551, country: 'Reunion', city: 'Saint-Leu' },
-    { lat: -21.3185, lng: 55.4837, country: 'Reunion', city: 'Saint-Louis' },
-    { lat: -21.1559, lng: 55.2297, country: 'Reunion', city: "L'Étang-Salé" },
-    { lat: -20.9968, lng: 55.5823, country: 'Reunion', city: 'Bras-Panon' },
-    { lat: -21.0559, lng: 55.6544, country: 'Reunion', city: 'Saint-Benoît' },
-    { lat: -21.2873, lng: 55.3540, country: 'Reunion', city: 'Les Avirons' },
-    { lat: -21.0068, lng: 55.3061, country: 'Reunion', city: 'La Possession' },
-    { lat: -21.1337, lng: 55.4743, country: 'Reunion', city: 'Le Tampon' },
-    { lat: -20.9166, lng: 55.6571, country: 'Reunion', city: 'Sainte-Suzanne' },
-    { lat: -21.0091, lng: 55.7111, country: 'Reunion', city: 'Salazie' },
-    { lat: -21.0807, lng: 55.3833, country: 'Reunion', city: 'Cilaos' },
-    { lat: -21.3656, lng: 55.5940, country: 'Reunion', city: 'Petite-Île' },
-    { lat: -20.9623, lng: 55.6497, country: 'Reunion', city: 'Plaine-des-Palmistes' }
+    { lat: -20.8823, lng: 55.4504, country: 'Reunion', city: 'Saint-Denis - Centre' },
+    { lat: -20.8942, lng: 55.4558, country: 'Reunion', city: 'Saint-Denis - Barachois' },
+    { lat: -21.1139, lng: 55.5329, country: 'Reunion', city: 'Saint-Pierre - Front de mer' },
+    { lat: -21.0754, lng: 55.2241, country: 'Reunion', city: 'Saint-Paul - Centre' },
+    { lat: -20.9227, lng: 55.5236, country: 'Reunion', city: 'Saint-André - N2' },
+    { lat: -21.0103, lng: 55.2693, country: 'Reunion', city: 'Le Port - Centre' },
+    { lat: -21.2152, lng: 55.2884, country: 'Reunion', city: 'Saint-Leu - Centre' },
+    { lat: -21.3169, lng: 55.4846, country: 'Reunion', city: 'Saint-Louis - N1' },
+    { lat: -21.1356, lng: 55.4734, country: 'Reunion', city: 'Le Tampon - Centre' },
+    { lat: -20.9156, lng: 55.6550, country: 'Reunion', city: 'Sainte-Suzanne - N2' },
+    { lat: -21.0086, lng: 55.3064, country: 'Reunion', city: 'La Possession - Centre' },
+    { lat: -21.2618, lng: 55.6000, country: 'Reunion', city: 'Saint-Joseph - N2' },
+    { lat: -20.8992, lng: 55.5295, country: 'Reunion', city: 'Sainte-Marie - N2' },
+    { lat: -21.0527, lng: 55.6495, country: 'Reunion', city: 'Saint-Benoît - Centre' },
+    { lat: -21.1599, lng: 55.2439, country: 'Reunion', city: "L'Étang-Salé - Centre" },
+    { lat: -21.2857, lng: 55.3432, country: 'Reunion', city: 'Les Avirons - Centre' },
+    { lat: -20.9947, lng: 55.5718, country: 'Reunion', city: 'Bras-Panon - N2' },
+    { lat: -21.0094, lng: 55.7082, country: 'Reunion', city: 'Salazie - Village' },
+    { lat: -21.1388, lng: 55.4712, country: 'Reunion', city: 'Cilaos - D241' },
+    { lat: -21.3604, lng: 55.5846, country: 'Reunion', city: 'Petite-Île - Centre' }
 ];
 
 module.exports = WORLD_LOCATIONS;

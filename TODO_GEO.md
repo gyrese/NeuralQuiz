@@ -39,13 +39,13 @@
 - [x] **Loading** : Spinner de chargement pendant l'initialisation de Street View.
 
 ### 2. Fonctionnalités Gameplay
-- [ ] **Kick Player** : Option pour l'hôte de virer un joueur inactif ou gênant.
-- [ ] **Rejouer** : Bouton "Rejouer" en fin de partie pour relancer sans recréer le lobby.
+- [x] **Kick Player** : Option pour l'hôte de virer un joueur inactif ou gênant.
+- [x] **Rejouer** : Bouton "Rejouer" en fin de partie pour relancer sans recréer le lobby.
 - [ ] **Mode "Battle Royale"** (Idée) : Le dernier joueur de chaque manche est éliminé ?
-- [ ] **Bonus de Temps** : Points supplémentaires pour les réponses rapides.
+- [x] **Bonus de Temps** : Points supplémentaires pour les réponses rapides.
 
 ### 3. Technique
-- [ ] **Gestion Déconnexion** : Gérer proprement si un joueur quitte en cours de manche (ne pas bloquer le bouton "Terminer manuellement").
+- [x] **Gestion Déconnexion et la reconnexion** : Gérer proprement si un joueur quitte en cours de manche (ne pas bloquer le bouton "Terminer manuellement") et le reconnecter automatiquement si il se connect a l application.
 - [ ] **Optimisation API** : Mettre en cache les panoramas si possible (limité par les ToS Google).
 - [ ] **Refactoring** : Extraire les composants Maps dans des fichiers séparés (`GeoMap.jsx`, `StreetView.jsx`).
 

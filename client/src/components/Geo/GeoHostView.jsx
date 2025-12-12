@@ -17,12 +17,13 @@ function GeoHostView({ onBack }) {
     const [finalResults, setFinalResults] = useState(null);
     const [guessedPlayers, setGuessedPlayers] = useState(new Set());
     const [isEndingRound, setIsEndingRound] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
 
     // Settings
     const [settings, setSettings] = useState({
         roundsCount: 5,
         timePerRound: 60,
-        mapType: 'world'
+        mapType: ['world'] // Tableau pour multi-sélection
     });
 
     const streetViewRef = useRef(null);
@@ -377,6 +378,27 @@ function GeoHostView({ onBack }) {
         return `${Math.round(km).toLocaleString()} km`;
     };
 
+    const kickPlayer = (playerId) => {
+        if (window.confirm('Voulez-vous vraiment exclure ce joueur ?')) {
+            socket.emit('geo-kick-player', { roomCode, playerId }, (response) => {
+                if (response.error) console.error(response.error);
+            });
+        }
+    };
+
+    const restartGame = () => {
+        socket.emit('geo-restart-game', { roomCode }, (response) => {
+            if (response.success) {
+                setGameState('LOBBY');
+                setCurrentRound(0);
+                setRoundResults(null);
+                setFinalResults(null);
+                setGuessedPlayers(new Set());
+                setCorrectLocation(null);
+            }
+        });
+    };
+
     // RENDER LOBBY
     if (gameState === 'LOBBY') {
         const joinUrl = `${window.location.protocol}//${window.location.hostname}:5173`;
@@ -419,7 +441,15 @@ function GeoHostView({ onBack }) {
                         <div className="row justify-content-center g-3">
                             {players.map(player => (
                                 <div key={player.id} className="col-12 col-sm-6 col-md-4 col-lg-3">
-                                    <div className="geo-lobby-player-card">
+                                    <div className="geo-lobby-player-card position-relative">
+                                        <button
+                                            className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 shadow-sm border-0"
+                                            style={{ borderRadius: '50%', width: '28px', height: '28px', padding: 0, fontSize: '14px', lineHeight: '1', zIndex: 10 }}
+                                            onClick={(e) => { e.stopPropagation(); kickPlayer(player.id); }}
+                                            title="Exclure"
+                                        >
+                                            ✕
+                                        </button>
                                         {player.avatar ? (
                                             <img src={player.avatar} alt="" />
                                         ) : (
@@ -432,49 +462,106 @@ function GeoHostView({ onBack }) {
                         </div>
                     </div>
 
-                    {/* SETTINGS TOGGLE (Small) */}
-                    <div className="position-fixed bottom-0 start-0 p-3">
-                        <div className="dropdown dropup">
-                            <button className="btn btn-dark btn-sm rounded-circle shadow" type="button" data-bs-toggle="dropdown" aria-expanded="false" style={{ width: '40px', height: '40px' }}>
-                                ⚙️
-                            </button>
-                            <ul className="dropdown-menu shadow p-3" style={{ width: '300px' }}>
-                                <li><h6 className="dropdown-header">Configuration</h6></li>
-                                <li className="mb-2">
-                                    <label className="small text-muted d-block">Manches</label>
-                                    <select className="form-select form-select-sm" value={settings.roundsCount} onChange={(e) => setSettings({ ...settings, roundsCount: parseInt(e.target.value) })}>
-                                        <option value={3}>3 manches</option>
-                                        <option value={5}>5 manches</option>
-                                        <option value={10}>10 manches</option>
-                                    </select>
-                                </li>
-                                <li className="mb-2">
-                                    <label className="small text-muted d-block">Temps</label>
-                                    <select className="form-select form-select-sm" value={settings.timePerRound} onChange={(e) => setSettings({ ...settings, timePerRound: parseInt(e.target.value) })}>
-                                        <option value={30}>30s</option>
-                                        <option value={60}>60s</option>
-                                        <option value={90}>90s</option>
-                                    </select>
-                                </li>
-                                <li>
-                                    <label className="small text-muted d-block">Carte</label>
-                                    <select className="form-select form-select-sm" value={settings.mapType} onChange={(e) => setSettings({ ...settings, mapType: e.target.value })}>
-                                        <option value="world">🌍 Monde</option>
-                                        <option value="europe">🇪🇺 Europe</option>
-                                        <option value="asia">⛩️ Asie</option>
-                                        <option value="africa">🌍 Afrique</option>
-                                        <option value="americas">🌎 Amériques</option>
-                                        <option value="oceania">🦘 Océanie</option>
-                                        <option value="france">🇫🇷 France</option>
-                                        <option value="usa">🇺🇸 États-Unis</option>
-                                    </select>
-                                </li>
-                            </ul>
-                        </div>
-                        <button className="btn btn-dark btn-sm rounded-circle shadow ms-2" onClick={onBack} title="Quitter" style={{ width: '40px', height: '40px' }}>
-                            ❌
+                    {/* SETTINGS BUTTON (Main) */}
+                    <div className="position-fixed bottom-0 start-0 p-4">
+                        <button className="btn btn-dark rounded-circle shadow-lg d-flex align-items-center justify-content-center"
+                            style={{ width: '60px', height: '60px', border: '2px solid var(--neon-blue)' }}
+                            onClick={() => setShowSettings(true)}>
+                            <span style={{ fontSize: '1.8rem' }}>⚙️</span>
                         </button>
                     </div>
+
+                    {/* SETTINGS MODAL */}
+                    {showSettings && (
+                        <div className="geo-settings-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}>
+                            <div className="geo-settings-modal">
+                                <h3 className="text-center text-primary mb-4" style={{ fontFamily: 'var(--font-display)', letterSpacing: '2px' }}>
+                                    CONFIGURATION
+                                </h3>
+
+                                <div className="settings-section">
+                                    <div className="settings-label">Nombre de manches</div>
+                                    <div className="geo-range-container">
+                                        <input
+                                            type="range"
+                                            className="geo-range"
+                                            min="1" max="20"
+                                            value={settings.roundsCount}
+                                            onChange={(e) => setSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
+                                        />
+                                        <div className="range-value">{settings.roundsCount}</div>
+                                    </div>
+                                </div>
+
+                                <div className="settings-section">
+                                    <div className="settings-label">Temps par manche (secondes)</div>
+                                    <div className="geo-range-container">
+                                        <input
+                                            type="range"
+                                            className="geo-range"
+                                            min="10" max="300" step="10"
+                                            value={settings.timePerRound}
+                                            onChange={(e) => setSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
+                                        />
+                                        <div className="range-value">{settings.timePerRound}s</div>
+                                    </div>
+                                </div>
+
+                                <div className="settings-section">
+                                    <div className="settings-label">Régions (Plusieurs possibles)</div>
+                                    <div className="region-grid">
+                                        {[
+                                            { id: 'world', name: 'Monde', icon: '🌍' },
+                                            { id: 'europe', name: 'Europe', icon: '🇪🇺' },
+                                            { id: 'asia', name: 'Asie', icon: '⛩️' },
+                                            { id: 'africa', name: 'Afrique', icon: '🦁' },
+                                            { id: 'americas', name: 'Amériques', icon: '🌎' },
+                                            { id: 'oceania', name: 'Océanie', icon: '🦘' },
+                                            { id: 'france', name: 'France', icon: '🇫🇷' },
+                                            { id: 'usa', name: 'USA', icon: '🇺🇸' },
+                                        ].map(region => {
+                                            const isSelected = settings.mapType.includes(region.id);
+                                            return (
+                                                <div
+                                                    key={region.id}
+                                                    className={`region-option ${isSelected ? 'selected' : ''}`}
+                                                    onClick={() => {
+                                                        let newTypes;
+                                                        if (region.id === 'world') {
+                                                            // Si on clique World, on ne garde que World
+                                                            newTypes = ['world'];
+                                                        } else {
+                                                            // Si on clique une autre, on enlève World si présent
+                                                            newTypes = settings.mapType.filter(t => t !== 'world');
+
+                                                            if (isSelected) {
+                                                                newTypes = newTypes.filter(t => t !== region.id);
+                                                            } else {
+                                                                newTypes.push(region.id);
+                                                            }
+
+                                                            // Si plus rien, on remet World par défaut
+                                                            if (newTypes.length === 0) newTypes = ['world'];
+                                                        }
+                                                        setSettings({ ...settings, mapType: newTypes });
+                                                    }}
+                                                >
+                                                    <div className="region-icon">{region.icon}</div>
+                                                    <div className="region-name">{region.name}</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="text-center mt-4">
+                                    <button className="btn btn-primary btn-lg px-5" onClick={() => setShowSettings(false)}>
+                                        Valider
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* START BUTTON */}
                     <button className="kahoot-start-btn" onClick={startGame} disabled={players.length === 0}>
@@ -528,7 +615,7 @@ function GeoHostView({ onBack }) {
                                             const hasGuessed = guessedPlayers.has(player.id);
                                             return (
                                                 <div key={player.id} className="col-6 col-md-3">
-                                                    <div className={`geo-player-status-card ${hasGuessed ? 'answered' : 'waiting'}`}>
+                                                    <div className={`geo-player-status-card ${player.disconnected ? 'disconnected' : hasGuessed ? 'answered' : 'waiting'}`}>
                                                         <div className="player-avatar">
                                                             {player.avatar ? (
                                                                 <img src={player.avatar} alt="" />
@@ -536,7 +623,7 @@ function GeoHostView({ onBack }) {
                                                         </div>
                                                         <div className="player-name">{player.name}</div>
                                                         <div className="player-status">
-                                                            {hasGuessed ? '✓ Répondu' : '⏳ En attente...'}
+                                                            {player.disconnected ? '⚠️ Déconnecté' : hasGuessed ? '✓ Répondu' : '⏳ En attente...'}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -712,6 +799,9 @@ function GeoHostView({ onBack }) {
                             </div>
 
                             <div className="text-center mt-4">
+                                <button className="btn btn-success btn-lg me-3" onClick={restartGame}>
+                                    🔄 Rejouer
+                                </button>
                                 <button className="btn btn-outline-secondary btn-lg" onClick={onBack}>
                                     🏠 Retour au menu
                                 </button>

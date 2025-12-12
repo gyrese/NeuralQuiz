@@ -109,66 +109,75 @@ class GeoGameManager {
     }
 
     // Sélectionner un lieu aléatoire
-    getRandomLocation(mapType = 'world') {
-        let locations = WORLD_LOCATIONS;
+    getRandomLocation(mapType = ['world']) {
+        let locations = [];
+        const selectedRegions = Array.isArray(mapType) ? mapType : [mapType];
 
-        // Filtrer par région si nécessaire
-        const europeanCountries = [
-            'France', 'UK', 'Italy', 'Germany', 'Spain', 'Portugal', 'Austria',
-            'Czech Republic', 'Sweden', 'Denmark', 'Netherlands', 'Belgium',
-            'Switzerland', 'Norway', 'Finland', 'Poland', 'Hungary', 'Romania',
-            'Bulgaria', 'Greece', 'Croatia', 'Slovenia', 'Serbia', 'Ireland',
-            'Slovakia', 'Estonia', 'Latvia', 'Lithuania', 'Albania', 'Montenegro',
-            'North Macedonia', 'Bosnia and Herzegovina'
-        ];
-
-        const asianCountries = [
-            'Japan', 'South Korea', 'China', 'Taiwan', 'Hong Kong', 'Macau',
-            'Thailand', 'Vietnam', 'Indonesia', 'Malaysia', 'Singapore', 'Philippines',
-            'Cambodia', 'Laos', 'Myanmar', 'India', 'Sri Lanka', 'Nepal', 'Bhutan',
-            'Bangladesh', 'Pakistan', 'UAE', 'Qatar', 'Saudi Arabia', 'Israel',
-            'Turkey', 'Iran', 'Jordan', 'Lebanon', 'Oman', 'Bahrain', 'Kuwait',
-            'Uzbekistan', 'Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan'
-        ];
-
-        if (mapType === 'europe') {
-            locations = WORLD_LOCATIONS.filter(l => europeanCountries.includes(l.country));
-        } else if (mapType === 'asia') {
-            locations = WORLD_LOCATIONS.filter(l => asianCountries.includes(l.country));
-        } else if (mapType === 'france') {
-            locations = WORLD_LOCATIONS.filter(l => l.country === 'France');
-        } else if (mapType === 'usa') {
-            locations = WORLD_LOCATIONS.filter(l => l.country === 'USA');
-        } else if (mapType === 'americas') {
-            locations = WORLD_LOCATIONS.filter(l =>
-                ['USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia',
-                    'Peru', 'Ecuador', 'Venezuela', 'Bolivia', 'Paraguay', 'Uruguay',
-                    'Costa Rica', 'Panama', 'Guatemala', 'Honduras', 'El Salvador',
-                    'Nicaragua', 'Cuba', 'Dominican Republic', 'Jamaica', 'Puerto Rico',
-                    'Bahamas', 'Barbados', 'Martinique', 'Guadeloupe', 'Belize'
-                ].includes(l.country)
-            );
-        } else if (mapType === 'africa') {
-            locations = WORLD_LOCATIONS.filter(l =>
-                ['Egypt', 'Morocco', 'Tunisia', 'Algeria', 'South Africa', 'Kenya',
-                    'Tanzania', 'Nigeria', 'Ghana', 'Senegal', 'Ethiopia', 'Rwanda',
-                    'Uganda', 'Namibia', 'Botswana', 'Zimbabwe', 'Zambia', 'Mozambique',
-                    'Madagascar', 'Mauritius', 'Seychelles', 'Ivory Coast', 'Liberia'
-                ].includes(l.country)
-            );
-        } else if (mapType === 'oceania') {
-            locations = WORLD_LOCATIONS.filter(l =>
-                ['Australia', 'New Zealand', 'Fiji', 'Tonga', 'Samoa', 'New Caledonia',
-                    'French Polynesia', 'Palau', 'Guam'
-                ].includes(l.country)
-            );
+        // Si "world" est sélectionné ou si la liste est vide, on prend tout
+        if (selectedRegions.includes('world') || selectedRegions.length === 0) {
+            return this.pickRandomFrom(WORLD_LOCATIONS);
         }
 
-        // Fallback si pas de locations trouvées
-        if (locations.length === 0) {
-            locations = WORLD_LOCATIONS;
+        const regions = {
+            europe: [
+                'France', 'UK', 'Italy', 'Germany', 'Spain', 'Portugal', 'Austria',
+                'Czech Republic', 'Sweden', 'Denmark', 'Netherlands', 'Belgium',
+                'Switzerland', 'Norway', 'Finland', 'Poland', 'Hungary', 'Romania',
+                'Bulgaria', 'Greece', 'Croatia', 'Slovenia', 'Serbia', 'Ireland',
+                'Slovakia', 'Estonia', 'Latvia', 'Lithuania', 'Albania', 'Montenegro',
+                'North Macedonia', 'Bosnia and Herzegovina', 'Ukraine', 'Belarus', 'Moldova'
+            ],
+            asia: [
+                'Japan', 'South Korea', 'China', 'Taiwan', 'Hong Kong', 'Macau',
+                'Thailand', 'Vietnam', 'Indonesia', 'Malaysia', 'Singapore', 'Philippines',
+                'Cambodia', 'Laos', 'Myanmar', 'India', 'Sri Lanka', 'Nepal', 'Bhutan',
+                'Bangladesh', 'Pakistan', 'UAE', 'Qatar', 'Saudi Arabia', 'Israel',
+                'Turkey', 'Iran', 'Jordan', 'Lebanon', 'Oman', 'Bahrain', 'Kuwait',
+                'Uzbekistan', 'Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan'
+            ],
+            africa: [
+                'Egypt', 'Morocco', 'Tunisia', 'Algeria', 'South Africa', 'Kenya',
+                'Tanzania', 'Nigeria', 'Ghana', 'Senegal', 'Ethiopia', 'Rwanda',
+                'Uganda', 'Namibia', 'Botswana', 'Zimbabwe', 'Zambia', 'Mozambique',
+                'Madagascar', 'Mauritius', 'Seychelles', 'Ivory Coast', 'Liberia'
+            ],
+            americas: [
+                'USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia',
+                'Peru', 'Ecuador', 'Venezuela', 'Bolivia', 'Paraguay', 'Uruguay',
+                'Costa Rica', 'Panama', 'Guatemala', 'Honduras', 'El Salvador',
+                'Nicaragua', 'Cuba', 'Dominican Republic', 'Jamaica', 'Puerto Rico',
+                'Bahamas', 'Barbados', 'Martinique', 'Guadeloupe', 'Belize'
+            ],
+            oceania: [
+                'Australia', 'New Zealand', 'Fiji', 'Tonga', 'Samoa', 'New Caledonia',
+                'French Polynesia', 'Palau', 'Guam'
+            ],
+            france: ['France'],
+            usa: ['USA']
+        };
+
+        // Compiler les lieux de toutes les régions sélectionnées
+        let pool = [];
+        selectedRegions.forEach(region => {
+            if (regions[region]) {
+                const countryList = regions[region];
+                const regionLocations = WORLD_LOCATIONS.filter(l => countryList.includes(l.country));
+                pool = pool.concat(regionLocations);
+            }
+        });
+
+        // Fallback
+        if (pool.length === 0) {
+            pool = WORLD_LOCATIONS;
         }
 
+        // Dédoublonner (au cas où, ex: France inclu dans Europe ET France)
+        pool = [...new Set(pool)];
+
+        return this.pickRandomFrom(pool);
+    }
+
+    pickRandomFrom(locations) {
         // Ajouter un léger décalage aléatoire pour varier les vues
         const baseLocation = locations[Math.floor(Math.random() * locations.length)];
         const offset = 0.01; // ~1km de variation
@@ -229,15 +238,34 @@ class GeoGameManager {
 
         player.lastDistance = distance;
 
-        // Calculer les points (plus c'est proche, plus c'est de points)
-        // 5000 points max, diminue avec la distance
-        const score = this.calculateScore(distance, room.maxPoints);
-        player.roundScores.push(score);
-        player.totalScore += score;
+        // 1. Score de Distance (5000 max)
+        const distanceScore = this.calculateScore(distance, room.maxPoints);
+
+        // 2. Bonus de Temps (1000 max)
+        // Uniquement si le joueur a marqué des points de distance (> 0)
+        let timeBonus = 0;
+        if (distanceScore > 0) {
+            const timeElapsed = (Date.now() - room.roundStartTime) / 1000;
+            const totalTime = room.timePerRound;
+            const ratio = Math.max(0, 1 - (timeElapsed / totalTime)); // 1.0 au début, 0.0 à la fin
+            timeBonus = Math.round(1000 * ratio);
+        }
+
+        const totalRoundScore = distanceScore + timeBonus;
+
+        player.roundScores.push(totalRoundScore);
+        player.totalScore += totalRoundScore;
 
         const allGuessed = this.allPlayersGuessed(roomCode);
 
-        return { success: true, distance, score, allGuessed };
+        // On retourne le détail pour l'afficher côté client si besoin
+        return {
+            success: true,
+            distance,
+            score: totalRoundScore,
+            pointsBreakdown: { distance: distanceScore, time: timeBonus },
+            allGuessed
+        };
     }
 
     // Formule de Haversine pour calculer la distance en km
@@ -345,15 +373,61 @@ class GeoGameManager {
         };
     }
 
+
+    restartGame(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        // Reset game state but keep players
+        room.gameState = 'LOBBY';
+        room.currentRound = 0;
+        room.currentLocation = null;
+        room.locations = [];
+        room.roundStartTime = null;
+
+        // Reset scores
+        for (const player of room.players.values()) {
+            player.totalScore = 0;
+            player.roundScores = [];
+            player.currentGuess = null;
+            player.hasGuessed = false;
+            player.lastDistance = null;
+            player.disconnected = false; // Reset disconnect status on restart
+        }
+
+        return { success: true, room };
+    }
+
+    kickPlayer(roomCode, playerId) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        if (room.players.has(playerId)) {
+            room.players.delete(playerId);
+            return { success: true };
+        }
+        return { error: 'Joueur introuvable' };
+    }
+
     removePlayer(playerId) {
         for (const [code, room] of this.rooms) {
-            if (room.players.has(playerId)) {
-                room.players.delete(playerId);
-                return { roomCode: code, room };
-            }
             if (room.hostId === playerId) {
                 this.rooms.delete(code);
                 return { roomCode: code, room, isHost: true };
+            }
+
+            if (room.players.has(playerId)) {
+
+                // Si on est en partie, on ne supprime pas le joueur, on le marque déconnecté
+                if (room.gameState !== 'LOBBY') {
+                    const player = room.players.get(playerId);
+                    player.disconnected = true;
+                    return { roomCode: code, room, isHost: false, type: 'disconnected', player };
+                }
+
+                // Si on est dans le lobby, on supprime carrément
+                room.players.delete(playerId);
+                return { roomCode: code, room, isHost: false, type: 'left' };
             }
         }
         return null;
@@ -365,15 +439,19 @@ class GeoGameManager {
         return Array.from(room.players.values());
     }
 
-    // Vérifier si tous les joueurs ont répondu
+    // Vérifier si tous les joueurs (connectés) ont répondu
     allPlayersGuessed(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return false;
 
-        for (const player of room.players.values()) {
+        const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
+
+        if (activePlayers.length === 0) return false;
+
+        for (const player of activePlayers) {
             if (!player.hasGuessed) return false;
         }
-        return room.players.size > 0;
+        return true;
     }
 }
 

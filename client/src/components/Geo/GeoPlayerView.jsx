@@ -90,12 +90,30 @@ function GeoPlayerView({ onBack }) {
             setStep('JOIN');
         });
 
+        socket.on('geo-kicked', () => {
+            setStep('JOIN');
+            setError('Vous avez été exclu de la partie par l\'hôte.');
+            setRoomCode('');
+        });
+
+        socket.on('geo-game-restarted', () => {
+            setStep('WAITING');
+            setMyScore(0);
+            setMyDistance(null);
+            setRoundResults(null);
+            setFinalResults(null);
+            setGuessMarker(null);
+            setPointsAnimation(null);
+        });
+
         return () => {
             socket.off('geo-game-started');
             socket.off('geo-round-ended');
             socket.off('geo-next-round');
             socket.off('geo-game-over');
             socket.off('geo-host-disconnected');
+            socket.off('geo-kicked');
+            socket.off('geo-game-restarted');
             if (timerRef.current) clearInterval(timerRef.current);
         };
     }, []);
@@ -339,9 +357,12 @@ function GeoPlayerView({ onBack }) {
                 setMyScore(prev => prev + response.score);
 
                 // Show points animation
-                setPointsAnimation({ score: response.score });
+                setPointsAnimation({
+                    score: response.score,
+                    bonus: response.breakdown?.time
+                });
                 soundManager.play('pop');
-                setTimeout(() => setPointsAnimation(null), 2000);
+                setTimeout(() => setPointsAnimation(null), 3000);
             }
         });
     };
@@ -486,7 +507,12 @@ function GeoPlayerView({ onBack }) {
                     <div ref={streetViewRef} className="geo-player-streetview" style={{ height: '100%' }}></div>
                     {pointsAnimation && (
                         <div className="points-anim">
-                            +{pointsAnimation.score} PTS
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>+{pointsAnimation.score} PTS</div>
+                            {pointsAnimation.bonus > 0 && (
+                                <div style={{ fontSize: '1rem', color: '#ffd700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                                    dont {pointsAnimation.bonus} bonus vitesse ⚡
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

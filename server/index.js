@@ -397,7 +397,18 @@ io.on('connection', (socket) => {
             if (geoResult.isHost) {
                 io.to(geoResult.roomCode).emit('geo-host-disconnected');
             } else {
+                // If disconnected (in game), we still emit 'player-left' or 'player-updated'
+                // The client will receive the full list of players, including the disconnected one (if in game)
+                // or excluding the one (if in lobby)
                 io.to(geoResult.roomCode).emit('geo-player-left', geoGameManager.getPlayersInRoom(geoResult.roomCode));
+
+                // If game was playing and this player disconnected, maybe everyone else has answered now?
+                if (geoResult.type === 'disconnected') {
+                    const allGuessed = geoGameManager.allPlayersGuessed(geoResult.roomCode);
+                    if (allGuessed) {
+                        io.to(geoResult.roomCode).emit('geo-all-guessed');
+                    }
+                }
             }
         }
 
@@ -494,10 +505,59 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('geo-restart-game', ({ roomCode }, callback) => {
+        const room = geoGameManager.getRoom(roomCode);
+        if (!room) {
+            callback({ error: 'Room not found' });
+            return;
+        }
+        if (room.hostId !== socket.id) {
+            callback({ error: 'Not the host' });
+            return;
+        }
+
+        const result = geoGameManager.restartGame(roomCode);
+        if (result.success) {
+            callback({ success: true });
+            io.to(`geo-${roomCode}`).emit('geo-game-restarted');
+        } else {
+            callback({ error: result.error });
+        }
+    });
+
+    socket.on('geo-kick-player', ({ roomCode, playerId }, callback) => {
+        const room = geoGameManager.getRoom(roomCode);
+        if (!room || room.hostId !== socket.id) {
+            callback({ error: 'Unauthorized' });
+            return;
+        }
+
+        const result = geoGameManager.kickPlayer(roomCode, playerId);
+        if (result.success) {
+            callback({ success: true });
+
+            // Notify specific player they were kicked (optional, but good UX)
+            // Since we kick by socket ID, we can target them directly if they are still connected
+            io.to(playerId).emit('geo-kicked');
+            // Force verify they leave the room
+            io.sockets.sockets.get(playerId)?.leave(`geo-${roomCode}`);
+
+            // Notify room
+            io.to(`geo-${roomCode}`).emit('geo-player-left', geoGameManager.getPlayersInRoom(roomCode));
+        } else {
+            callback({ error: result.error });
+        }
+    });
+
     socket.on('geo-submit-guess', ({ roomCode, lat, lng }, callback) => {
         const result = geoGameManager.submitGuess(roomCode, socket.id, lat, lng);
         if (result.success) {
-            callback({ success: true, distance: result.distance, score: result.score });
+            callback({
+                success: true,
+                distance: result.distance,
+                score: result.score,
+                breakdown: result.pointsBreakdown
+            });
             io.to(`geo-${roomCode}`).emit('geo-player-guessed', { playerId: socket.id });
 
             // Vérifier si tous ont répondu
@@ -579,7 +639,6 @@ app.use(express.static(path.join(__dirname, '../client/dist')));
 
 // Pour toutes les autres requêtes (SPA), renvoyer index.html
 // Note: Commenté en dev car Vite gère le routing. Décommenter pour la production.
-/*
 app.get('/*', (req, res) => {
     const indexPath = path.join(__dirname, '../client/dist/index.html');
     if (require('fs').existsSync(indexPath)) {
@@ -588,7 +647,6 @@ app.get('/*', (req, res) => {
         res.status(404).send("Frontend build not found. Did you run 'npm run build' in the client folder?");
     }
 });
-*/
 
 server.listen(PORT, () => {
     console.log(`Serveur en écoute sur le port ${PORT}`);

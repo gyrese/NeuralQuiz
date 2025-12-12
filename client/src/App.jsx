@@ -10,6 +10,7 @@ import './components/Geo/GeoStyles.css';
 function App() {
   const [view, setView] = useState('HOME'); // HOME, GAME_SELECT, HOST, PLAYER, ADMIN, GEO_HOST, GEO_PLAYER
   const [isConnected, setIsConnected] = useState(socket.connected);
+  const [initialRoomCode, setInitialRoomCode] = useState(null);
 
   useEffect(() => {
     function onConnect() {
@@ -27,6 +28,18 @@ function App() {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
     };
+  }, []);
+
+  // Auto-redirect if ?code=XXXX is in URL (from QR Code scan)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('code');
+    if (roomCode) {
+      setInitialRoomCode(roomCode.toUpperCase());
+      setView('GEO_PLAYER');
+      // Clean URL without reloading
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   return (
@@ -126,7 +139,7 @@ function App() {
       {view === 'PLAYER' && <PlayerView onBack={() => setView('QUIZ_SELECT')} />}
       {view === 'ADMIN' && <AdminView onBack={() => setView('HOME')} />}
       {view === 'GEO_HOST' && <GeoHostView onBack={() => setView('GEO_SELECT')} />}
-      {view === 'GEO_PLAYER' && <GeoPlayerView onBack={() => setView('GEO_SELECT')} />}
+      {view === 'GEO_PLAYER' && <GeoPlayerView onBack={() => setView('GEO_SELECT')} initialRoomCode={initialRoomCode} />}
     </div>
   );
 }

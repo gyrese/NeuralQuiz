@@ -5,9 +5,9 @@ import './GeoStyles.css';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-function GeoPlayerView({ onBack }) {
+function GeoPlayerView({ onBack, initialRoomCode }) {
     const [step, setStep] = useState('JOIN'); // JOIN, WAITING, PLAYING, GUESSED, ROUND_END, GAME_END
-    const [roomCode, setRoomCode] = useState('');
+    const [roomCode, setRoomCode] = useState(initialRoomCode || '');
     const [pseudo, setPseudo] = useState('');
     const [avatar, setAvatar] = useState(null);
     const [error, setError] = useState('');

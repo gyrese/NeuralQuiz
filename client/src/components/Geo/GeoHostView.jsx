@@ -419,11 +419,6 @@ function GeoHostView({ onBack }) {
                     <div className="d-flex gap-3">
                         <div className="kahoot-qr">
                             <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode)}`} alt="QR Code Joueur" />
-                            <div className="text-center mt-1" style={{ fontSize: '0.7rem', color: '#fff' }}>👤 Joueur</div>
-                        </div>
-                        <div className="kahoot-qr">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode + '&mode=remote')}`} alt="QR Code Télécommande" />
-                            <div className="text-center mt-1" style={{ fontSize: '0.7rem', color: '#fff' }}>📱 Télécommande</div>
                         </div>
                     </div>
                 </div>
@@ -558,6 +553,19 @@ function GeoHostView({ onBack }) {
                                                 </div>
                                             );
                                         })}
+                                    </div>
+                                </div>
+
+                                {/* Remote Control QR Code */}
+                                <div className="settings-section" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', marginTop: '20px' }}>
+                                    <div className="settings-label">📱 Télécommande Admin</div>
+                                    <div className="text-center">
+                                        <img
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode + '&mode=remote')}`}
+                                            alt="QR Code Télécommande"
+                                            style={{ borderRadius: '8px', border: '2px solid var(--neon-blue)' }}
+                                        />
+                                        <p className="text-muted small mt-2 mb-0">Scannez pour contrôler depuis votre téléphone</p>
                                     </div>
                                 </div>
 

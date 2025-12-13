@@ -31,6 +31,7 @@ function GeoHostView({ onBack }) {
     const panoramaInstance = useRef(null);
     const mapInstance = useRef(null);
     const timerRef = useRef(null);
+    const rotationRef = useRef(null); // Animation de rotation auto
 
     useEffect(() => {
         // Créer la room au montage
@@ -65,6 +66,7 @@ function GeoHostView({ onBack }) {
             socket.off('geo-player-guessed');
             socket.off('geo-all-guessed');
             if (timerRef.current) clearInterval(timerRef.current);
+            if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
         };
     }, []);
 
@@ -92,20 +94,45 @@ function GeoHostView({ onBack }) {
     const initStreetView = () => {
         if (!correctLocation || !streetViewRef.current) return;
 
+        // Nettoyer l'ancienne animation
+        if (rotationRef.current) {
+            cancelAnimationFrame(rotationRef.current);
+            rotationRef.current = null;
+        }
+
+        const initialHeading = Math.random() * 360;
+
         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
             streetViewRef.current,
             {
                 position: { lat: correctLocation.lat, lng: correctLocation.lng },
-                pov: { heading: Math.random() * 360, pitch: 0 },
-                zoom: 1,
+                pov: { heading: initialHeading, pitch: 5 },
+                zoom: 0,
                 addressControl: false,
                 showRoadLabels: false,
-                linksControl: true,
-                panControl: true,
+                linksControl: false,
+                panControl: false,
+                zoomControl: false,
                 enableCloseButton: false,
-                fullscreenControl: false
+                fullscreenControl: false,
+                motionTracking: false,
+                motionTrackingControl: false
             }
         );
+
+        // Animation de rotation lente automatique
+        let heading = initialHeading;
+        const rotateCamera = () => {
+            if (panoramaInstance.current && gameState === 'PLAYING') {
+                heading = (heading + 0.1) % 360; // Rotation très lente
+                panoramaInstance.current.setPov({
+                    heading: heading,
+                    pitch: 5
+                });
+                rotationRef.current = requestAnimationFrame(rotateCamera);
+            }
+        };
+        rotationRef.current = requestAnimationFrame(rotateCamera);
     };
 
     // Init map pour les résultats
@@ -594,88 +621,70 @@ function GeoHostView({ onBack }) {
         );
     }
 
-    // RENDER PLAYING - Vue tableau de bord pour l'hôte
+    // RENDER PLAYING - Vue Street View immersive pour l'écran TV
     if (gameState === 'PLAYING') {
         return (
-            <div className="geo-lobby-background">
-                <div className="geo-host-dashboard">
-                    {/* Header avec infos principales */}
-                    <div className="geo-host-header">
-                        <div className="geo-host-code">
-                            <span className="label">PIN SALON</span>
-                            <span className="value text-warning">{roomCode}</span>
+            <div className="geo-host-playing-fullscreen">
+                {/* Street View plein écran */}
+                <div
+                    ref={streetViewRef}
+                    className="geo-host-streetview-fullscreen"
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        zIndex: 1
+                    }}
+                ></div>
+
+                {/* Overlay avec infos */}
+                <div className="geo-host-playing-overlay">
+                    {/* Header flottant */}
+                    <div className="geo-host-playing-header">
+                        <div className="geo-host-badge">
+                            <span className="badge-label">MANCHE</span>
+                            <span className="badge-value">{currentRound}/{totalRounds}</span>
                         </div>
-                        <div className="geo-host-round">
-                            <span className="label">MANCHE</span>
-                            <span className="value">{currentRound}/{totalRounds}</span>
+                        <div className={`geo-host-timer-big ${timeLeft <= 10 ? 'danger pulse' : ''}`}>
+                            {formatTime(timeLeft)}
                         </div>
-                        <div className={`geo-host-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
-                            <span className="timer-value">{formatTime(timeLeft)}</span>
-                        </div>
-                        <div className="geo-host-progress">
-                            <span className="label">RÉPONSES</span>
-                            <span className="value">{guessedPlayers.size}/{players.length}</span>
+                        <div className="geo-host-badge">
+                            <span className="badge-label">RÉPONSES</span>
+                            <span className="badge-value">{guessedPlayers.size}/{players.length}</span>
                         </div>
                     </div>
 
-                    {/* Contenu principal */}
-                    <div className="container py-4">
-                        <div className="row">
-                            {/* Liste des joueurs avec leur statut */}
-                            <div className="col-12">
-                                <div className="card p-4">
-                                    <h4 className="text-info mb-4">👥 État des joueurs</h4>
-                                    <div className="row g-3">
-                                        {players.map(player => {
-                                            const hasGuessed = guessedPlayers.has(player.id);
-                                            return (
-                                                <div key={player.id} className="col-6 col-md-3">
-                                                    <div className={`geo-player-status-card ${player.disconnected ? 'disconnected' : hasGuessed ? 'answered' : 'waiting'}`}>
-                                                        <div className="player-avatar">
-                                                            {player.avatar ? (
-                                                                <img src={player.avatar} alt="" />
-                                                            ) : '🌐'}
-                                                        </div>
-                                                        <div className="player-name">{player.name}</div>
-                                                        <div className="player-status">
-                                                            {player.disconnected ? '⚠️ Déconnecté' : hasGuessed ? '✓ Répondu' : '⏳ En attente...'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                    {/* Liste des joueurs en bas */}
+                    <div className="geo-host-players-strip">
+                        {players.map(player => {
+                            const hasGuessed = guessedPlayers.has(player.id);
+                            return (
+                                <div
+                                    key={player.id}
+                                    className={`geo-host-player-chip ${player.disconnected ? 'disconnected' : hasGuessed ? 'answered' : 'waiting'}`}
+                                >
+                                    <div className="chip-avatar">
+                                        {player.avatar ? (
+                                            <img src={player.avatar} alt="" />
+                                        ) : '👤'}
                                     </div>
+                                    <span className="chip-name">{player.name}</span>
+                                    <span className="chip-status">
+                                        {player.disconnected ? '⚠️' : hasGuessed ? '✓' : '⏳'}
+                                    </span>
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Message central */}
-                        <div className="geo-host-message mt-5">
-                            {guessedPlayers.size === players.length && players.length > 0 ? (
-                                <div className="all-answered">
-                                    <span className="icon">✅</span>
-                                    <span className="text">Tous les joueurs ont répondu !</span>
-                                </div>
-                            ) : (
-                                <div className="waiting-answers">
-                                    <div className="spinner-border text-primary me-3" role="status"></div>
-                                    <span>En attente des réponses...</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Bouton pour terminer */}
-                        <div className="text-center mt-4">
-                            <button className="btn btn-danger btn-lg px-5" onClick={endRound}>
-                                ⏹️ TERMINER LA MANCHE
-                            </button>
-                            {guessedPlayers.size === players.length && players.length > 0 && (
-                                <p className="text-success mt-2">
-                                    <small>Tous ont répondu - vous pouvez terminer</small>
-                                </p>
-                            )}
-                        </div>
+                            );
+                        })}
                     </div>
+
+                    {/* Message si tous ont répondu */}
+                    {guessedPlayers.size === players.length && players.length > 0 && (
+                        <div className="geo-host-all-answered">
+                            ✅ Tous les joueurs ont répondu !
+                        </div>
+                    )}
                 </div>
             </div>
         );

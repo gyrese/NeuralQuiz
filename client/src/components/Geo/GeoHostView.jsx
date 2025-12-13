@@ -19,6 +19,7 @@ function GeoHostView({ onBack }) {
     const [isEndingRound, setIsEndingRound] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [reactions, setReactions] = useState([]); // Floating emoji reactions
+    const [autoNextCountdown, setAutoNextCountdown] = useState(null); // Countdown before auto next round
 
     // Settings
     const [settings, setSettings] = useState({
@@ -33,6 +34,7 @@ function GeoHostView({ onBack }) {
     const mapInstance = useRef(null);
     const timerRef = useRef(null);
     const rotationRef = useRef(null); // Animation de rotation auto
+    const autoNextRef = useRef(null); // Timer for auto next round
 
     useEffect(() => {
         // Créer la room au montage
@@ -79,6 +81,7 @@ function GeoHostView({ onBack }) {
             socket.off('geo-reaction');
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
+            if (autoNextRef.current) clearInterval(autoNextRef.current);
         };
     }, []);
 
@@ -368,10 +371,30 @@ function GeoHostView({ onBack }) {
 
         socket.emit('geo-end-round', { roomCode }, (response) => {
             if (response.success) {
+                // Stop rotation animation
+                if (rotationRef.current) {
+                    cancelAnimationFrame(rotationRef.current);
+                    rotationRef.current = null;
+                }
+
                 setGameState('ROUND_END');
                 setRoundResults(response.results);
                 setCorrectLocation(response.correctLocation);
                 soundManager.play('end');
+
+                // Start auto-next countdown (8 seconds)
+                setAutoNextCountdown(8);
+                autoNextRef.current = setInterval(() => {
+                    setAutoNextCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(autoNextRef.current);
+                            autoNextRef.current = null;
+                            nextRound();
+                            return null;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
             } else {
                 console.error('[GEO] End round error:', response.error);
                 setIsEndingRound(false);
@@ -381,6 +404,14 @@ function GeoHostView({ onBack }) {
 
     const nextRound = () => {
         console.log('[GEO] nextRound called');
+
+        // Clear auto-next timer if manually called
+        if (autoNextRef.current) {
+            clearInterval(autoNextRef.current);
+            autoNextRef.current = null;
+        }
+        setAutoNextCountdown(null);
+
         socket.emit('geo-next-round', { roomCode }, (response) => {
             console.log('[GEO] nextRound response:', response);
             if (response.gameOver) {
@@ -795,6 +826,11 @@ function GeoHostView({ onBack }) {
                                         <button className="btn btn-primary btn-lg w-100" onClick={nextRound}>
                                             {currentRound >= totalRounds ? '🏁 Résultats finaux' : '➡️ Manche suivante'}
                                         </button>
+                                        {autoNextCountdown && (
+                                            <p className="text-muted text-center mt-2 mb-0">
+                                                ⏱️ Auto dans {autoNextCountdown}s...
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -132,12 +132,13 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
             if (response.error) {
                 setError(response.error);
             } else {
-                socket.join(`geo-${roomCode.toUpperCase()}`);
+                console.log('[Remote] Connected successfully:', response);
                 setStep(response.gameState === 'LOBBY' ? 'LOBBY' : response.gameState);
                 setPlayers(response.players || []);
                 setCurrentRound(response.currentRound || 0);
                 setTotalRounds(response.totalRounds || 5);
                 setTimePerRound(response.timePerRound || 60);
+                setRoomCode(roomCode.toUpperCase());
 
                 if (response.gameState === 'PLAYING' && response.roundStartTime) {
                     const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);

@@ -419,6 +419,14 @@ io.on('connection', (socket) => {
     // GEO GUESSR EVENTS
     // ================================================
 
+    // Helper: Check if socket can control the game (host or remote)
+    const canControlGame = (room, socketId) => {
+        if (!room) return false;
+        if (room.hostId === socketId) return true;
+        if (room.remoteIds && room.remoteIds.includes(socketId)) return true;
+        return false;
+    };
+
     socket.on('geo-create-room', ({ settings }, callback) => {
         const roomCode = geoGameManager.createRoom(socket.id, settings);
         socket.join(`geo-${roomCode}`);
@@ -442,7 +450,10 @@ io.on('connection', (socket) => {
                         gameState: result.gameState,
                         currentRound: result.currentRound,
                         totalRounds: result.totalRounds,
-                        location: result.location
+                        location: result.location,
+                        roundStartTime: result.roundStartTime,
+                        timePerRound: result.timePerRound,
+                        myScore: result.myScore
                     });
                     console.log(`[GEO] ${playerName} reconnected to room ${roomCode}`);
                 } else {
@@ -459,6 +470,38 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Remote control connection - allows controlling the game from a phone
+    socket.on('geo-join-remote', ({ roomCode }, callback) => {
+        try {
+            const room = geoGameManager.getRoom(roomCode);
+            if (!room) {
+                callback({ error: 'Salon introuvable' });
+                return;
+            }
+
+            // Store remote socket for this room (allow controlling)
+            if (!room.remoteIds) room.remoteIds = [];
+            room.remoteIds.push(socket.id);
+
+            socket.join(`geo-${roomCode}`);
+
+            callback({
+                success: true,
+                gameState: room.gameState,
+                players: geoGameManager.getPlayersInRoom(roomCode),
+                currentRound: room.currentRound,
+                totalRounds: room.totalRounds,
+                timePerRound: room.timePerRound,
+                roundStartTime: room.roundStartTime
+            });
+
+            console.log(`[GEO] Remote control connected to room ${roomCode}`);
+        } catch (error) {
+            console.error("[GEO] Erreur lors du join-remote:", error);
+            callback({ error: "Erreur serveur lors de la connexion." });
+        }
+    });
+
     socket.on('geo-update-settings', ({ roomCode, settings }) => {
         const room = geoGameManager.getRoom(roomCode);
         if (room && room.hostId === socket.id && settings) {
@@ -471,7 +514,7 @@ io.on('connection', (socket) => {
 
     socket.on('geo-start-game', ({ roomCode, settings }, callback) => {
         const room = geoGameManager.getRoom(roomCode);
-        if (room && room.hostId === socket.id) {
+        if (room && canControlGame(room, socket.id)) {
             // Appliquer les settings si fournis
             if (settings) {
                 room.totalRounds = settings.roundsCount || room.totalRounds;
@@ -512,8 +555,8 @@ io.on('connection', (socket) => {
             callback({ error: 'Room not found' });
             return;
         }
-        if (room.hostId !== socket.id) {
-            callback({ error: 'Not the host' });
+        if (!canControlGame(room, socket.id)) {
+            callback({ error: 'Not authorized' });
             return;
         }
 
@@ -577,8 +620,8 @@ io.on('connection', (socket) => {
             callback({ error: 'Room not found' });
             return;
         }
-        if (room.hostId !== socket.id) {
-            callback({ error: 'Not the host' });
+        if (!canControlGame(room, socket.id)) {
+            callback({ error: 'Not authorized' });
             return;
         }
 
@@ -606,8 +649,8 @@ io.on('connection', (socket) => {
             callback({ error: 'Room not found' });
             return;
         }
-        if (room.hostId !== socket.id) {
-            callback({ error: 'Not the host' });
+        if (!canControlGame(room, socket.id)) {
+            callback({ error: 'Not authorized' });
             return;
         }
 

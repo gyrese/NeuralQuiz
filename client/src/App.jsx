@@ -5,10 +5,11 @@ import PlayerView from './components/Player/PlayerView';
 import AdminView from './components/Admin/AdminView';
 import GeoHostView from './components/Geo/GeoHostView';
 import GeoPlayerView from './components/Geo/GeoPlayerView';
+import GeoRemoteView from './components/Geo/GeoRemoteView';
 import './components/Geo/GeoStyles.css';
 
 function App() {
-  const [view, setView] = useState('HOME'); // HOME, GAME_SELECT, HOST, PLAYER, ADMIN, GEO_HOST, GEO_PLAYER
+  const [view, setView] = useState('HOME'); // HOME, GAME_SELECT, HOST, PLAYER, ADMIN, GEO_HOST, GEO_PLAYER, GEO_REMOTE
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [initialRoomCode, setInitialRoomCode] = useState(null);
 
@@ -34,9 +35,16 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomCode = params.get('code');
+    const mode = params.get('mode');
+
     if (roomCode) {
       setInitialRoomCode(roomCode.toUpperCase());
-      setView('GEO_PLAYER');
+      // Check if it's remote control mode
+      if (mode === 'remote') {
+        setView('GEO_REMOTE');
+      } else {
+        setView('GEO_PLAYER');
+      }
       // Clean URL without reloading
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -140,6 +148,7 @@ function App() {
       {view === 'ADMIN' && <AdminView onBack={() => setView('HOME')} />}
       {view === 'GEO_HOST' && <GeoHostView onBack={() => setView('GEO_SELECT')} />}
       {view === 'GEO_PLAYER' && <GeoPlayerView onBack={() => setView('GEO_SELECT')} initialRoomCode={initialRoomCode} />}
+      {view === 'GEO_REMOTE' && <GeoRemoteView onBack={() => setView('GEO_SELECT')} initialRoomCode={initialRoomCode} />}
     </div>
   );
 }

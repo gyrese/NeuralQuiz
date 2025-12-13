@@ -25,6 +25,11 @@
 - [x] **Visuels** : Utilisation des avatars des joueurs comme marqueurs sur la carte.
 - [x] **Mobile** : Configuration réseau (`host: true`) pour accès depuis smartphones.
 
+### Télécommande Admin
+- [x] **Télécommande Mobile** : Interface de contrôle dédiée (`GeoRemoteView.jsx`) pour gérer la partie depuis un téléphone pendant que l'écran principal est affiché sur TV.
+- [x] **QR Code Télécommande** : Deuxième QR code dans le lobby pour accéder directement à l'interface de contrôle.
+- [x] **Persistance de Session** : Reconnexion automatique robuste lors du rafraîchissement navigateur (timer synchronisé, score restauré).
+
 ---
 
 ## 🚀 À Faire (Todo)

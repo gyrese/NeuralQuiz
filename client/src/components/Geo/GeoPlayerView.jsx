@@ -28,6 +28,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     // UX States
     const [isLoading, setIsLoading] = useState(false);
     const [isJoining, setIsJoining] = useState(false); // Loading state for join button
+    const [isRestoring, setIsRestoring] = useState(false); // Restoring session from localStorage
     const [pointsAnimation, setPointsAnimation] = useState(null); // { score: 1000 }
 
     const streetViewRef = useRef(null);
@@ -37,6 +38,59 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     const mapInstance = useRef(null);
     const markerInstance = useRef(null);
     const timerRef = useRef(null);
+
+    // Restore session from localStorage on mount
+    useEffect(() => {
+        const savedSession = localStorage.getItem('geoSession');
+        if (savedSession) {
+            try {
+                const session = JSON.parse(savedSession);
+                if (session.roomCode && session.pseudo) {
+                    // Show restoring screen immediately
+                    setIsRestoring(true);
+                    setRoomCode(session.roomCode);
+                    setPseudo(session.pseudo);
+                    if (session.avatar) setAvatar(session.avatar);
+                    if (session.myScore) setMyScore(session.myScore);
+
+                    // Attempt to rejoin
+                    setIsJoining(true);
+                    socket.emit('geo-join-room', {
+                        roomCode: session.roomCode.toUpperCase(),
+                        playerName: session.pseudo,
+                        avatar: session.avatar
+                    }, (response) => {
+                        setIsJoining(false);
+                        setIsRestoring(false);
+                        if (response.error) {
+                            // Session invalide, on affiche le formulaire
+                            localStorage.removeItem('geoSession');
+                            setError('Session expirée. Reconnectez-vous.');
+                        } else if (response.reconnected) {
+                            setStep(response.gameState);
+                            setCurrentRound(response.currentRound);
+                            setTotalRounds(response.totalRounds);
+                            setCurrentLocation(response.location);
+                            if (response.myScore !== undefined) setMyScore(response.myScore);
+
+                            // Calculate remaining time based on roundStartTime
+                            if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
+                                const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
+                                const remaining = Math.max(0, response.timePerRound - elapsed);
+                                startTimer(remaining);
+                            } else if (response.gameState === 'PLAYING') {
+                                startTimer(60); // Fallback
+                            }
+                        } else {
+                            setStep('WAITING');
+                        }
+                    });
+                }
+            } catch (e) {
+                localStorage.removeItem('geoSession');
+            }
+        }
+    }, []);
 
     useEffect(() => {
         // Game events
@@ -65,6 +119,12 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             if (myResult) {
                 setMyScore(myResult.totalScore);
                 setMyDistance(myResult.distance);
+                // Persist score in localStorage for reconnection
+                const session = JSON.parse(localStorage.getItem('geoSession') || '{}');
+                if (session.roomCode) {
+                    session.myScore = myResult.totalScore;
+                    localStorage.setItem('geoSession', JSON.stringify(session));
+                }
             }
             soundManager.play('end');
         });
@@ -83,9 +143,10 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
         socket.on('geo-game-over', (data) => {
             if (timerRef.current) clearInterval(timerRef.current);
             setStep('GAME_END');
-            setStep('GAME_END');
             setFinalResults(data.results);
             soundManager.play('win');
+            // Clear session on game over
+            localStorage.removeItem('geoSession');
         });
 
         socket.on('geo-host-disconnected', () => {
@@ -97,6 +158,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             setStep('JOIN');
             setError('Vous avez été exclu de la partie par l\'hôte.');
             setRoomCode('');
+            localStorage.removeItem('geoSession');
         });
 
         socket.on('geo-game-restarted', () => {
@@ -354,6 +416,13 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                 setCurrentLocation(response.location);
                 setError(null);
 
+                // Save session for future refresh
+                localStorage.setItem('geoSession', JSON.stringify({
+                    roomCode: roomCode.toUpperCase(),
+                    pseudo,
+                    avatar
+                }));
+
                 // Si on est en PLAYING, on relance (sans le timer exact car on ne l'a pas sync ici, mais c'est pas grave)
                 if (response.gameState === 'PLAYING') {
                     startTimer(60); // Valeur par défaut, l'host gère le vrai temps
@@ -361,6 +430,13 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             } else {
                 setStep('WAITING');
                 setError(null);
+
+                // Save session for future refresh
+                localStorage.setItem('geoSession', JSON.stringify({
+                    roomCode: roomCode.toUpperCase(),
+                    pseudo,
+                    avatar
+                }));
             }
         });
     };
@@ -414,6 +490,22 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
         if (km < 1) return `${Math.round(km * 1000)} m`;
         return `${Math.round(km).toLocaleString()} km`;
     };
+
+    // RESTORING Screen - shown while attempting to reconnect
+    if (isRestoring) {
+        return (
+            <div className="geo-player-background">
+                <div className="container text-center py-5">
+                    <div className="card p-5 mx-auto" style={{ maxWidth: '500px' }}>
+                        <h2 className="text-primary mb-4" style={{ fontFamily: 'var(--font-display)', letterSpacing: '4px' }}>🌍 GEO_TRACKR</h2>
+                        <div className="spinner-border text-primary mb-3" role="status"></div>
+                        <p className="fs-4">Reconnexion en cours...</p>
+                        <p className="text-muted">Récupération de votre session</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // JOIN Screen
     if (step === 'JOIN') {

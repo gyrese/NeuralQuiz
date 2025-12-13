@@ -74,6 +74,7 @@ class GeoGameManager {
 
             // Mettre à jour l'ID et garder le reste des données (score, etc.)
             playerData.id = playerId;
+            playerData.disconnected = false; // Remettre connecté
             if (avatar) playerData.avatar = avatar; // Mettre à jour l'avatar si fourni
 
             room.players.set(playerId, playerData);
@@ -87,7 +88,10 @@ class GeoGameManager {
                 gameState: room.gameState,
                 currentRound: room.currentRound,
                 totalRounds: room.totalRounds,
-                location: room.currentLocation // Renvoyer la location actuelle pour ré-afficher Street View
+                location: room.currentLocation, // Renvoyer la location actuelle pour ré-afficher Street View
+                roundStartTime: room.roundStartTime,
+                timePerRound: room.timePerRound,
+                myScore: playerData.totalScore
             };
         }
 

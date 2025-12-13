@@ -416,8 +416,15 @@ function GeoHostView({ onBack }) {
                             <span className="kahoot-pin-value">{roomCode}</span>
                         </div>
                     </div>
-                    <div className="kahoot-qr">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode)}`} alt="QR Code" />
+                    <div className="d-flex gap-3">
+                        <div className="kahoot-qr">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode)}`} alt="QR Code Joueur" />
+                            <div className="text-center mt-1" style={{ fontSize: '0.7rem', color: '#fff' }}>👤 Joueur</div>
+                        </div>
+                        <div className="kahoot-qr">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode + '&mode=remote')}`} alt="QR Code Télécommande" />
+                            <div className="text-center mt-1" style={{ fontSize: '0.7rem', color: '#fff' }}>📱 Télécommande</div>
+                        </div>
                     </div>
                 </div>
 

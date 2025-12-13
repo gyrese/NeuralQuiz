@@ -30,6 +30,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     const [isJoining, setIsJoining] = useState(false); // Loading state for join button
     const [isRestoring, setIsRestoring] = useState(false); // Restoring session from localStorage
     const [pointsAnimation, setPointsAnimation] = useState(null); // { score: 1000 }
+    const [reactionCooldown, setReactionCooldown] = useState(false); // Cooldown for emoji reactions
 
     const streetViewRef = useRef(null);
     const mapRef = useRef(null);
@@ -597,7 +598,73 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     }
 
     // PLAYING Screen
-    if (step === 'PLAYING' || step === 'GUESSED') {
+    // GUESSED - Waiting Screen with Emoji Reactions
+    if (step === 'GUESSED') {
+        const emojis = ['😂', '😱', '🤯', '👏', '🔥', '🎉', '😅', '🤔'];
+
+        const sendReaction = (emoji) => {
+            if (reactionCooldown) return;
+
+            socket.emit('geo-reaction', {
+                roomCode: roomCode.toUpperCase(),
+                emoji,
+                playerName: pseudo
+            });
+
+            // Cooldown de 1 seconde
+            setReactionCooldown(true);
+            setTimeout(() => setReactionCooldown(false), 1000);
+        };
+
+        return (
+            <div className="geo-player-background">
+                <div className="container py-4 text-center">
+                    {/* Header info */}
+                    <div className="d-flex justify-content-between align-items-center mb-4">
+                        <div className="badge bg-dark fs-6">Manche {currentRound}/{totalRounds}</div>
+                        <div className="badge bg-primary fs-5">{myScore.toLocaleString()} pts</div>
+                    </div>
+
+                    {/* Success message */}
+                    <div className="card p-4 mb-4" style={{ background: 'rgba(0,255,65,0.1)', border: '2px solid var(--neon-green)' }}>
+                        <div className="fs-1 mb-2">✅</div>
+                        <h3 className="text-success mb-2">Réponse envoyée !</h3>
+                        <p className="text-muted mb-0">Distance: <strong>{formatDistance(myDistance)}</strong></p>
+                    </div>
+
+                    {/* Waiting message */}
+                    <div className="mb-4">
+                        <div className="spinner-border text-primary mb-2" role="status"></div>
+                        <p className="text-muted">En attente des autres joueurs...</p>
+                    </div>
+
+                    {/* Emoji reactions */}
+                    <div className="card p-4">
+                        <h5 className="text-info mb-3">🎉 Envoyez une réaction !</h5>
+                        <div className="d-flex flex-wrap justify-content-center gap-2">
+                            {emojis.map((emoji, idx) => (
+                                <button
+                                    key={idx}
+                                    className={`btn btn-outline-light btn-lg ${reactionCooldown ? 'opacity-50' : ''}`}
+                                    style={{ fontSize: '2rem', padding: '0.5rem 1rem' }}
+                                    onClick={() => sendReaction(emoji)}
+                                    disabled={reactionCooldown}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                        {reactionCooldown && (
+                            <p className="text-muted small mt-2 mb-0">Attendez un instant...</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // PLAYING Screen
+    if (step === 'PLAYING') {
         return (
             <div className="geo-player-container">
                 {/* Header */}
@@ -606,16 +673,9 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                         <div>Manche {currentRound}/{totalRounds}</div>
                         <div style={{ fontSize: '0.8em', color: 'var(--neon-purple)', marginTop: '4px' }}>CODE: {roomCode}</div>
                     </div>
-                    {step !== 'GUESSED' && (
-                        <div className={`geo-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
-                            {formatTime(timeLeft)}
-                        </div>
-                    )}
-                    {step === 'GUESSED' && (
-                        <div className="geo-timer waiting">
-                            En attente...
-                        </div>
-                    )}
+                    <div className={`geo-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
+                        {formatTime(timeLeft)}
+                    </div>
                     <div className="geo-score">
                         Score: {myScore.toLocaleString()}
                     </div>
@@ -645,19 +705,13 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                 {/* Mini Map */}
                 <div className="geo-minimap-container">
                     <div ref={mapRef} className="geo-minimap"></div>
-                    {step === 'PLAYING' ? (
-                        <button
-                            className={`btn geo-guess-btn ${guessMarker ? 'btn-primary' : 'btn-secondary'}`}
-                            onClick={submitGuess}
-                            disabled={!guessMarker}
-                        >
-                            {guessMarker ? '✓ VALIDER' : 'CLIQUEZ POUR DEVINER'}
-                        </button>
-                    ) : (
-                        <div className="geo-guessed-message">
-                            ✓ Réponse envoyée! Distance: {formatDistance(myDistance)}
-                        </div>
-                    )}
+                    <button
+                        className={`btn geo-guess-btn ${guessMarker ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={submitGuess}
+                        disabled={!guessMarker}
+                    >
+                        {guessMarker ? '✓ VALIDER' : 'CLIQUEZ POUR DEVINER'}
+                    </button>
                 </div>
             </div>
         );

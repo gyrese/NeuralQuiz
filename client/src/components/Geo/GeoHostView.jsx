@@ -18,6 +18,7 @@ function GeoHostView({ onBack }) {
     const [guessedPlayers, setGuessedPlayers] = useState(new Set());
     const [isEndingRound, setIsEndingRound] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [reactions, setReactions] = useState([]); // Floating emoji reactions
 
     // Settings
     const [settings, setSettings] = useState({
@@ -60,11 +61,22 @@ function GeoHostView({ onBack }) {
             setTimeLeft(prev => Math.min(prev, 3));
         });
 
+        // Listen for emoji reactions from players
+        socket.on('geo-reaction', ({ emoji, playerName, playerId }) => {
+            const reactionId = Date.now() + Math.random();
+            setReactions(prev => [...prev, { id: reactionId, emoji, playerName }]);
+            // Remove after animation (3s)
+            setTimeout(() => {
+                setReactions(prev => prev.filter(r => r.id !== reactionId));
+            }, 3000);
+        });
+
         return () => {
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
             socket.off('geo-player-guessed');
             socket.off('geo-all-guessed');
+            socket.off('geo-reaction');
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
         };
@@ -685,6 +697,20 @@ function GeoHostView({ onBack }) {
                             ✅ Tous les joueurs ont répondu !
                         </div>
                     )}
+
+                    {/* Floating emoji reactions */}
+                    <div className="geo-reactions-container">
+                        {reactions.map(reaction => (
+                            <div
+                                key={reaction.id}
+                                className="geo-floating-reaction"
+                                style={{ left: `${10 + Math.random() * 80}%` }}
+                            >
+                                <span className="reaction-emoji">{reaction.emoji}</span>
+                                <span className="reaction-name">{reaction.playerName}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );

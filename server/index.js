@@ -614,6 +614,19 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Player sends an emoji reaction (visible on TV)
+    socket.on('geo-reaction', ({ roomCode, emoji, playerName }) => {
+        const room = geoGameManager.getRoom(roomCode);
+        if (room) {
+            // Broadcast reaction to everyone in the room (including TV)
+            io.to(`geo-${roomCode}`).emit('geo-reaction', {
+                emoji,
+                playerName,
+                playerId: socket.id
+            });
+        }
+    });
+
     socket.on('geo-end-round', ({ roomCode }, callback) => {
         const room = geoGameManager.getRoom(roomCode);
         if (!room) {

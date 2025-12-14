@@ -45,7 +45,7 @@ function GeoHostView({ onBack }) {
             }
         });
 
-        // Listeners
+        // Listeners - Player sync
         socket.on('geo-player-joined', (playerList) => {
             setPlayers(playerList);
         });
@@ -73,12 +73,148 @@ function GeoHostView({ onBack }) {
             }, 3000);
         });
 
+        // === SYNC EVENTS FROM REMOTE ===
+        // When remote triggers game start
+        socket.on('geo-game-started', (data) => {
+            console.log('[Host] Game started event received from remote:', data);
+            setGameState('PLAYING');
+            setCurrentRound(data.round);
+            setTotalRounds(data.total);
+            setCorrectLocation(data.location);
+            setGuessedPlayers(new Set());
+            soundManager.play('start');
+            // Start timer
+            const duration = data.timePerRound || 60;
+            setTimeLeft(duration);
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 10 && prev > 0) soundManager.playTick();
+                    if (prev <= 1) {
+                        clearInterval(timerRef.current);
+                        timerRef.current = null;
+                        setTimeout(() => endRound(), 100);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        });
+
+        // When remote ends a round
+        socket.on('geo-round-ended', (data) => {
+            console.log('[Host] Round ended event received from remote:', data);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+            if (rotationRef.current) {
+                cancelAnimationFrame(rotationRef.current);
+                rotationRef.current = null;
+            }
+            setGameState('ROUND_END');
+            setRoundResults(data.results);
+            setCorrectLocation(data.correctLocation);
+            setIsEndingRound(false);
+            soundManager.play('end');
+            // Start auto-next countdown (8 seconds)
+            setAutoNextCountdown(8);
+            if (autoNextRef.current) clearInterval(autoNextRef.current);
+            autoNextRef.current = setInterval(() => {
+                setAutoNextCountdown(prev => {
+                    if (prev <= 1) {
+                        clearInterval(autoNextRef.current);
+                        autoNextRef.current = null;
+                        nextRound();
+                        return null;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        });
+
+        // When remote triggers next round
+        socket.on('geo-next-round', (data) => {
+            console.log('[Host] Next round event received from remote:', data);
+            // Clear auto-next timer if running
+            if (autoNextRef.current) {
+                clearInterval(autoNextRef.current);
+                autoNextRef.current = null;
+            }
+            setAutoNextCountdown(null);
+            setIsEndingRound(false);
+            setGameState('PLAYING');
+            setCurrentRound(data.round);
+            setCorrectLocation(data.location);
+            setRoundResults(null);
+            setGuessedPlayers(new Set());
+            soundManager.play('start');
+            // Start timer
+            const duration = data.timePerRound || 60;
+            setTimeLeft(duration);
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 10 && prev > 0) soundManager.playTick();
+                    if (prev <= 1) {
+                        clearInterval(timerRef.current);
+                        timerRef.current = null;
+                        setTimeout(() => endRound(), 100);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        });
+
+        // When game is over (from remote)
+        socket.on('geo-game-over', (data) => {
+            console.log('[Host] Game over event received from remote:', data);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+            if (autoNextRef.current) {
+                clearInterval(autoNextRef.current);
+                autoNextRef.current = null;
+            }
+            setAutoNextCountdown(null);
+            setGameState('GAME_END');
+            setFinalResults(data.results);
+            soundManager.play('win');
+        });
+
+        // When game is restarted (from remote)
+        socket.on('geo-game-restarted', () => {
+            console.log('[Host] Game restarted event received from remote');
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+            if (autoNextRef.current) {
+                clearInterval(autoNextRef.current);
+                autoNextRef.current = null;
+            }
+            setGameState('LOBBY');
+            setCurrentRound(0);
+            setRoundResults(null);
+            setFinalResults(null);
+            setGuessedPlayers(new Set());
+            setCorrectLocation(null);
+            setAutoNextCountdown(null);
+        });
+
         return () => {
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
             socket.off('geo-player-guessed');
             socket.off('geo-all-guessed');
             socket.off('geo-reaction');
+            socket.off('geo-game-started');
+            socket.off('geo-round-ended');
+            socket.off('geo-next-round');
+            socket.off('geo-game-over');
+            socket.off('geo-game-restarted');
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             if (autoNextRef.current) clearInterval(autoNextRef.current);

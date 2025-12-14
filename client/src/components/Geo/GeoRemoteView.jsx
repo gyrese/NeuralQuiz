@@ -32,21 +32,18 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
     });
 
     const timerRef = useRef(null);
+    const hasAutoConnected = useRef(false);
 
-    // Auto-connect if initialRoomCode provided
+    // Socket event listeners - set up FIRST, then auto-connect
     useEffect(() => {
-        if (initialRoomCode) {
-            connectToRoom();
-        }
-    }, [initialRoomCode]);
-
-    // Socket event listeners
-    useEffect(() => {
+        // Set up all listeners
         socket.on('geo-player-joined', (playersList) => {
+            console.log('[Remote] Player joined event received:', playersList);
             setPlayers(playersList);
         });
 
         socket.on('geo-player-left', (playersList) => {
+            console.log('[Remote] Player left event received:', playersList);
             setPlayers(playersList);
         });
 
@@ -81,7 +78,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
             setCurrentRound(data.round);
             setGuessedCount(0);
             soundManager.play('start');
-            startTimer(data.timePerRound || timePerRound);
+            startTimer(data.timePerRound || 60);
         });
 
         socket.on('geo-game-over', (data) => {
@@ -103,6 +100,24 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
             setStep('CONNECT');
         });
 
+        // Auto-connect AFTER listeners are set up (only once)
+        if (initialRoomCode && !hasAutoConnected.current) {
+            hasAutoConnected.current = true;
+            // Small delay to ensure socket is connected
+            setTimeout(() => {
+                if (socket.connected) {
+                    setRoomCode(initialRoomCode.toUpperCase());
+                    connectWithCode(initialRoomCode.toUpperCase());
+                } else {
+                    // Wait for socket connection
+                    socket.once('connect', () => {
+                        setRoomCode(initialRoomCode.toUpperCase());
+                        connectWithCode(initialRoomCode.toUpperCase());
+                    });
+                }
+            }, 100);
+        }
+
         return () => {
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
@@ -116,10 +131,11 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
             socket.off('geo-host-disconnected');
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [timePerRound]);
+    }, []); // Empty deps - set up once on mount
 
-    const connectToRoom = () => {
-        if (!roomCode) {
+    // Connect with a given code (used for auto-connect)
+    const connectWithCode = (code) => {
+        if (!code) {
             setError('Code du salon requis');
             return;
         }
@@ -127,10 +143,13 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         setIsConnecting(true);
         setError('');
 
-        socket.emit('geo-join-remote', { roomCode: roomCode.toUpperCase() }, (response) => {
+        console.log('[Remote] Connecting with code:', code);
+
+        socket.emit('geo-join-remote', { roomCode: code }, (response) => {
             setIsConnecting(false);
             if (response.error) {
                 setError(response.error);
+                console.error('[Remote] Connection error:', response.error);
             } else {
                 console.log('[Remote] Connected successfully:', response);
                 setStep(response.gameState === 'LOBBY' ? 'LOBBY' : response.gameState);
@@ -138,7 +157,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                 setCurrentRound(response.currentRound || 0);
                 setTotalRounds(response.totalRounds || 5);
                 setTimePerRound(response.timePerRound || 60);
-                setRoomCode(roomCode.toUpperCase());
+                setRoomCode(code);
 
                 if (response.gameState === 'PLAYING' && response.roundStartTime) {
                     const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
@@ -147,6 +166,14 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                 }
             }
         });
+    };
+
+    const connectToRoom = () => {
+        if (!roomCode) {
+            setError('Code du salon requis');
+            return;
+        }
+        connectWithCode(roomCode.toUpperCase());
     };
 
     const startTimer = (duration) => {

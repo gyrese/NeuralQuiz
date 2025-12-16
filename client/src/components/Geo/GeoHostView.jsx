@@ -20,6 +20,9 @@ function GeoHostView({ onBack }) {
     const [showSettings, setShowSettings] = useState(false);
     const [reactions, setReactions] = useState([]); // Floating emoji reactions
     const [autoNextCountdown, setAutoNextCountdown] = useState(null); // Countdown before auto next round
+    const [showCountdown, setShowCountdown] = useState(false); // 3-2-1-GO! animation
+    const [countdownNumber, setCountdownNumber] = useState(3);
+    const [showConfetti, setShowConfetti] = useState(false); // Winner confetti
 
     // Settings
     const [settings, setSettings] = useState({
@@ -640,8 +643,78 @@ function GeoHostView({ onBack }) {
                 setFinalResults(null);
                 setGuessedPlayers(new Set());
                 setCorrectLocation(null);
+                setShowConfetti(false);
             }
         });
+    };
+
+    // === ANIMATION HELPERS ===
+
+    // Start 3-2-1-GO! countdown
+    const startCountdown = (callback) => {
+        setShowCountdown(true);
+        setCountdownNumber(3);
+
+        let count = 3;
+        const countdownInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                setCountdownNumber(count);
+            } else if (count === 0) {
+                setCountdownNumber('GO!');
+            } else {
+                clearInterval(countdownInterval);
+                setShowCountdown(false);
+                if (callback) callback();
+            }
+        }, 1000);
+    };
+
+    // Trigger confetti animation
+    const triggerConfetti = () => {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 4000);
+    };
+
+    // Get timer class based on time left
+    const getTimerClass = () => {
+        if (timeLeft <= 5) return 'danger';
+        if (timeLeft <= 10) return 'warning';
+        return '';
+    };
+
+    // Confetti component
+    const ConfettiEffect = () => {
+        if (!showConfetti) return null;
+
+        const confettiPieces = [];
+        for (let i = 0; i < 50; i++) {
+            confettiPieces.push(
+                <div
+                    key={i}
+                    className="confetti"
+                    style={{
+                        left: `${Math.random() * 100}%`,
+                        animationDelay: `${Math.random() * 2}s`,
+                        animationDuration: `${3 + Math.random() * 2}s`
+                    }}
+                />
+            );
+        }
+        return <div className="confetti-container">{confettiPieces}</div>;
+    };
+
+    // Countdown overlay component
+    const CountdownOverlay = () => {
+        if (!showCountdown) return null;
+
+        return (
+            <div className="countdown-overlay">
+                <div className={`countdown-number ${countdownNumber === 'GO!' ? 'go' : ''}`}>
+                    {countdownNumber}
+                </div>
+            </div>
+        );
     };
 
     // RENDER LOBBY

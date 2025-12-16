@@ -42,6 +42,14 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
 
     // Restore session from localStorage on mount
     useEffect(() => {
+        // Check for newgame parameter - if present, clear previous session
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('newgame') === '1' || urlParams.get('newgame') === 'true') {
+            localStorage.removeItem('geoSession');
+            console.log('[Player] New game requested, cleared previous session');
+            return; // Don't attempt to restore
+        }
+
         const savedSession = localStorage.getItem('geoSession');
         if (savedSession) {
             try {
@@ -100,13 +108,21 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             setCurrentRound(data.round);
             setTotalRounds(data.total);
             setCurrentLocation(data.location);
-            setTimeLeft(data.timePerRound || 60);
             setGuessMarker(null);
             markerInstance.current = null;
             setIsLoading(true); // Start loading new street view
             setSelectedRegions(data.mapType || ['world']);
             soundManager.play('start');
-            startTimer(data.timePerRound || 60);
+
+            // Calculate remaining time based on server's roundStartTime
+            const duration = data.timePerRound || 60;
+            if (data.roundStartTime) {
+                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
+                const remaining = Math.max(0, duration - elapsed);
+                startTimer(remaining);
+            } else {
+                startTimer(duration);
+            }
         });
 
         socket.on('geo-round-ended', (data) => {
@@ -138,7 +154,16 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             markerInstance.current = null;
             setIsLoading(true); // Start loading
             soundManager.play('start');
-            startTimer(data.timePerRound || 60);
+
+            // Calculate remaining time based on server's roundStartTime
+            const duration = data.timePerRound || 60;
+            if (data.roundStartTime) {
+                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
+                const remaining = Math.max(0, duration - elapsed);
+                startTimer(remaining);
+            } else {
+                startTimer(duration);
+            }
         });
 
         socket.on('geo-game-over', (data) => {

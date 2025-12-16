@@ -84,7 +84,7 @@ function GeoHostView({ onBack }) {
             setGuessedPlayers(new Set());
             setIsEndingRound(false);
             soundManager.play('start');
-            // Start visual timer only (no action on timeout - remote controls)
+            // Start timer - auto-end round when it expires
             const duration = data.timePerRound || 60;
             setTimeLeft(duration);
             if (timerRef.current) clearInterval(timerRef.current);
@@ -94,7 +94,8 @@ function GeoHostView({ onBack }) {
                     if (prev <= 1) {
                         clearInterval(timerRef.current);
                         timerRef.current = null;
-                        // Don't call endRound() - wait for remote to trigger geo-round-ended
+                        // Auto-end round when timer expires
+                        setTimeout(() => endRound(), 100);
                         return 0;
                     }
                     return prev - 1;
@@ -122,14 +123,15 @@ function GeoHostView({ onBack }) {
             setCorrectLocation(data.correctLocation);
             setIsEndingRound(false);
             soundManager.play('end');
-            // Start visual countdown only - remote controls next round
-            setAutoNextCountdown(8);
+            // Start countdown for auto-progression to next round (30 seconds)
+            setAutoNextCountdown(30);
             autoNextRef.current = setInterval(() => {
                 setAutoNextCountdown(prev => {
                     if (prev <= 1) {
                         clearInterval(autoNextRef.current);
                         autoNextRef.current = null;
-                        // Don't call nextRound() - wait for remote to trigger geo-next-round
+                        // Auto-call nextRound when countdown reaches 0
+                        setTimeout(() => nextRound(), 100);
                         return 0;
                     }
                     return prev - 1;
@@ -157,7 +159,7 @@ function GeoHostView({ onBack }) {
             setRoundResults(null);
             setGuessedPlayers(new Set());
             soundManager.play('start');
-            // Start visual timer only (no action on timeout - remote controls)
+            // Start timer - auto-end round when it expires
             const duration = data.timePerRound || 60;
             setTimeLeft(duration);
             timerRef.current = setInterval(() => {
@@ -166,7 +168,8 @@ function GeoHostView({ onBack }) {
                     if (prev <= 1) {
                         clearInterval(timerRef.current);
                         timerRef.current = null;
-                        // Don't call endRound() - wait for remote to trigger geo-round-ended
+                        // Auto-end round when timer expires
+                        setTimeout(() => endRound(), 100);
                         return 0;
                     }
                     return prev - 1;

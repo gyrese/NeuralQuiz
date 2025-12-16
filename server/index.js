@@ -549,6 +549,7 @@ io.on('connection', (socket) => {
                     total: result.total,
                     location: result.location,
                     timePerRound: room.timePerRound,
+                    roundStartTime: room.roundStartTime,
                     mapType: room.settings.mapType || ['world']
                 });
 
@@ -693,7 +694,8 @@ io.on('connection', (socket) => {
                 round: result.round,
                 total: result.total,
                 location: result.location,
-                timePerRound: room.timePerRound
+                timePerRound: room.timePerRound,
+                roundStartTime: room.roundStartTime
             });
             console.log(`[GEO] Round ${result.round} started in room ${roomCode}`);
         } else {

@@ -82,8 +82,9 @@ function GeoHostView({ onBack }) {
             setTotalRounds(data.total);
             setCorrectLocation(data.location);
             setGuessedPlayers(new Set());
+            setIsEndingRound(false);
             soundManager.play('start');
-            // Start timer
+            // Start visual timer only (no action on timeout - remote controls)
             const duration = data.timePerRound || 60;
             setTimeLeft(duration);
             if (timerRef.current) clearInterval(timerRef.current);
@@ -93,7 +94,7 @@ function GeoHostView({ onBack }) {
                     if (prev <= 1) {
                         clearInterval(timerRef.current);
                         timerRef.current = null;
-                        setTimeout(() => endRound(), 100);
+                        // Don't call endRound() - wait for remote to trigger geo-round-ended
                         return 0;
                     }
                     return prev - 1;
@@ -103,7 +104,7 @@ function GeoHostView({ onBack }) {
 
         // When remote ends a round
         socket.on('geo-round-ended', (data) => {
-            console.log('[Host] Round ended event received from remote:', data);
+            console.log('[Host] Round ended event received:', data);
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -112,21 +113,24 @@ function GeoHostView({ onBack }) {
                 cancelAnimationFrame(rotationRef.current);
                 rotationRef.current = null;
             }
+            if (autoNextRef.current) {
+                clearInterval(autoNextRef.current);
+                autoNextRef.current = null;
+            }
             setGameState('ROUND_END');
             setRoundResults(data.results);
             setCorrectLocation(data.correctLocation);
             setIsEndingRound(false);
             soundManager.play('end');
-            // Start auto-next countdown (8 seconds)
+            // Start visual countdown only - remote controls next round
             setAutoNextCountdown(8);
-            if (autoNextRef.current) clearInterval(autoNextRef.current);
             autoNextRef.current = setInterval(() => {
                 setAutoNextCountdown(prev => {
                     if (prev <= 1) {
                         clearInterval(autoNextRef.current);
                         autoNextRef.current = null;
-                        nextRound();
-                        return null;
+                        // Don't call nextRound() - wait for remote to trigger geo-next-round
+                        return 0;
                     }
                     return prev - 1;
                 });
@@ -135,11 +139,15 @@ function GeoHostView({ onBack }) {
 
         // When remote triggers next round
         socket.on('geo-next-round', (data) => {
-            console.log('[Host] Next round event received from remote:', data);
-            // Clear auto-next timer if running
+            console.log('[Host] Next round event received:', data);
+            // Clear all timers
             if (autoNextRef.current) {
                 clearInterval(autoNextRef.current);
                 autoNextRef.current = null;
+            }
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
             }
             setAutoNextCountdown(null);
             setIsEndingRound(false);
@@ -149,17 +157,16 @@ function GeoHostView({ onBack }) {
             setRoundResults(null);
             setGuessedPlayers(new Set());
             soundManager.play('start');
-            // Start timer
+            // Start visual timer only (no action on timeout - remote controls)
             const duration = data.timePerRound || 60;
             setTimeLeft(duration);
-            if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
                     if (prev <= 10 && prev > 0) soundManager.playTick();
                     if (prev <= 1) {
                         clearInterval(timerRef.current);
                         timerRef.current = null;
-                        setTimeout(() => endRound(), 100);
+                        // Don't call endRound() - wait for remote to trigger geo-round-ended
                         return 0;
                     }
                     return prev - 1;
@@ -169,7 +176,7 @@ function GeoHostView({ onBack }) {
 
         // When game is over (from remote)
         socket.on('geo-game-over', (data) => {
-            console.log('[Host] Game over event received from remote:', data);
+            console.log('[Host] Game over event received:', data);
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -186,7 +193,7 @@ function GeoHostView({ onBack }) {
 
         // When game is restarted (from remote)
         socket.on('geo-game-restarted', () => {
-            console.log('[Host] Game restarted event received from remote');
+            console.log('[Host] Game restarted event received');
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -727,6 +734,9 @@ function GeoHostView({ onBack }) {
                                             { id: 'france', name: 'France', icon: '🇫🇷' },
                                             { id: 'usa', name: 'USA', icon: '🇺🇸' },
                                             { id: 'reunion', name: 'La Réunion', icon: '🏝️' },
+                                            { id: 'themeparks', name: 'Parcs d\'Attractions', icon: '🎢' },
+                                            { id: 'beaches', name: 'Plages Célèbres', icon: '🏖️' },
+                                            { id: 'markets', name: 'Marchés Célèbres', icon: '🛍️' },
                                         ].map(region => {
                                             const isSelected = settings.mapType.includes(region.id);
                                             return (
@@ -800,175 +810,173 @@ function GeoHostView({ onBack }) {
         );
     }
 
-    // RENDER PLAYING - Vue Street View immersive pour l'écran TV
+    // RENDER PLAYING - Vue avec Street View dans une fenêtre + infos latérales
     if (gameState === 'PLAYING') {
         return (
-            <div className="geo-host-playing-fullscreen">
-                {/* Street View plein écran */}
-                <div
-                    ref={streetViewRef}
-                    className="geo-host-streetview-fullscreen"
-                    style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        zIndex: 1
-                    }}
-                ></div>
-
-                {/* Overlay avec infos */}
-                <div className="geo-host-playing-overlay">
-                    {/* Header flottant */}
-                    <div className="geo-host-playing-header">
-                        <div className="geo-host-badge">
-                            <span className="badge-label">MANCHE</span>
-                            <span className="badge-value">{currentRound}/{totalRounds}</span>
+            <div className="geo-lobby-background">
+                <div className="geo-playing-layout">
+                    {/* Header avec timer et infos */}
+                    <div className="geo-playing-header">
+                        <div className="geo-playing-badge">
+                            <span className="badge-icon">🎯</span>
+                            <span className="badge-text">MANCHE {currentRound}/{totalRounds}</span>
                         </div>
-                        <div className={`geo-host-timer-big ${timeLeft <= 10 ? 'danger pulse' : ''}`}>
-                            {formatTime(timeLeft)}
+                        <div className={`geo-playing-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
+                            <span className="timer-icon">⏱️</span>
+                            <span className="timer-value">{formatTime(timeLeft)}</span>
                         </div>
-                        <div className="geo-host-badge">
-                            <span className="badge-label">RÉPONSES</span>
-                            <span className="badge-value">{guessedPlayers.size}/{players.length}</span>
+                        <div className="geo-playing-badge">
+                            <span className="badge-icon">📍</span>
+                            <span className="badge-text">PIN: {roomCode}</span>
                         </div>
                     </div>
 
-                    {/* Liste des joueurs en bas */}
-                    <div className="geo-host-players-strip">
-                        {players.map(player => {
-                            const hasGuessed = guessedPlayers.has(player.id);
-                            return (
+                    {/* Contenu principal */}
+                    <div className="geo-playing-content">
+                        {/* Street View dans une fenêtre stylisée */}
+                        <div className="geo-playing-streetview-panel">
+                            <div className="streetview-frame">
                                 <div
-                                    key={player.id}
-                                    className={`geo-host-player-chip ${player.disconnected ? 'disconnected' : hasGuessed ? 'answered' : 'waiting'}`}
-                                >
-                                    <div className="chip-avatar">
-                                        {player.avatar ? (
-                                            <img src={player.avatar} alt="" />
-                                        ) : '👤'}
-                                    </div>
-                                    <span className="chip-name">{player.name}</span>
-                                    <span className="chip-status">
-                                        {player.disconnected ? '⚠️' : hasGuessed ? '✓' : '⏳'}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Message si tous ont répondu */}
-                    {guessedPlayers.size === players.length && players.length > 0 && (
-                        <div className="geo-host-all-answered">
-                            ✅ Tous les joueurs ont répondu !
-                        </div>
-                    )}
-
-                    {/* Floating emoji reactions */}
-                    <div className="geo-reactions-container">
-                        {reactions.map(reaction => (
-                            <div
-                                key={reaction.id}
-                                className="geo-floating-reaction"
-                                style={{ left: `${10 + Math.random() * 80}%` }}
-                            >
-                                <span className="reaction-emoji">{reaction.emoji}</span>
-                                <span className="reaction-name">{reaction.playerName}</span>
+                                    ref={streetViewRef}
+                                    className="geo-playing-streetview"
+                                ></div>
                             </div>
-                        ))}
+
+                            {/* Message si tous ont répondu */}
+                            {guessedPlayers.size === players.length && players.length > 0 && (
+                                <div className="geo-all-answered-banner">
+                                    ✅ Tous les joueurs ont répondu !
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Sidebar avec joueurs et scores */}
+                        <div className="geo-playing-sidebar">
+                            <div className="sidebar-section">
+                                <div className="sidebar-header">
+                                    <span>👥 Joueurs</span>
+                                    <span className="player-count">{guessedPlayers.size}/{players.length}</span>
+                                </div>
+                                <div className="players-list">
+                                    {players.map(player => {
+                                        const hasGuessed = guessedPlayers.has(player.id);
+                                        return (
+                                            <div
+                                                key={player.id}
+                                                className={`player-row ${player.disconnected ? 'disconnected' : hasGuessed ? 'answered' : 'waiting'}`}
+                                            >
+                                                <div className="player-avatar">
+                                                    {player.avatar ? (
+                                                        <img src={player.avatar} alt="" />
+                                                    ) : <span>👤</span>}
+                                                </div>
+                                                <div className="player-info">
+                                                    <span className="player-name">{player.name}</span>
+                                                    <span className="player-score">{player.totalScore?.toLocaleString() || 0} pts</span>
+                                                </div>
+                                                <div className="player-status">
+                                                    {player.disconnected ? '⚠️' : hasGuessed ? '✅' : '⏳'}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Réactions flottantes */}
+                            <div className="sidebar-reactions">
+                                {reactions.slice(-5).map(reaction => (
+                                    <div key={reaction.id} className="reaction-bubble">
+                                        <span className="reaction-emoji">{reaction.emoji}</span>
+                                        <span className="reaction-player">{reaction.playerName}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         );
     }
 
-    // RENDER ROUND END - Grande carte avec résultats
+    // RENDER ROUND END - Vue améliorée avec Street View + Map + Classement
     if (gameState === 'ROUND_END') {
         return (
             <div className="geo-lobby-background">
-                <div className="geo-host-dashboard">
-                    {/* Header */}
-                    <div className="geo-host-header" style={{ borderColor: 'var(--neon-green)', justifyContent: 'space-between' }}>
-                        <div>
-                            <h2 className="m-0 text-primary">📍 Résultats - Manche {currentRound}/{totalRounds}</h2>
-                            <p className="m-0 text-info fs-4">
-                                C'était <strong>{correctLocation?.city}, {correctLocation?.country}</strong>
-                            </p>
+                <div className="geo-round-end-layout">
+                    {/* Header avec infos principales */}
+                    <div className="geo-round-end-header">
+                        <div className="geo-round-badge">
+                            <span className="badge-icon">🎯</span>
+                            <span className="badge-text">MANCHE {currentRound}/{totalRounds}</span>
                         </div>
-                        <div className="text-end">
-                            <div className="text-muted small" style={{ letterSpacing: '2px' }}>PIN DU SALON</div>
-                            <div className="fs-2 text-warning" style={{ fontFamily: 'var(--font-display)', letterSpacing: '4px' }}>{roomCode}</div>
+                        <div className="geo-location-reveal">
+                            <span className="location-label">C'était</span>
+                            <span className="location-name">{correctLocation?.city}</span>
+                            <span className="location-country">{correctLocation?.country}</span>
+                        </div>
+                        <div className="geo-round-pin">
+                            <span className="pin-label">PIN</span>
+                            <span className="pin-code">{roomCode}</span>
                         </div>
                     </div>
 
-                    <div className="container-fluid py-4">
-                        <div className="row">
-                            {/* Grande carte */}
-                            <div className="col-lg-9">
-                                <div ref={mapRef} className="geo-host-results-map"></div>
+                    {/* Contenu principal en 3 colonnes */}
+                    <div className="geo-round-end-content">
+                        {/* Colonne gauche: Street View */}
+                        <div className="geo-round-streetview-panel">
+                            <div className="panel-header">
+                                <span>📍 Vue Street View</span>
+                            </div>
+                            <div ref={streetViewRef} className="geo-round-streetview"></div>
+                        </div>
+
+                        {/* Colonne centrale: Map avec marqueurs */}
+                        <div className="geo-round-map-panel">
+                            <div className="panel-header">
+                                <span>🗺️ Carte des réponses</span>
+                            </div>
+                            <div ref={mapRef} className="geo-round-map"></div>
+                        </div>
+
+                        {/* Colonne droite: Classement */}
+                        <div className="geo-round-ranking-panel">
+                            <div className="panel-header">
+                                <span>🏆 Classement</span>
+                            </div>
+                            <div className="geo-ranking-list">
+                                {roundResults?.map((result, index) => (
+                                    <div key={result.id} className={`geo-ranking-item ${index === 0 ? 'winner' : ''}`}>
+                                        <div className="ranking-position">
+                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                                        </div>
+                                        <div className="ranking-avatar">
+                                            {result.avatar ? (
+                                                <img src={result.avatar} alt="" />
+                                            ) : <span>👤</span>}
+                                        </div>
+                                        <div className="ranking-info">
+                                            <div className="ranking-name">{result.name}</div>
+                                            <div className="ranking-distance">{formatDistance(result.distance)}</div>
+                                        </div>
+                                        <div className="ranking-scores">
+                                            <div className="score-round">+{result.roundScore?.toLocaleString()}</div>
+                                            <div className="score-total">{result.totalScore?.toLocaleString()} pts</div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
-                            {/* Classement latéral */}
-                            <div className="col-lg-3">
-                                <div className="card p-3 h-100">
-                                    <h5 className="text-info mb-3">🏆 Classement</h5>
-                                    {roundResults?.map((result, index) => (
-                                        <div key={result.id} className={`geo-result-row ${index === 0 ? 'winner' : ''}`}>
-                                            <div className="geo-result-rank">
-                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
-                                            </div>
-                                            <div className="geo-result-avatar me-2">
-                                                {result.avatar ? (
-                                                    <img
-                                                        src={result.avatar}
-                                                        alt=""
-                                                        style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid white' }}
-                                                    />
-                                                ) : <span style={{ fontSize: '1.5rem' }}>👤</span>}
-                                            </div>
-                                            <div className="geo-result-info">
-                                                <div className="geo-result-name">{result.name}</div>
-                                                <div className="geo-result-distance">{formatDistance(result.distance)}</div>
-                                            </div>
-                                            <div className="geo-result-score">
-                                                +{result.roundScore?.toLocaleString()} pts
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    <hr className="my-3" />
-
-                                    {/* Score total */}
-                                    <h6 className="text-muted mb-2">Score total</h6>
-                                    {roundResults?.map((result, index) => (
-                                        <div key={result.id} className="d-flex align-items-center justify-content-between mb-2">
-                                            <div className="d-flex align-items-center">
-                                                {result.avatar ? (
-                                                    <img
-                                                        src={result.avatar}
-                                                        alt=""
-                                                        className="me-2"
-                                                        style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #555' }}
-                                                    />
-                                                ) : <span className="me-2">👤</span>}
-                                                <span className="fw-bold">{result.name}</span>
-                                            </div>
-                                            <span className="text-primary fw-bold">{result.totalScore?.toLocaleString()} pts</span>
-                                        </div>
-                                    ))}
-
-                                    <div className="mt-auto pt-4">
-                                        <button className="btn btn-primary btn-lg w-100" onClick={nextRound}>
-                                            {currentRound >= totalRounds ? '🏁 Résultats finaux' : '➡️ Manche suivante'}
-                                        </button>
-                                        {autoNextCountdown && (
-                                            <p className="text-muted text-center mt-2 mb-0">
-                                                ⏱️ Auto dans {autoNextCountdown}s...
-                                            </p>
-                                        )}
+                            {/* Bouton manche suivante */}
+                            <div className="geo-next-round-btn-container">
+                                <button className="geo-next-round-btn" onClick={nextRound}>
+                                    {currentRound >= totalRounds ? '🏁 Résultats finaux' : '➡️ Manche suivante'}
+                                </button>
+                                {autoNextCountdown && (
+                                    <div className="auto-next-timer">
+                                        ⏱️ Auto dans {autoNextCountdown}s...
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>

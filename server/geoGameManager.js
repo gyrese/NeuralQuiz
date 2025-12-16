@@ -161,10 +161,40 @@ class GeoGameManager {
             reunion: ['Reunion']
         };
 
+        // Catégories spéciales (filtrage par mots-clés dans le nom)
+        const specialCategories = {
+            themeparks: [
+                'Disneyland', 'Disney', 'Universal', 'Europa-Park', 'PortAventura',
+                'Walibi', 'Efteling', 'Phantasialand', 'Tropical Islands', 'Legoland',
+                'Gardaland', 'Parque Warner', 'Parc Astérix', 'Puy du Fou', 'Futuroscope',
+                'Studio City', 'Lotte World', 'Everland', 'Amusement Park', 'Sunway Lagoon',
+                'Dream World', 'Dunia Fantasi', 'Alton Towers', 'Harry Potter Studio',
+                'Longleat', 'Movie World', 'Sea World', 'Dreamworld', 'Ferrari Land'
+            ],
+            beaches: [
+                'Beach', 'Plage', 'Bondi', 'Copacabana', 'Waikiki', 'Miami Beach',
+                'Maho Beach', 'Seminyak', 'Maya Bay', 'Surfers Paradise', 'Sentosa',
+                'Kuta', 'Patong', 'Haeundae', 'Front de mer', 'Waterfront'
+            ],
+            markets: [
+                'Market', 'Marché', 'Bazaar', 'Bazar', 'Chatuchak', 'Yu Garden',
+                'Grand Bazaar', 'Souk', 'Mercado'
+            ]
+        };
+
         // Compiler les lieux de toutes les régions sélectionnées
         let pool = [];
         selectedRegions.forEach(region => {
-            if (regions[region]) {
+            // Vérifier si c'est une catégorie spéciale
+            if (specialCategories[region]) {
+                const keywords = specialCategories[region];
+                const categoryLocations = WORLD_LOCATIONS.filter(l =>
+                    keywords.some(keyword => l.city.toLowerCase().includes(keyword.toLowerCase()))
+                );
+                pool = pool.concat(categoryLocations);
+            }
+            // Sinon c'est une région géographique
+            else if (regions[region]) {
                 const countryList = regions[region];
                 const regionLocations = WORLD_LOCATIONS.filter(l => countryList.includes(l.country));
                 pool = pool.concat(regionLocations);

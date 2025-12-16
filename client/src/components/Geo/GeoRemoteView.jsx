@@ -176,6 +176,12 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         connectWithCode(roomCode.toUpperCase());
     };
 
+    // Use ref to access current roomCode in timer callback (avoids stale closure)
+    const roomCodeRef = useRef(roomCode);
+    useEffect(() => {
+        roomCodeRef.current = roomCode;
+    }, [roomCode]);
+
     const startTimer = (duration) => {
         setTimeLeft(duration);
         if (timerRef.current) clearInterval(timerRef.current);
@@ -187,6 +193,16 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                 }
                 if (prev <= 1) {
                     clearInterval(timerRef.current);
+                    timerRef.current = null;
+                    // Auto-trigger end round when timer expires
+                    if (roomCodeRef.current) {
+                        console.log('[Remote] Timer expired, auto-ending round');
+                        socket.emit('geo-end-round', { roomCode: roomCodeRef.current.toUpperCase() }, (response) => {
+                            if (response.error) {
+                                console.error('[Remote] Auto end round error:', response.error);
+                            }
+                        });
+                    }
                     return 0;
                 }
                 return prev - 1;

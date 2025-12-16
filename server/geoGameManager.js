@@ -169,16 +169,29 @@ class GeoGameManager {
                 'Gardaland', 'Parque Warner', 'Parc Astérix', 'Puy du Fou', 'Futuroscope',
                 'Studio City', 'Lotte World', 'Everland', 'Amusement Park', 'Sunway Lagoon',
                 'Dream World', 'Dunia Fantasi', 'Alton Towers', 'Harry Potter Studio',
-                'Longleat', 'Movie World', 'Sea World', 'Dreamworld', 'Ferrari Land'
+                'Longleat', 'Movie World', 'Sea World', 'Dreamworld', 'Ferrari Land',
+                // Ajouts pour matcher les noms dans geoLocations.js
+                'Magic Kingdom', 'EPCOT', 'Hollywood Studios', 'Animal Kingdom',
+                'Islands of Adventure', 'CityWalk', 'DisneySea', 'Plopsa',
+                'Children\'s Amusement', 'Safari'
             ],
             beaches: [
                 'Beach', 'Plage', 'Bondi', 'Copacabana', 'Waikiki', 'Miami Beach',
                 'Maho Beach', 'Seminyak', 'Maya Bay', 'Surfers Paradise', 'Sentosa',
-                'Kuta', 'Patong', 'Haeundae', 'Front de mer', 'Waterfront'
+                'Kuta', 'Patong', 'Haeundae', 'Front de mer', 'Waterfront',
+                // Ajouts pour englober plus de lieux côtiers
+                'Playa', 'Promenade', 'Barceloneta', 'Ipanema', 'Croisette',
+                'South Beach', 'La Jolla', 'Fort Lauderdale', 'Santa Monica',
+                'Santa Cruz', 'Unawatuna', 'Calangute', 'White Bay', 'Cas Abao'
             ],
             markets: [
                 'Market', 'Marché', 'Bazaar', 'Bazar', 'Chatuchak', 'Yu Garden',
-                'Grand Bazaar', 'Souk', 'Mercado'
+                'Grand Bazaar', 'Souk', 'Mercado', 'Medina',
+                // Ajouts pour matcher les noms dans geoLocations.js
+                'Boqueria', 'San Miguel', 'Tsukiji', 'Toyosu', 'Temple Street',
+                'Shilin', 'Ben Thanh', 'Central Market', 'Tanah Abang',
+                'Ciudadela', 'Surquillo', 'Pike Place', 'Grand Central', 'French Market',
+                'Borough', 'Spitalfields', 'Albert Cuyp', 'Campo de\' Fiori', 'Centrale'
             ]
         };
 
@@ -331,6 +344,39 @@ class GeoGameManager {
     endRound(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: 'Salon introuvable' };
+
+        // Éviter les doubles appels - si déjà en ROUND_END, retourner le résultat actuel
+        if (room.gameState === 'ROUND_END') {
+            console.log(`[GEO] Round already ended for room ${roomCode}, returning cached results`);
+            // Retourner les résultats actuels sans modifier l'état
+            const results = [];
+            for (const player of room.players.values()) {
+                results.push({
+                    id: player.id,
+                    name: player.name,
+                    avatar: player.avatar,
+                    guess: player.currentGuess,
+                    distance: player.lastDistance || null,
+                    roundScore: player.roundScores[player.roundScores.length - 1] || 0,
+                    totalScore: player.totalScore,
+                    hasGuessed: player.hasGuessed
+                });
+            }
+            results.sort((a, b) => b.roundScore - a.roundScore);
+            return {
+                success: true,
+                correctLocation: room.currentLocation,
+                results,
+                currentRound: room.currentRound,
+                totalRounds: room.totalRounds
+            };
+        }
+
+        // Vérifier qu'on est bien en état PLAYING
+        if (room.gameState !== 'PLAYING') {
+            console.log(`[GEO] Cannot end round - game state is ${room.gameState}`);
+            return { error: `Cannot end round: game is in ${room.gameState} state` };
+        }
 
         room.gameState = 'ROUND_END';
 

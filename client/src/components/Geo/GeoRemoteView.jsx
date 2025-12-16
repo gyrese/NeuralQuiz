@@ -118,6 +118,19 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
             setStep('CONNECT');
         });
 
+        // When settings are updated (from host)
+        socket.on('geo-settings-updated', (newSettings) => {
+            console.log('[Remote] Settings updated event received:', newSettings);
+            setSettings(prev => ({
+                ...prev,
+                roundsCount: newSettings.roundsCount || prev.roundsCount,
+                timePerRound: newSettings.timePerRound || prev.timePerRound,
+                mapType: newSettings.mapType || prev.mapType
+            }));
+            setTotalRounds(newSettings.roundsCount || 5);
+            setTimePerRound(newSettings.timePerRound || 60);
+        });
+
         // Auto-connect AFTER listeners are set up (only once)
         if (initialRoomCode && !hasAutoConnected.current) {
             hasAutoConnected.current = true;
@@ -147,6 +160,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
             socket.off('geo-game-over');
             socket.off('geo-game-restarted');
             socket.off('geo-host-disconnected');
+            socket.off('geo-settings-updated');
             if (timerRef.current) clearInterval(timerRef.current);
         };
     }, []); // Empty deps - set up once on mount
@@ -263,6 +277,17 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         });
     };
 
+    // Update settings and broadcast to all clients
+    const updateSettings = (newSettings) => {
+        setSettings(newSettings);
+        if (roomCode) {
+            socket.emit('geo-update-settings', {
+                roomCode: roomCode.toUpperCase(),
+                settings: newSettings
+            });
+        }
+    };
+
     const formatTime = (seconds) => {
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
@@ -369,7 +394,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                                 <select
                                     className="form-select"
                                     value={settings.roundsCount}
-                                    onChange={(e) => setSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
+                                    onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
                                 >
                                     {[3, 5, 7, 10].map(n => (
                                         <option key={n} value={n}>{n}</option>
@@ -381,7 +406,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                                 <select
                                     className="form-select"
                                     value={settings.timePerRound}
-                                    onChange={(e) => setSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
+                                    onChange={(e) => updateSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
                                 >
                                     {[30, 45, 60, 90, 120].map(n => (
                                         <option key={n} value={n}>{n}s</option>

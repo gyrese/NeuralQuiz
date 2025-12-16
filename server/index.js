@@ -504,11 +504,23 @@ io.on('connection', (socket) => {
 
     socket.on('geo-update-settings', ({ roomCode, settings }) => {
         const room = geoGameManager.getRoom(roomCode);
-        if (room && room.hostId === socket.id && settings) {
+        if (!room) return;
+
+        // Allow host OR remote to update settings
+        if (!canControlGame(room, socket.id)) return;
+
+        if (settings) {
             room.totalRounds = settings.roundsCount || room.totalRounds;
             room.timePerRound = settings.timePerRound || room.timePerRound;
             room.settings = { ...room.settings, ...settings };
             console.log(`[GEO] Settings updated for room ${roomCode}:`, settings);
+
+            // Broadcast settings update to all clients in the room
+            io.to(`geo-${roomCode}`).emit('geo-settings-updated', {
+                roundsCount: room.totalRounds,
+                timePerRound: room.timePerRound,
+                mapType: room.settings.mapType || ['world']
+            });
         }
     });
 

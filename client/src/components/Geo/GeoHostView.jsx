@@ -211,6 +211,18 @@ function GeoHostView({ onBack }) {
             setAutoNextCountdown(null);
         });
 
+        // When settings are updated (from remote or host)
+        socket.on('geo-settings-updated', (newSettings) => {
+            console.log('[Host] Settings updated event received:', newSettings);
+            setSettings(prev => ({
+                ...prev,
+                roundsCount: newSettings.roundsCount || prev.roundsCount,
+                timePerRound: newSettings.timePerRound || prev.timePerRound,
+                mapType: newSettings.mapType || prev.mapType
+            }));
+            setTotalRounds(newSettings.roundsCount || 5);
+        });
+
         return () => {
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
@@ -222,6 +234,7 @@ function GeoHostView({ onBack }) {
             socket.off('geo-next-round');
             socket.off('geo-game-over');
             socket.off('geo-game-restarted');
+            socket.off('geo-settings-updated');
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             if (autoNextRef.current) clearInterval(autoNextRef.current);
@@ -236,18 +249,20 @@ function GeoHostView({ onBack }) {
         }
     }, [guessedPlayers, players.length, gameState]);
 
-    // Charger Google Maps API
+    // Charger Google Maps API et initialiser Street View
     useEffect(() => {
-        if (gameState === 'PLAYING' && !window.google) {
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGeoHost`;
-            script.async = true;
-            window.initGeoHost = () => initStreetView();
-            document.head.appendChild(script);
-        } else if (gameState === 'PLAYING' && window.google) {
-            initStreetView();
+        if (gameState === 'PLAYING' && correctLocation) {
+            if (!window.google) {
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGeoHost`;
+                script.async = true;
+                window.initGeoHost = () => initStreetView();
+                document.head.appendChild(script);
+            } else {
+                initStreetView();
+            }
         }
-    }, [gameState, currentRound]);
+    }, [gameState, currentRound, correctLocation]);
 
     const initStreetView = () => {
         if (!correctLocation || !streetViewRef.current) return;

@@ -166,6 +166,13 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             }
         });
 
+        // When host requests a new location (no Street View coverage)
+        socket.on('geo-location-changed', (data) => {
+            console.log('[Player] Location changed:', data.location?.city);
+            setCurrentLocation(data.location);
+            setIsLoading(true); // Re-trigger loading
+        });
+
         socket.on('geo-game-over', (data) => {
             if (timerRef.current) clearInterval(timerRef.current);
             setStep('GAME_END');
@@ -201,6 +208,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             socket.off('geo-game-started');
             socket.off('geo-round-ended');
             socket.off('geo-next-round');
+            socket.off('geo-location-changed');
             socket.off('geo-game-over');
             socket.off('geo-host-disconnected');
             socket.off('geo-kicked');
@@ -467,6 +475,22 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
         });
     };
 
+    const leaveGame = () => {
+        if (window.confirm('Voulez-vous vraiment quitter la partie ?')) {
+            localStorage.removeItem('geoSession');
+            setStep('JOIN');
+            setRoomCode('');
+            setPseudo('');
+            setAvatar(null);
+            setMyScore(0);
+            setCurrentRound(0);
+            setRoundResults(null);
+            setFinalResults(null);
+            setCurrentLocation(null);
+            if (timerRef.current) clearInterval(timerRef.current);
+        }
+    };
+
     const submitGuess = () => {
         if (!guessMarker) {
             setError('Cliquez sur la carte pour placer votre réponse!');
@@ -592,7 +616,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                                 <div className="mb-4 text-center">
                                     <label className="form-label d-block">Avatar (optionnel)</label>
                                     {avatar && (
-                                        <img src={avatar} alt="Avatar" className="avatar-preview mb-2" />
+                                        <img src={avatar} alt="Avatar" className="geo-join-avatar-preview mb-2" />
                                     )}
                                     <input
                                         type="file"
@@ -631,6 +655,9 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                         <div className="spinner-border text-primary mb-3" role="status"></div>
                         <p className="fs-4">En attente du lancement...</p>
                         <p className="text-muted">L'hôte va bientôt démarrer la partie</p>
+                        <button className="btn btn-outline-danger mt-4 w-100" onClick={leaveGame}>
+                            Quitter la partie
+                        </button>
                     </div>
                 </div>
             </div>
@@ -662,7 +689,17 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                     {/* Header info */}
                     <div className="d-flex justify-content-between align-items-center mb-4">
                         <div className="badge bg-dark fs-6">Manche {currentRound}/{totalRounds}</div>
-                        <div className="badge bg-primary fs-5">{myScore.toLocaleString()} pts</div>
+                        <div className="d-flex align-items-center gap-2">
+                            <div className="badge bg-primary fs-5">{myScore.toLocaleString()} pts</div>
+                            <button
+                                className="btn btn-sm btn-outline-danger rounded-circle p-0 d-flex align-items-center justify-content-center"
+                                style={{ width: '30px', height: '30px', minWidth: '30px' }}
+                                onClick={leaveGame}
+                                title="Quitter la partie"
+                            >
+                                <span style={{ fontSize: '18px', lineHeight: 1 }}>×</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Success message */}
@@ -716,8 +753,16 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                     <div className={`geo-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
                         {formatTime(timeLeft)}
                     </div>
-                    <div className="geo-score">
-                        Score: {myScore.toLocaleString()}
+                    <div className="geo-score d-flex align-items-center gap-2">
+                        <span>Score: {myScore.toLocaleString()}</span>
+                        <button
+                            className="btn btn-sm btn-danger rounded-circle p-0 d-flex align-items-center justify-content-center"
+                            style={{ width: '24px', height: '24px', minWidth: '24px' }}
+                            onClick={leaveGame}
+                            title="Quitter la partie"
+                        >
+                            <span style={{ fontSize: '14px', lineHeight: 1 }}>×</span>
+                        </button>
                     </div>
                 </div>
 
@@ -764,6 +809,9 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
 
         return (
             <div className="container py-4">
+                <div className="d-flex justify-content-end mb-2">
+                    <button className="btn btn-sm btn-outline-danger" onClick={leaveGame}>Quitter la partie</button>
+                </div>
                 <div className="text-center mb-4">
                     <h2 className="text-primary">📍 Résultats - Manche {currentRound}</h2>
                     <p className="text-info fs-4">
@@ -812,6 +860,9 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
 
         return (
             <div className="container py-4">
+                <div className="d-flex justify-content-end mb-2">
+                    <button className="btn btn-sm btn-outline-danger" onClick={leaveGame}>Quitter la partie</button>
+                </div>
                 <div className="text-center mb-5">
                     <h1 className="display-3 text-primary glitch-text" data-text="PARTIE TERMINÉE">
                         🏆 PARTIE TERMINÉE

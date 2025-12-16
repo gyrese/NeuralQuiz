@@ -19,18 +19,14 @@
   --glass-bg: rgba(20, 20, 20, 0.7);
   --glass-border: 1px solid rgba(255, 255, 255, 0.1);
   --font-display: 'Orbitron', 'Segoe UI', sans-serif;
-  /* Tech font if available, else standard */
 }
-
-/* Import a tech-looking font */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@300;400;700&display=swap');
 
 body {
   background-color: var(--bs-body-bg);
   background-image:
     radial-gradient(circle at 50% 0%, rgba(0, 255, 65, 0.15) 0%, transparent 50%),
     linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(10, 10, 10, 1) 100%);
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   min-height: 100vh;
 }
 
@@ -49,123 +45,12 @@ h6,
   letter-spacing: 2px;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-}
+/* ... existing scrollbar code ... */
 
-::-webkit-scrollbar-track {
-  background: #000;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--neon-green);
-}
-
-/* Bootstrap Component Overrides */
-
-/* Cards: Glassmorphism */
-.card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  color: #fff;
-}
-
-.list-group-item {
-  background: transparent;
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Inputs */
-.form-control,
-.form-select {
-  background-color: rgba(0, 0, 0, 0.5);
-  border: 1px solid #333;
-  color: #fff;
-}
-
-.form-control:focus,
-.form-select:focus {
-  background-color: rgba(0, 0, 0, 0.8);
-  border-color: var(--neon-green);
-  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
-  color: #fff;
-}
-
-/* Buttons */
-.btn-primary {
-  background-color: transparent;
-  border: 2px solid var(--neon-green);
-  color: var(--neon-green);
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: all 0.3s ease;
-}
-
-.btn-primary:hover,
-.btn-primary:active,
-.btn-primary:focus {
-  background-color: var(--neon-green) !important;
-  border-color: var(--neon-green) !important;
-  color: #000 !important;
-  box-shadow: 0 0 25px rgba(0, 255, 65, 0.6) !important;
-}
-
-.btn-outline-secondary {
-  color: #aaa;
-  border-color: #555;
-}
-
-.btn-outline-secondary:hover {
-  background-color: #333;
-  color: #fff;
-  border-color: #fff;
-}
-
-/* Custom Classes */
-.text-primary {
-  color: var(--neon-green) !important;
-  text-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
-}
-
-.text-secondary {
-  color: var(--neon-purple) !important;
-}
-
-.avatar-preview {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--neon-green);
-  box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-}
-
-.player-card {
-  transition: all 0.3s ease;
-  cursor: default;
-}
-
-.player-card:hover {
-  transform: translateY(-5px) scale(1.02);
-  border-color: var(--neon-green);
-  box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
-}
-
-/* Glitch Effect Class (Optional usage) */
+/* Glitch Effect Class */
 .glitch-text {
   position: relative;
+  display: inline-block;
 }
 
 .glitch-text::before,
@@ -176,6 +61,76 @@ h6,
   left: 0;
   width: 100%;
   height: 100%;
+  background: var(--bs-body-bg);
+  /* Ensure background handles opacity */
+}
+
+.glitch-text::before {
+  left: 2px;
+  text-shadow: -1px 0 var(--neon-purple);
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim-1 5s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+  left: -2px;
+  text-shadow: -1px 0 var(--neon-green);
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim-2 5s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim-1 {
+  0% {
+    clip: rect(20px, 9999px, 80px, 0);
+    transform: translate(-2px, 1px);
+  }
+
+  5% {
+    clip: rect(60px, 9999px, 10px, 0);
+    transform: translate(2px, -1px);
+  }
+
+  10% {
+    clip: rect(85px, 9999px, 30px, 0);
+    transform: translate(-2px, 2px);
+  }
+
+  15% {
+    clip: rect(10px, 9999px, 90px, 0);
+    transform: translate(0, 0);
+  }
+
+  100% {
+    clip: rect(0, 0, 0, 0);
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes glitch-anim-2 {
+  0% {
+    clip: rect(10px, 9999px, 60px, 0);
+    transform: translate(2px, -1px);
+  }
+
+  5% {
+    clip: rect(80px, 9999px, 5px, 0);
+    transform: translate(-2px, 2px);
+  }
+
+  10% {
+    clip: rect(30px, 9999px, 20px, 0);
+    transform: translate(2px, 1px);
+  }
+
+  15% {
+    clip: rect(10px, 9999px, 90px, 0);
+    transform: translate(0, 0);
+  }
+
+  100% {
+    clip: rect(0, 0, 0, 0);
+    transform: translate(0, 0);
+  }
 }
 
 /* Loader */

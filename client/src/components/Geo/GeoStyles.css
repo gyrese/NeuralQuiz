@@ -2208,3 +2208,15 @@
     cursor: pointer;
     margin-right: 1rem;
 }
+
+/* Fix Avatar Preview Size */
+.geo-join-avatar-preview {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--neon-green);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+    display: block;
+    margin: 0 auto 10px auto;
+}

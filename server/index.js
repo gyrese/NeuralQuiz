@@ -702,6 +702,40 @@ io.on('connection', (socket) => {
             callback({ error: result.error || 'Unknown error' });
         }
     });
+
+    // Request a new random location when current one has no Street View coverage
+    socket.on('geo-request-new-location', ({ roomCode }, callback) => {
+        const room = geoGameManager.getRoom(roomCode);
+        if (!room) {
+            callback({ error: 'Room not found' });
+            return;
+        }
+        if (!canControlGame(room, socket.id)) {
+            callback({ error: 'Not authorized' });
+            return;
+        }
+
+        // Generate a new random location
+        const newLocation = geoGameManager.getRandomLocation(room.settings.mapType);
+        room.currentLocation = newLocation;
+
+        // Also update the locations array (replace last one)
+        if (room.locations.length > 0) {
+            room.locations[room.locations.length - 1] = newLocation;
+        }
+
+        console.log(`[GEO] New location requested for room ${roomCode}: ${newLocation.city}`);
+
+        callback({
+            success: true,
+            location: newLocation
+        });
+
+        // Broadcast to all players so they also get the new location
+        io.to(`geo-${roomCode}`).emit('geo-location-changed', {
+            location: newLocation
+        });
+    });
 });
 
 // --- SERVITUDE STATIQUE (POUR LE NAS/PROD) ---

@@ -106,7 +106,9 @@ class GeoGameManager {
             roundScores: [],
             currentGuess: null,   // {lat, lng}
             hasGuessed: false,
-            lastDistance: null
+            lastDistance: null,
+            roundDistances: [],
+            roundTimes: []
         });
 
         return { success: true, room };
@@ -256,6 +258,8 @@ class GeoGameManager {
         for (const player of room.players.values()) {
             player.totalScore = 0;
             player.roundScores = [];
+            player.roundDistances = [];
+            player.roundTimes = [];
             player.currentGuess = null;
             player.hasGuessed = false;
         }
@@ -299,10 +303,16 @@ class GeoGameManager {
             timeBonus = Math.round(1000 * ratio);
         }
 
+
         const totalRoundScore = distanceScore + timeBonus;
 
         player.roundScores.push(totalRoundScore);
         player.totalScore += totalRoundScore;
+
+        // Track stats for awards
+        player.roundDistances.push(distance);
+        const timeTaken = (Date.now() - room.roundStartTime) / 1000;
+        player.roundTimes.push(timeTaken);
 
         const allGuessed = this.allPlayersGuessed(roomCode);
 
@@ -429,7 +439,7 @@ class GeoGameManager {
             }
             finalResults.sort((a, b) => b.totalScore - a.totalScore);
 
-            return { gameOver: true, results: finalResults };
+            return { gameOver: true, results: finalResults, awards: this.calculateAwards(roomCode) };
         }
 
         // Préparer le prochain round
@@ -448,9 +458,10 @@ class GeoGameManager {
 
         return {
             success: true,
-            location,
             round: room.currentRound,
-            total: room.totalRounds
+            total: room.totalRounds,
+            timePerRound: room.timePerRound,
+            location: location
         };
     }
 
@@ -469,10 +480,11 @@ class GeoGameManager {
         // Reset scores
         for (const player of room.players.values()) {
             player.totalScore = 0;
-            player.roundScores = [];
             player.currentGuess = null;
             player.hasGuessed = false;
             player.lastDistance = null;
+            player.roundDistances = [];
+            player.roundTimes = [];
             player.disconnected = false; // Reset disconnect status on restart
         }
 
@@ -533,6 +545,82 @@ class GeoGameManager {
             if (!player.hasGuessed) return false;
         }
         return true;
+    }
+
+    calculateAwards(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return [];
+
+        let fastestPlayer = null;
+        let fastestTime = Infinity;
+
+        let worstPlayer = null;
+        let maxTotalDistance = -1;
+
+        let furthestPlayer = null;
+        let maxSingleDistance = -1;
+
+        for (const player of room.players.values()) {
+            if (player.roundTimes.length === 0) continue;
+
+            // 1. Fastest Cumulative Time
+            const totalTime = player.roundTimes.reduce((a, b) => a + b, 0);
+            if (totalTime < fastestTime) {
+                fastestTime = totalTime;
+                fastestPlayer = player;
+            }
+
+            // 2. Worst Player (Max Total Distance) - "Le Touriste"
+            const totalDistance = player.roundDistances.reduce((a, b) => a + b, 0);
+            if (totalDistance > maxTotalDistance) {
+                maxTotalDistance = totalDistance;
+                worstPlayer = player;
+            }
+
+            // 3. Furthest Single Guess - "L'Astronaute"
+            const maxDist = Math.max(...player.roundDistances);
+            if (maxDist > maxSingleDistance) {
+                maxSingleDistance = maxDist;
+                furthestPlayer = player;
+            }
+        }
+
+        const awards = [];
+        if (fastestPlayer) {
+            awards.push({
+                type: 'fastest',
+                title: 'eCLAIRE', // "Le plus rapide"
+                icon: '⚡',
+                playerId: fastestPlayer.id,
+                playerName: fastestPlayer.name,
+                avatar: fastestPlayer.avatar,
+                value: `${fastestTime.toFixed(1)}s (total)`
+            });
+        }
+        if (worstPlayer) {
+            awards.push({
+                type: 'tourist',
+                title: 'Le Touriste',
+                icon: '🧭',
+                playerId: worstPlayer.id,
+                playerName: worstPlayer.name,
+                avatar: worstPlayer.avatar,
+                value: `${Math.round(maxTotalDistance).toLocaleString()} km`
+            });
+        }
+        if (furthestPlayer) {
+            awards.push({
+                type: 'astronaut',
+                title: 'L\'Astronaute',
+                icon: '🚀',
+                playerId: furthestPlayer.id,
+                playerName: furthestPlayer.name,
+                avatar: furthestPlayer.avatar,
+                value: `${Math.round(maxSingleDistance).toLocaleString()} km`
+            });
+        }
+
+        return awards;
     }
 }
 

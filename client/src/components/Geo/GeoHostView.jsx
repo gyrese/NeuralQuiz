@@ -15,6 +15,7 @@ function GeoHostView({ onBack }) {
     const [roundResults, setRoundResults] = useState(null);
     const [correctLocation, setCorrectLocation] = useState(null);
     const [finalResults, setFinalResults] = useState(null);
+    const [awards, setAwards] = useState([]);
     const [guessedPlayers, setGuessedPlayers] = useState(new Set());
     const [isEndingRound, setIsEndingRound] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -215,6 +216,7 @@ function GeoHostView({ onBack }) {
             setAutoNextCountdown(null);
             setGameState('GAME_END');
             setFinalResults(data.results);
+            setAwards(data.awards || []);
             soundManager.play('win');
         });
 
@@ -278,7 +280,7 @@ function GeoHostView({ onBack }) {
 
     // Charger Google Maps API et initialiser Street View
     useEffect(() => {
-        if (gameState === 'PLAYING' && correctLocation) {
+        if ((gameState === 'PLAYING' || gameState === 'ROUND_END') && correctLocation) {
             // Delay to ensure DOM is rendered before initializing Street View
             const timeoutId = setTimeout(() => {
                 if (!window.google) {
@@ -308,7 +310,46 @@ function GeoHostView({ onBack }) {
             return;
         }
 
-        console.log('[Host] Initializing Street View for location:', location.city, location.lat, location.lng);
+        console.log('[Host] Checking Street View coverage for:', location.city, location.lat, location.lng);
+
+        // Use StreetViewService to check if coverage exists
+        const streetViewService = new window.google.maps.StreetViewService();
+        const position = { lat: location.lat, lng: location.lng };
+
+        streetViewService.getPanorama({ location: position, radius: 50 }, (data, status) => {
+            if (status === 'OK') {
+                console.log('[Host] Street View coverage found, initializing panorama');
+                initPanorama(location, data.location.latLng);
+            } else {
+                console.warn('[Host] No Street View coverage for this location, requesting new location');
+                // Request new location from server
+                requestNewLocation();
+            }
+        });
+    };
+
+    // Request a new location from the server when current one has no Street View
+    const requestNewLocation = () => {
+        const currentRoomCode = roomCodeRef.current || roomCode;
+        console.log('[Host] Requesting new location from server');
+        socket.emit('geo-request-new-location', { roomCode: currentRoomCode }, (response) => {
+            if (response.success && response.location) {
+                console.log('[Host] Received new location:', response.location.city);
+                setCorrectLocation(response.location);
+                correctLocationRef.current = response.location;
+                // Re-verify with the new location
+                setTimeout(() => initStreetView(), 200);
+            } else {
+                console.error('[Host] Failed to get new location:', response.error);
+            }
+        });
+    };
+
+    // Actually initialize the panorama after coverage is verified
+    const initPanorama = (location, verifiedPosition) => {
+        if (!streetViewRef.current) return;
+
+        console.log('[Host] Initializing Street View for location:', location.city, verifiedPosition.lat(), verifiedPosition.lng());
 
         // Nettoyer l'ancienne animation
         if (rotationRef.current) {
@@ -317,33 +358,28 @@ function GeoHostView({ onBack }) {
         }
 
         const initialHeading = Math.random() * 360;
-        const newPosition = { lat: location.lat, lng: location.lng };
 
-        // Si un panorama existe déjà, mettre à jour sa position
-        if (panoramaInstance.current) {
-            console.log('[Host] Updating existing panorama position');
-            panoramaInstance.current.setPosition(newPosition);
-            panoramaInstance.current.setPov({ heading: initialHeading, pitch: 5 });
-        } else {
-            console.log('[Host] Creating new panorama instance');
-            panoramaInstance.current = new window.google.maps.StreetViewPanorama(
-                streetViewRef.current,
-                {
-                    position: newPosition,
-                    pov: { heading: initialHeading, pitch: 5 },
-                    zoom: 0,
-                    addressControl: false,
-                    showRoadLabels: false,
-                    linksControl: false,
-                    panControl: false,
-                    zoomControl: false,
-                    enableCloseButton: false,
-                    fullscreenControl: false,
-                    motionTracking: false,
-                    motionTrackingControl: false
-                }
-            );
-        }
+        // ALWAYS create a new instance because the DOM element (streetViewRef.current) 
+        // might have been destroyed/recreated by React between rounds/states.
+        console.log('[Host] Creating new panorama instance');
+        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+            streetViewRef.current,
+            {
+                position: verifiedPosition, // Use the SNAPPED position from StreetViewService
+                pov: { heading: initialHeading, pitch: 5 },
+                zoom: 0,
+                addressControl: false,
+                showRoadLabels: false,
+                linksControl: false,
+                panControl: false,
+                zoomControl: false,
+                enableCloseButton: false,
+                fullscreenControl: false,
+                motionTracking: false,
+                motionTrackingControl: false,
+                visible: true // Explicitly set visible
+            }
+        );
 
         // Animation de rotation lente automatique
         let heading = initialHeading;
@@ -1175,6 +1211,30 @@ function GeoHostView({ onBack }) {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Awards */}
+                            {awards && awards.length > 0 && (
+                                <div className="geo-awards mb-5">
+                                    <h3 className="text-center mb-3 text-warning" style={{ fontFamily: 'var(--font-display)' }}>🌟 Hall of Fame</h3>
+                                    <div className="row justify-content-center g-3">
+                                        {awards.map((award, index) => (
+                                            <div key={index} className="col-md-4">
+                                                <div className="card p-3 h-100 text-center" style={{ border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.4)' }}>
+                                                    <div className="display-4 mb-2">{award.icon}</div>
+                                                    <h5 className="mb-1" style={{ color: award.type === 'fastest' ? '#ffc107' : award.type === 'astronaut' ? '#bd00ff' : '#aaa' }}>{award.title}</h5>
+                                                    <div className="my-2">
+                                                        {award.avatar ? (
+                                                            <img src={award.avatar} alt="" className="rounded-circle" style={{ width: 50, height: 50, objectFit: 'cover', border: '2px solid white' }} />
+                                                        ) : <span className="fs-2">👤</span>}
+                                                    </div>
+                                                    <div className="fw-bold">{award.playerName}</div>
+                                                    <div className="small text-muted">{award.value}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Full Leaderboard */}
                             <div className="card p-4">

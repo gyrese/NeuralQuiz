@@ -258,21 +258,30 @@ function GeoHostView({ onBack }) {
     // Charger Google Maps API et initialiser Street View
     useEffect(() => {
         if (gameState === 'PLAYING' && correctLocation) {
-            if (!window.google) {
-                const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGeoHost`;
-                script.async = true;
-                window.initGeoHost = () => initStreetView();
-                document.head.appendChild(script);
-            } else {
-                initStreetView();
-            }
+            // Delay to ensure DOM is rendered before initializing Street View
+            const timeoutId = setTimeout(() => {
+                if (!window.google) {
+                    const script = document.createElement('script');
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGeoHost`;
+                    script.async = true;
+                    window.initGeoHost = () => initStreetView();
+                    document.head.appendChild(script);
+                } else {
+                    initStreetView();
+                }
+            }, 200);
+
+            return () => clearTimeout(timeoutId);
         }
     }, [gameState, currentRound, correctLocation]);
 
-    const initStreetView = () => {
+    const initStreetView = (retryCount = 0) => {
         if (!correctLocation || !streetViewRef.current) {
-            console.log('[Host] initStreetView called but missing location or ref', { correctLocation, ref: !!streetViewRef.current });
+            console.log('[Host] initStreetView called but missing location or ref', { correctLocation, ref: !!streetViewRef.current, retryCount });
+            // Retry up to 3 times with increasing delay
+            if (retryCount < 3) {
+                setTimeout(() => initStreetView(retryCount + 1), 300);
+            }
             return;
         }
 

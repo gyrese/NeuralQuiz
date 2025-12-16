@@ -7,53 +7,99 @@
 - [x] **Système de Rounds** : Flot complet implémenté (Start -> Timer -> End Round -> Next Round -> Game Over).
 - [x] **Calcul des Scores** : Formule de Haversine implémentée avec attribution de points exponentielle (max 5000 pts).
 - [x] **Multi-joueurs** : Communication Socket.IO temps réel fonctionnelle.
+- [x] **Synchronisation Timer** : Timer synchronisé entre Host et joueurs via `roundStartTime` serveur.
+- [x] **Auto-progression** : La partie avance automatiquement (30s après fin de manche, timer déclenche endRound).
 
 ### Client - Host (Hôte)
 - [x] **Création de Salon** : Interface de configuration (nombre de manches, temps, région).
 - [x] **Tableau de Bord** : Vue dashboard pendant le jeu (Timer géant, statut des joueurs).
 - [x] **Affichage Résultats** : Grande carte interactive avec marqueurs de tous les joueurs.
 - [x] **Contrôle** : Boutons pour forcer la fin de manche et passer à la suivante.
+- [x] **Jouable sans télécommande** : La partie peut être jouée uniquement depuis le Host.
 
 ### Client - Player (Joueur)
 - [x] **Interface de Jeu** : Vue Google Street View immersive.
 - [x] **Guessing** : Mini-carte Google Maps pour placer son marqueur.
 - [x] **Feedback** : Affichage immédiat de la distance et du score après la manche.
 - [x] **Optimisation** : Réutilisation de l'instance Street View (fix écran noir round 2+).
+- [x] **Paramètre newgame** : `?newgame=1` dans l'URL pour éviter la reconnexion automatique.
 
 ### Contenu & Assets
 - [x] **Base de Données** : +400 lieux chargés (Monde, Europe, Asie, Amériques, Afrique, Océanie).
 - [x] **Visuels** : Utilisation des avatars des joueurs comme marqueurs sur la carte.
 - [x] **Mobile** : Configuration réseau (`host: true`) pour accès depuis smartphones.
+- [x] **Catégories spéciales** : Parcs d'attractions, Plages, Marchés avec filtrage par mots-clés.
 
 ### Télécommande Admin
-- [x] **Télécommande Mobile** : Interface de contrôle dédiée (`GeoRemoteView.jsx`) pour gérer la partie depuis un téléphone pendant que l'écran principal est affiché sur TV.
-- [x] **QR Code Télécommande** : Deuxième QR code dans le lobby pour accéder directement à l'interface de contrôle.
-- [x] **Persistance de Session** : Reconnexion automatique robuste lors du rafraîchissement navigateur (timer synchronisé, score restauré).
+- [x] **Télécommande Mobile** : Interface de contrôle dédiée (`GeoRemoteView.jsx`).
+- [x] **QR Code Télécommande** : Deuxième QR code dans le lobby pour accéder à l'interface de contrôle.
+- [x] **Persistance de Session** : Reconnexion automatique robuste lors du rafraîchissement.
+- [x] **Sync Settings** : Les settings modifiés sur la télécommande sont broadcastés au Host.
 
 ---
 
 ## 🚀 À Faire (Todo)
 
-### 1. Interface & UX
-- [x] **Sélecteur de Régions (Host)** : Mettre à jour le menu déroulant pour inclure les nouvelles régions (Asie, Afrique, Amériques, Océanie, France).
-- [x] **Feedback Visuel** : Ajouter des animations de gain de points.
-- [x] **Sons** : Bruitages pour :
-  - Début de round (Gong/Sifflet)
-  - Fin du timer (Compte à rebours)
-  - Résultats (Applaudissements/Musique)
-- [x] **Loading** : Spinner de chargement pendant l'initialisation de Street View.
+### 1. Animations Style Kahoot 🎮
+> Priorité haute - rendre l'expérience plus dynamique et engageante
 
-### 2. Fonctionnalités Gameplay
-- [x] **Kick Player** : Option pour l'hôte de virer un joueur inactif ou gênant.
-- [x] **Rejouer** : Bouton "Rejouer" en fin de partie pour relancer sans recréer le lobby.
-- [ ] **Mode "Battle Royale"** (Idée) : Le dernier joueur de chaque manche est éliminé ?
-- [x] **Bonus de Temps** : Points supplémentaires pour les réponses rapides.
+- [ ] **Animation Début de Manche**
+  - Compte à rebours géant 3-2-1 en overlay
+  - Animation de zoom avant sur le globe terrestre
+  - Son de démarrage épique
+
+- [ ] **Animation Timer**
+  - Effet pulsant quand il reste < 10 secondes
+  - Changement de couleur progressif (vert → jaune → rouge)
+  - Shake/tremblement dans les 5 dernières secondes
+
+- [ ] **Animation Fin de Manche**
+  - Confettis pour le gagnant du round
+  - Animation de score qui défile (compteur animé)
+  - Transition fluide entre les écrans
+
+- [ ] **Animation Classement**
+  - Barres de score qui s'allongent avec effet de course
+  - Podium 3D animé pour les 3 premiers
+  - Emoji qui rebondissent à côté des noms
+
+- [ ] **Animation Réponse Joueur**
+  - Feedback visuel quand un joueur répond sur le Host (icône qui apparaît)
+  - Animation de marqueur sur la carte
+  - Effet de propagation comme une onde
+
+- [ ] **Animation Fin de Partie**
+  - Feux d'artifice pour le vainqueur final
+  - Musique de victoire épique
+  - Animation du trophée
+
+- [ ] **Transitions Écrans**
+  - Slide-in / slide-out pour les changements d'état
+  - Fade-in progressif des éléments
+  - Parallax effect sur les fonds
+
+### 2. Améliorations UX
+- [ ] **Mode Battle Royale** : Élimination du dernier à chaque manche
+- [ ] **Mode Équipes** : 2 à 4 équipes qui s'affrontent
+- [ ] **Tableau de Bord Live** : Afficher les distances en temps réel pendant la manche
 
 ### 3. Technique
-- [x] **Gestion Déconnexion et la reconnexion** : Gérer proprement si un joueur quitte en cours de manche (ne pas bloquer le bouton "Terminer manuellement") et le reconnecter automatiquement si il se connect a l application.
-- [ ] **Optimisation API** : Mettre en cache les panoramas si possible (limité par les ToS Google).
-- [ ] **Refactoring** : Extraire les composants Maps dans des fichiers séparés (`GeoMap.jsx`, `StreetView.jsx`).
+- [ ] **Optimisation API** : Préchargement Street View au lobby
+- [ ] **Refactoring** : Extraire `GeoMap.jsx`, `StreetView.jsx` en composants séparés
+- [ ] **Tests** : Ajouter des tests pour le `geoGameManager`
 
-### 4. Bugs Connus (À surveiller)
-- [ ] Parfois le Street View peut être noir si la connexion est lente (loader à ajouter).
-- [ ] Vérifier l'affichage sur très petits écrans (iPhone SE / vieux Android).
+### 4. Bugs Connus
+- [ ] Vérifier l'affichage sur très petits écrans (iPhone SE)
+- [ ] Street View peut être lent sur connexions 3G
+
+---
+
+## 📝 Notes Techniques
+
+### Synchronisation Timer
+Le serveur stocke `room.roundStartTime = Date.now()` au début de chaque round.
+Les clients calculent le temps restant : `remaining = timePerRound - (Date.now() - roundStartTime) / 1000`
+
+### Paramètres URL
+- `?room=XXXX` : Pré-remplit le code du salon
+- `?newgame=1` : Efface la session précédente, empêche la reconnexion auto

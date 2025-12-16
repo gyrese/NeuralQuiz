@@ -519,6 +519,15 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
 
     // RESTORING Screen - shown while attempting to reconnect
     if (isRestoring) {
+        const cancelRestore = () => {
+            localStorage.removeItem('geoSession');
+            setIsRestoring(false);
+            setRoomCode('');
+            setPseudo('');
+            setAvatar(null);
+            setMyScore(0);
+        };
+
         return (
             <div className="geo-player-background">
                 <div className="container text-center py-5">
@@ -526,7 +535,13 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                         <h2 className="text-primary mb-4" style={{ fontFamily: 'var(--font-display)', letterSpacing: '4px' }}>🌍 GEO_TRACKR</h2>
                         <div className="spinner-border text-primary mb-3" role="status"></div>
                         <p className="fs-4">Reconnexion en cours...</p>
-                        <p className="text-muted">Récupération de votre session</p>
+                        <p className="text-muted mb-4">Récupération de votre session</p>
+                        <button
+                            className="btn btn-outline-danger"
+                            onClick={cancelRestore}
+                        >
+                            ✖ Annuler et nouvelle partie
+                        </button>
                     </div>
                 </div>
             </div>

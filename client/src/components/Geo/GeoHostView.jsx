@@ -38,12 +38,17 @@ function GeoHostView({ onBack }) {
     const timerRef = useRef(null);
     const rotationRef = useRef(null); // Animation de rotation auto
     const autoNextRef = useRef(null); // Timer for auto next round
+    const roomCodeRef = useRef(null); // Ref for roomCode to avoid stale closures
+    const isNextRoundPendingRef = useRef(false); // Flag to prevent double nextRound processing
+    const isEndingRoundRef = useRef(false); // Ref mirror of isEndingRound for socket listener
+    const correctLocationRef = useRef(null); // Ref for correctLocation to avoid stale closures
 
     useEffect(() => {
         // Créer la room au montage
         socket.emit('geo-create-room', { settings }, (response) => {
             if (response.roomCode) {
                 setRoomCode(response.roomCode);
+                roomCodeRef.current = response.roomCode; // Keep ref in sync
                 setGameState('LOBBY');
             }
         });
@@ -84,6 +89,7 @@ function GeoHostView({ onBack }) {
             setCurrentRound(data.round);
             setTotalRounds(data.total);
             setCorrectLocation(data.location);
+            correctLocationRef.current = data.location; // Sync ref for initStreetView
             setGuessedPlayers(new Set());
             setIsEndingRound(false);
             soundManager.play('start');
@@ -106,9 +112,16 @@ function GeoHostView({ onBack }) {
             }, 1000);
         });
 
-        // When remote ends a round
+        // When remote ends a round (broadcast from server)
+        // This is for when the remote control triggers round end, not when Host triggers it
         socket.on('geo-round-ended', (data) => {
             console.log('[Host] Round ended event received:', data);
+            // Skip if we're already handling this (Host triggered endRound)
+            // The callback in endRound() already handles the transition
+            if (isEndingRoundRef.current) {
+                console.log('[Host] Skipping geo-round-ended - we triggered this ourselves');
+                return;
+            }
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -124,10 +137,11 @@ function GeoHostView({ onBack }) {
             setGameState('ROUND_END');
             setRoundResults(data.results);
             setCorrectLocation(data.correctLocation);
+            correctLocationRef.current = data.correctLocation; // Sync ref
             setIsEndingRound(false);
             soundManager.play('end');
-            // Start countdown for auto-progression to next round (30 seconds)
-            setAutoNextCountdown(30);
+            // Start countdown for auto-progression to next round (10 seconds)
+            setAutoNextCountdown(10);
             autoNextRef.current = setInterval(() => {
                 setAutoNextCountdown(prev => {
                     if (prev <= 1) {
@@ -145,6 +159,12 @@ function GeoHostView({ onBack }) {
         // When remote triggers next round
         socket.on('geo-next-round', (data) => {
             console.log('[Host] Next round event received:', data);
+            // Skip if we triggered this ourselves (to avoid double processing)
+            if (isNextRoundPendingRef.current) {
+                console.log('[Host] Skipping geo-next-round - we triggered this ourselves');
+                isNextRoundPendingRef.current = false;
+                return;
+            }
             // Clear all timers
             if (autoNextRef.current) {
                 clearInterval(autoNextRef.current);
@@ -159,6 +179,7 @@ function GeoHostView({ onBack }) {
             setGameState('PLAYING');
             setCurrentRound(data.round);
             setCorrectLocation(data.location);
+            correctLocationRef.current = data.location; // Sync ref for initStreetView
             setRoundResults(null);
             setGuessedPlayers(new Set());
             soundManager.play('start');
@@ -276,8 +297,10 @@ function GeoHostView({ onBack }) {
     }, [gameState, currentRound, correctLocation]);
 
     const initStreetView = (retryCount = 0) => {
-        if (!correctLocation || !streetViewRef.current) {
-            console.log('[Host] initStreetView called but missing location or ref', { correctLocation, ref: !!streetViewRef.current, retryCount });
+        // Use ref to get the latest correctLocation value
+        const location = correctLocationRef.current;
+        if (!location || !streetViewRef.current) {
+            console.log('[Host] initStreetView called but missing location or ref', { location, ref: !!streetViewRef.current, retryCount });
             // Retry up to 3 times with increasing delay
             if (retryCount < 3) {
                 setTimeout(() => initStreetView(retryCount + 1), 300);
@@ -285,7 +308,7 @@ function GeoHostView({ onBack }) {
             return;
         }
 
-        console.log('[Host] Initializing Street View for location:', correctLocation.city, correctLocation.lat, correctLocation.lng);
+        console.log('[Host] Initializing Street View for location:', location.city, location.lat, location.lng);
 
         // Nettoyer l'ancienne animation
         if (rotationRef.current) {
@@ -294,7 +317,7 @@ function GeoHostView({ onBack }) {
         }
 
         const initialHeading = Math.random() * 360;
-        const newPosition = { lat: correctLocation.lat, lng: correctLocation.lng };
+        const newPosition = { lat: location.lat, lng: location.lng };
 
         // Si un panorama existe déjà, mettre à jour sa position
         if (panoramaInstance.current) {
@@ -507,6 +530,7 @@ function GeoHostView({ onBack }) {
                 setCurrentRound(response.round);
                 setTotalRounds(response.total);
                 setCorrectLocation(response.location);
+                correctLocationRef.current = response.location; // Sync ref for initStreetView
                 setGuessedPlayers(new Set());
                 soundManager.play('start');
                 startTimer();
@@ -545,18 +569,23 @@ function GeoHostView({ onBack }) {
 
     const endRound = () => {
         // Protection contre les doubles appels
-        if (isEndingRound) {
+        if (isEndingRound || isEndingRoundRef.current) {
             console.log('[GEO] endRound already in progress, skipping');
             return;
         }
         setIsEndingRound(true);
+        isEndingRoundRef.current = true; // Set ref for socket listener
 
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
         }
 
-        socket.emit('geo-end-round', { roomCode }, (response) => {
+        // Use roomCodeRef.current to avoid stale closure issues
+        const currentRoomCode = roomCodeRef.current || roomCode;
+        console.log('[GEO] endRound called with roomCode:', currentRoomCode);
+
+        socket.emit('geo-end-round', { roomCode: currentRoomCode }, (response) => {
             if (response.success) {
                 // Stop rotation animation
                 if (rotationRef.current) {
@@ -585,12 +614,19 @@ function GeoHostView({ onBack }) {
             } else {
                 console.error('[GEO] End round error:', response.error);
                 setIsEndingRound(false);
+                isEndingRoundRef.current = false;
             }
         });
     };
 
     const nextRound = () => {
         console.log('[GEO] nextRound called');
+
+        // Prevent double skipping - if next round is already pending, do nothing
+        if (isNextRoundPendingRef.current) {
+            console.log('[GEO] nextRound already pending, skipping');
+            return;
+        }
 
         // Clear auto-next timer if manually called
         if (autoNextRef.current) {
@@ -599,7 +635,13 @@ function GeoHostView({ onBack }) {
         }
         setAutoNextCountdown(null);
 
-        socket.emit('geo-next-round', { roomCode }, (response) => {
+        // Use roomCodeRef.current to avoid stale closure issues
+        const currentRoomCode = roomCodeRef.current || roomCode;
+
+        // Mark that we're triggering this ourselves so the socket listener ignores the broadcast
+        isNextRoundPendingRef.current = true;
+
+        socket.emit('geo-next-round', { roomCode: currentRoomCode }, (response) => {
             console.log('[GEO] nextRound response:', response);
             if (response.gameOver) {
                 setGameState('GAME_END');
@@ -607,9 +649,11 @@ function GeoHostView({ onBack }) {
                 soundManager.play('win');
             } else if (response.success) {
                 setIsEndingRound(false);
+                isEndingRoundRef.current = false; // Reset ref for next round
                 setGameState('PLAYING');
                 setCurrentRound(response.round);
                 setCorrectLocation(response.location);
+                correctLocationRef.current = response.location; // Sync ref for initStreetView
                 setRoundResults(null);
                 setGuessedPlayers(new Set());
                 soundManager.play('start');
@@ -620,6 +664,8 @@ function GeoHostView({ onBack }) {
             } else {
                 console.error('[GEO] nextRound error:', response.error);
             }
+            // Reset pending flag
+            isNextRoundPendingRef.current = false;
         });
     };
 

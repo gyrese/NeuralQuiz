@@ -2192,3 +2192,19 @@
         filter: drop-shadow(0 0 30px var(--neon-green)) drop-shadow(0 0 60px var(--neon-blue));
     }
 }
+
+/* Fix file input button text color in dark theme */
+.geo-player-background input[type="file"] {
+    color: white;
+}
+
+.geo-player-background input[type="file"]::file-selector-button {
+    background: var(--neon-blue);
+    color: black;
+    font-weight: bold;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-right: 1rem;
+}

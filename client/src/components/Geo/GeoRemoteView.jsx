@@ -48,11 +48,13 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         });
 
         socket.on('geo-game-started', (data) => {
+            console.log('[Remote] Game started event received:', data);
             setStep('PLAYING');
             setCurrentRound(data.round);
             setTotalRounds(data.total);
             setTimePerRound(data.timePerRound || 60);
             setGuessedCount(0);
+            setError(''); // Clear any previous errors
             soundManager.play('start');
             startTimer(data.timePerRound || 60);
         });
@@ -66,33 +68,49 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         });
 
         socket.on('geo-round-ended', (data) => {
+            console.log('[Remote] Round ended event received:', data);
             if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
             setStep('ROUND_END');
             setRoundResults(data.results);
             setPlayers(data.results); // Update with scores
+            setCurrentRound(data.currentRound); // Sync current round
+            setTotalRounds(data.totalRounds); // Sync total rounds
+            setError(''); // Clear any previous errors
             soundManager.play('end');
         });
 
         socket.on('geo-next-round', (data) => {
+            console.log('[Remote] Next round event received:', data);
             setStep('PLAYING');
             setCurrentRound(data.round);
+            setTotalRounds(data.total); // Sync total rounds
             setGuessedCount(0);
+            setError(''); // Clear any previous errors
             soundManager.play('start');
             startTimer(data.timePerRound || 60);
         });
 
         socket.on('geo-game-over', (data) => {
+            console.log('[Remote] Game over event received:', data);
             if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
             setStep('GAME_END');
             setFinalResults(data.results);
+            setError(''); // Clear any previous errors
             soundManager.play('win');
         });
 
         socket.on('geo-game-restarted', () => {
+            console.log('[Remote] Game restarted event received');
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
             setStep('LOBBY');
+            setCurrentRound(0);
             setGuessedCount(0);
             setRoundResults(null);
             setFinalResults(null);
+            setError(''); // Clear any previous errors
         });
 
         socket.on('geo-host-disconnected', () => {

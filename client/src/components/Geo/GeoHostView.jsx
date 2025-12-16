@@ -265,7 +265,12 @@ function GeoHostView({ onBack }) {
     }, [gameState, currentRound, correctLocation]);
 
     const initStreetView = () => {
-        if (!correctLocation || !streetViewRef.current) return;
+        if (!correctLocation || !streetViewRef.current) {
+            console.log('[Host] initStreetView called but missing location or ref', { correctLocation, ref: !!streetViewRef.current });
+            return;
+        }
+
+        console.log('[Host] Initializing Street View for location:', correctLocation.city, correctLocation.lat, correctLocation.lng);
 
         // Nettoyer l'ancienne animation
         if (rotationRef.current) {
@@ -274,24 +279,33 @@ function GeoHostView({ onBack }) {
         }
 
         const initialHeading = Math.random() * 360;
+        const newPosition = { lat: correctLocation.lat, lng: correctLocation.lng };
 
-        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
-            streetViewRef.current,
-            {
-                position: { lat: correctLocation.lat, lng: correctLocation.lng },
-                pov: { heading: initialHeading, pitch: 5 },
-                zoom: 0,
-                addressControl: false,
-                showRoadLabels: false,
-                linksControl: false,
-                panControl: false,
-                zoomControl: false,
-                enableCloseButton: false,
-                fullscreenControl: false,
-                motionTracking: false,
-                motionTrackingControl: false
-            }
-        );
+        // Si un panorama existe déjà, mettre à jour sa position
+        if (panoramaInstance.current) {
+            console.log('[Host] Updating existing panorama position');
+            panoramaInstance.current.setPosition(newPosition);
+            panoramaInstance.current.setPov({ heading: initialHeading, pitch: 5 });
+        } else {
+            console.log('[Host] Creating new panorama instance');
+            panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+                streetViewRef.current,
+                {
+                    position: newPosition,
+                    pov: { heading: initialHeading, pitch: 5 },
+                    zoom: 0,
+                    addressControl: false,
+                    showRoadLabels: false,
+                    linksControl: false,
+                    panControl: false,
+                    zoomControl: false,
+                    enableCloseButton: false,
+                    fullscreenControl: false,
+                    motionTracking: false,
+                    motionTrackingControl: false
+                }
+            );
+        }
 
         // Animation de rotation lente automatique
         let heading = initialHeading;

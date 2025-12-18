@@ -40,66 +40,119 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     const markerInstance = useRef(null);
     const timerRef = useRef(null);
 
-    // Restore session from localStorage on mount
+    // Restore session and handle connections
     useEffect(() => {
-        // Check for newgame parameter - if present, clear previous session
+        // 1. Handle URL Params (QR Code Priority)
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('newgame') === '1' || urlParams.get('newgame') === 'true') {
+        const urlCode = urlParams.get('code');
+        const isNewGame = urlParams.get('newgame') === '1';
+
+        // 2. Clear session if explicit newgame
+        if (isNewGame) {
             localStorage.removeItem('geoSession');
-            console.log('[Player] New game requested, cleared previous session');
-            return; // Don't attempt to restore
+            if (urlCode) setRoomCode(urlCode.toUpperCase());
+            return;
         }
 
+        // 3. Check LocalStorage
         const savedSession = localStorage.getItem('geoSession');
         if (savedSession) {
             try {
                 const session = JSON.parse(savedSession);
+
+                // CRITICAL: If URL code is different from stored code, user scanned a NEW QR.
+                // We typically want to join the NEW room, not the old one.
+                if (urlCode && session.roomCode !== urlCode.toUpperCase()) {
+                    console.log('[Player] New room code in URL, ignoring saved session room');
+                    setRoomCode(urlCode.toUpperCase());
+                    // Pre-fill pseudo/avatar for convenience but DO NOT auto-join
+                    if (session.pseudo) setPseudo(session.pseudo);
+                    if (session.avatar) setAvatar(session.avatar);
+                    return;
+                }
+
+                // Otherwise, try to restore session (Auto-Rejoin)
                 if (session.roomCode && session.pseudo) {
-                    // Show restoring screen immediately
                     setIsRestoring(true);
                     setRoomCode(session.roomCode);
                     setPseudo(session.pseudo);
                     if (session.avatar) setAvatar(session.avatar);
                     if (session.myScore) setMyScore(session.myScore);
 
-                    // Attempt to rejoin
-                    setIsJoining(true);
-                    socket.emit('geo-join-room', {
-                        roomCode: session.roomCode.toUpperCase(),
-                        playerName: session.pseudo,
-                        avatar: session.avatar
-                    }, (response) => {
-                        setIsJoining(false);
-                        setIsRestoring(false);
-                        if (response.error) {
-                            // Session invalide, on affiche le formulaire
-                            localStorage.removeItem('geoSession');
-                            setError('Session expirée. Reconnectez-vous.');
-                        } else if (response.reconnected) {
-                            setStep(response.gameState);
-                            setCurrentRound(response.currentRound);
-                            setTotalRounds(response.totalRounds);
-                            setCurrentLocation(response.location);
-                            if (response.myScore !== undefined) setMyScore(response.myScore);
-
-                            // Calculate remaining time based on roundStartTime
-                            if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
-                                const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
-                                const remaining = Math.max(0, response.timePerRound - elapsed);
-                                startTimer(remaining);
-                            } else if (response.gameState === 'PLAYING') {
-                                startTimer(60); // Fallback
-                            }
-                        } else {
-                            setStep('WAITING');
-                        }
-                    });
+                    // Perform join
+                    doJoin(session.roomCode, session.pseudo, session.avatar);
                 }
             } catch (e) {
+                console.error('[Player] Session parse error', e);
                 localStorage.removeItem('geoSession');
+                if (urlCode) setRoomCode(urlCode.toUpperCase());
             }
+        } else if (urlCode) {
+            setRoomCode(urlCode.toUpperCase());
         }
+
+        // 4. Socket Reconnection Handling (Mobile Stability)
+        const handleConnect = () => {
+            console.log('[Player] Socket connected/reconnected');
+            // Check if we have an active session to resume
+            const currentSession = localStorage.getItem('geoSession');
+            if (currentSession) {
+                const s = JSON.parse(currentSession);
+                if (s.roomCode && s.pseudo) {
+                    console.log('[Player] Auto-rejoining after reconnect...');
+                    doJoin(s.roomCode, s.pseudo, s.avatar, true); // true = silent rejoin
+                }
+            }
+        };
+
+        socket.on('connect', handleConnect);
+
+        return () => {
+            socket.off('connect', handleConnect);
+        };
     }, []);
+
+    // Helper to join room (refactored to be reusable)
+    const doJoin = (code, name, userAvatar, silent = false) => {
+        if (!silent) setIsJoining(true);
+
+        socket.emit('geo-join-room', {
+            roomCode: code.toUpperCase(),
+            playerName: name,
+            avatar: userAvatar
+        }, (response) => {
+            if (!silent) {
+                setIsJoining(false);
+                setIsRestoring(false);
+            }
+
+            if (response.error) {
+                if (!silent) {
+                    console.error('[Player] Join error:', response.error);
+                    setError('Session expirée ou invalide.');
+                    localStorage.removeItem('geoSession');
+                }
+            } else if (response.reconnected || response.success) {
+                // Success
+                setStep(response.gameState);
+                setCurrentRound(response.currentRound);
+                setTotalRounds(response.totalRounds);
+                setCurrentLocation(response.location);
+                if (response.myScore !== undefined) setMyScore(response.myScore);
+
+                // Re-sync timer
+                if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
+                    const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
+                    const remaining = Math.max(0, response.timePerRound - elapsed);
+                    startTimer(remaining);
+                } else if (response.gameState === 'PLAYING') {
+                    startTimer(60);
+                }
+            } else {
+                if (!silent) setStep('WAITING');
+            }
+        });
+    };
 
     useEffect(() => {
         // Game events
@@ -255,46 +308,62 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     }, [step, roundResults]);
 
     const initMaps = () => {
-        // Street View
+        // Street View - use StreetViewService to find nearest coverage
         if (streetViewRef.current && currentLocation) {
-            // Vérifier si le div contient déjà le panorama
-            const isMounted = streetViewRef.current.hasChildNodes();
+            const streetViewService = new window.google.maps.StreetViewService();
+            const position = { lat: currentLocation.lat, lng: currentLocation.lng };
 
-            if (panoramaInstance.current && isMounted) {
-                // Si l'instance existe ET qu'elle est toujours dans le DOM -> update
-                panoramaInstance.current.setPosition({
-                    lat: currentLocation.lat,
-                    lng: currentLocation.lng
-                });
-                panoramaInstance.current.setPov({
-                    heading: Math.random() * 360,
-                    pitch: 0
-                });
-                panoramaInstance.current.setVisible(true);
-                setIsLoading(false); // Loaded
-            } else {
-                // Sinon (re)créer l'instance
-                panoramaInstance.current = new window.google.maps.StreetViewPanorama(
-                    streetViewRef.current,
-                    {
-                        position: { lat: currentLocation.lat, lng: currentLocation.lng },
-                        pov: { heading: Math.random() * 360, pitch: 0 },
-                        zoom: 1,
-                        addressControl: false,
-                        showRoadLabels: false,
-                        linksControl: true,
-                        panControl: true,
-                        enableCloseButton: false,
-                        fullscreenControl: false,
-                        visible: true
+            // Check for Street View coverage within 500m radius
+            streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
+                if (status === 'OK') {
+                    const verifiedPosition = data.location.latLng;
+                    console.log('[Player] Street View coverage found at:', verifiedPosition.lat(), verifiedPosition.lng());
+
+                    // Create or update panorama with verified position
+                    if (panoramaInstance.current && streetViewRef.current.hasChildNodes()) {
+                        panoramaInstance.current.setPosition(verifiedPosition);
+                        panoramaInstance.current.setPov({
+                            heading: Math.random() * 360,
+                            pitch: 0
+                        });
+                        panoramaInstance.current.setVisible(true);
+                    } else {
+                        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+                            streetViewRef.current,
+                            {
+                                position: verifiedPosition,
+                                pov: { heading: Math.random() * 360, pitch: 0 },
+                                zoom: 1,
+                                addressControl: false,
+                                showRoadLabels: false,
+                                linksControl: true,
+                                panControl: true,
+                                enableCloseButton: false,
+                                fullscreenControl: false,
+                                visible: true
+                            }
+                        );
                     }
-                );
-
-                // Add listener to know when it's ready (approximate)
-                window.google.maps.event.addListenerOnce(panoramaInstance.current, 'status_changed', () => {
                     setIsLoading(false);
-                });
-            }
+                } else {
+                    console.warn('[Player] No Street View coverage, status:', status);
+                    // Fallback: try with original position anyway
+                    if (!panoramaInstance.current) {
+                        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+                            streetViewRef.current,
+                            {
+                                position: position,
+                                pov: { heading: Math.random() * 360, pitch: 0 },
+                                zoom: 1,
+                                addressControl: false,
+                                showRoadLabels: false,
+                                visible: true
+                            }
+                        );
+                    }
+                    setIsLoading(false);
+                }
+            });
         }
 
         // Mini map for guessing - center on selected region

@@ -86,6 +86,11 @@ function GeoHostView({ onBack }) {
         // When remote triggers game start
         socket.on('geo-game-started', (data) => {
             console.log('[Host] Game started event received from remote:', data);
+            // Reset panorama for fresh start
+            if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
+            rotationRef.current = null;
+            panoramaInstance.current = null;
+
             setGameState('PLAYING');
             setCurrentRound(data.round);
             setTotalRounds(data.total);
@@ -175,8 +180,14 @@ function GeoHostView({ onBack }) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
             }
+            // Reset panorama for fresh round
+            if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
+            rotationRef.current = null;
+            panoramaInstance.current = null;
+
             setAutoNextCountdown(null);
             setIsEndingRound(false);
+            isEndingRoundRef.current = false;
             setGameState('PLAYING');
             setCurrentRound(data.round);
             setCorrectLocation(data.location);
@@ -184,22 +195,30 @@ function GeoHostView({ onBack }) {
             setRoundResults(null);
             setGuessedPlayers(new Set());
             soundManager.play('start');
-            // Start timer - auto-end round when it expires
+
+            // Start timer with delay - auto-end round when it expires
             const duration = data.timePerRound || 60;
-            setTimeLeft(duration);
-            timerRef.current = setInterval(() => {
-                setTimeLeft(prev => {
-                    if (prev <= 10 && prev > 0) soundManager.playTick();
-                    if (prev <= 1) {
-                        clearInterval(timerRef.current);
-                        timerRef.current = null;
-                        // Auto-end round when timer expires
-                        setTimeout(() => endRound(), 100);
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
+            setTimeout(() => {
+                setTimeLeft(duration);
+                timerRef.current = setInterval(() => {
+                    setTimeLeft(prev => {
+                        if (prev <= 10 && prev > 0) soundManager.playTick();
+                        if (prev <= 1) {
+                            clearInterval(timerRef.current);
+                            timerRef.current = null;
+                            setTimeout(() => endRound(), 100);
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            }, 200);
+
+            // Force init Street View after DOM is ready
+            setTimeout(() => {
+                console.log('[HOST] Force initializing Street View from geo-next-round');
+                initStreetView();
+            }, 500);
         });
 
         // When game is over (from remote)
@@ -279,6 +298,7 @@ function GeoHostView({ onBack }) {
     }, [guessedPlayers, players.length, gameState]);
 
     // Charger Google Maps API et initialiser Street View
+    // Trigger on PLAYING (during game) and ROUND_END (to show results)
     useEffect(() => {
         if ((gameState === 'PLAYING' || gameState === 'ROUND_END') && correctLocation) {
             // Delay to ensure DOM is rendered before initializing Street View
@@ -292,7 +312,7 @@ function GeoHostView({ onBack }) {
                 } else {
                     initStreetView();
                 }
-            }, 200);
+            }, 300);
 
             return () => clearTimeout(timeoutId);
         }
@@ -316,14 +336,19 @@ function GeoHostView({ onBack }) {
         const streetViewService = new window.google.maps.StreetViewService();
         const position = { lat: location.lat, lng: location.lng };
 
-        streetViewService.getPanorama({ location: position, radius: 50 }, (data, status) => {
+        // Use 500m radius for better coverage (50m was too restrictive)
+        streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
             if (status === 'OK') {
                 console.log('[Host] Street View coverage found, initializing panorama');
                 initPanorama(location, data.location.latLng);
             } else {
-                console.warn('[Host] No Street View coverage for this location, requesting new location');
-                // Request new location from server
-                requestNewLocation();
+                console.warn('[Host] No Street View coverage for this location, status:', status);
+                // Only request new location during PLAYING state, not during ROUND_END
+                if (gameState === 'PLAYING') {
+                    requestNewLocation();
+                } else {
+                    console.log('[Host] In ROUND_END state, cannot request new location');
+                }
             }
         });
     };
@@ -384,8 +409,8 @@ function GeoHostView({ onBack }) {
         // Animation de rotation lente automatique
         let heading = initialHeading;
         const rotateCamera = () => {
-            if (panoramaInstance.current && gameState === 'PLAYING') {
-                heading = (heading + 0.1) % 360; // Rotation très lente
+            if (panoramaInstance.current) {
+                heading = (heading + 0.15) % 360; // Rotation slightly faster
                 panoramaInstance.current.setPov({
                     heading: heading,
                     pitch: 5
@@ -562,6 +587,11 @@ function GeoHostView({ onBack }) {
 
         socket.emit('geo-start-game', { roomCode, settings }, (response) => {
             if (response.success) {
+                // Reset panorama for fresh start (like nextRound does)
+                if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
+                rotationRef.current = null;
+                panoramaInstance.current = null;
+
                 setGameState('PLAYING');
                 setCurrentRound(response.round);
                 setTotalRounds(response.total);
@@ -569,7 +599,14 @@ function GeoHostView({ onBack }) {
                 correctLocationRef.current = response.location; // Sync ref for initStreetView
                 setGuessedPlayers(new Set());
                 soundManager.play('start');
-                startTimer();
+
+                // Delayed timer start to ensure state is updated
+                setTimeout(() => startTimer(), 200);
+                // Force init Street View after DOM is ready (like nextRound does)
+                setTimeout(() => {
+                    console.log('[HOST] Force initializing Street View for Game Start');
+                    initStreetView();
+                }, 500);
             } else {
                 console.error('Erreur démarrage:', response.error);
             }
@@ -578,6 +615,7 @@ function GeoHostView({ onBack }) {
 
     const startTimer = () => {
         const duration = settings.timePerRound || 60;
+        console.log('[GEO] startTimer called, duration:', duration);
         setTimeLeft(duration);
         setIsEndingRound(false);
 
@@ -612,6 +650,15 @@ function GeoHostView({ onBack }) {
         setIsEndingRound(true);
         isEndingRoundRef.current = true; // Set ref for socket listener
 
+        // Safety timeout: unlock after 10s if no response
+        const safetyTimeout = setTimeout(() => {
+            if (isEndingRoundRef.current) {
+                console.warn('[GEO] endRound timed out, resetting locks');
+                setIsEndingRound(false);
+                isEndingRoundRef.current = false;
+            }
+        }, 10000);
+
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -622,12 +669,19 @@ function GeoHostView({ onBack }) {
         console.log('[GEO] endRound called with roomCode:', currentRoomCode);
 
         socket.emit('geo-end-round', { roomCode: currentRoomCode }, (response) => {
+            clearTimeout(safetyTimeout);
+            console.log('[GEO] endRound callback received:', response);
             if (response.success) {
                 // Stop rotation animation
                 if (rotationRef.current) {
                     cancelAnimationFrame(rotationRef.current);
                     rotationRef.current = null;
                 }
+
+                // Reset the ending flag NOW, not in nextRound
+                // This allows endRound to be called again in the next round
+                setIsEndingRound(false);
+                isEndingRoundRef.current = false;
 
                 setGameState('ROUND_END');
                 setRoundResults(response.results);
@@ -636,13 +690,16 @@ function GeoHostView({ onBack }) {
 
                 // Start auto-next countdown (8 seconds)
                 setAutoNextCountdown(8);
+                if (autoNextRef.current) {
+                    clearInterval(autoNextRef.current);
+                }
                 autoNextRef.current = setInterval(() => {
                     setAutoNextCountdown(prev => {
                         if (prev <= 1) {
                             clearInterval(autoNextRef.current);
                             autoNextRef.current = null;
                             nextRound();
-                            return null;
+                            return 0;
                         }
                         return prev - 1;
                     });
@@ -677,7 +734,16 @@ function GeoHostView({ onBack }) {
         // Mark that we're triggering this ourselves so the socket listener ignores the broadcast
         isNextRoundPendingRef.current = true;
 
+        // Safety timeout: unlock after 10s if no response
+        const safetyTimeout = setTimeout(() => {
+            if (isNextRoundPendingRef.current) {
+                console.warn('[GEO] nextRound timed out, resetting locks');
+                isNextRoundPendingRef.current = false;
+            }
+        }, 10000);
+
         socket.emit('geo-next-round', { roomCode: currentRoomCode }, (response) => {
+            clearTimeout(safetyTimeout);
             console.log('[GEO] nextRound response:', response);
             if (response.gameOver) {
                 setGameState('GAME_END');
@@ -686,6 +752,12 @@ function GeoHostView({ onBack }) {
             } else if (response.success) {
                 setIsEndingRound(false);
                 isEndingRoundRef.current = false; // Reset ref for next round
+
+                // Reset graphic/animation refs
+                if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
+                rotationRef.current = null;
+                panoramaInstance.current = null; // Force new instance creation
+
                 setGameState('PLAYING');
                 setCurrentRound(response.round);
                 setCorrectLocation(response.location);
@@ -693,10 +765,14 @@ function GeoHostView({ onBack }) {
                 setRoundResults(null);
                 setGuessedPlayers(new Set());
                 soundManager.play('start');
-                // Délai pour s'assurer que le state est mis à jour
+
+                // Délai pour s'assurer que le state est mis à jour et que le DOM est prêt
                 setTimeout(() => startTimer(), 200);
-                // Re-initialiser Street View
-                setTimeout(() => initStreetView(), 300);
+                // Force re-init Street View with a slightly longer delay to ensure DOM mount
+                setTimeout(() => {
+                    console.log('[HOST] Force initializing Street View for Next Round');
+                    initStreetView();
+                }, 500);
             } else {
                 console.error('[GEO] nextRound error:', response.error);
             }
@@ -1033,6 +1109,7 @@ function GeoHostView({ onBack }) {
                         <div className="geo-playing-streetview-panel">
                             <div className="streetview-frame">
                                 <div
+                                    key={`sv-${currentRound}`}
                                     ref={streetViewRef}
                                     className="geo-playing-streetview"
                                 ></div>
@@ -1141,26 +1218,50 @@ function GeoHostView({ onBack }) {
                                 <span>🏆 Classement</span>
                             </div>
                             <div className="geo-ranking-list">
-                                {roundResults?.map((result, index) => (
-                                    <div key={result.id} className={`geo-ranking-item ${index === 0 ? 'winner' : ''}`}>
-                                        <div className="ranking-position">
-                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                                {roundResults?.map((result, index) => {
+                                    // Calculate max score for bar width percentage
+                                    const maxScore = roundResults[0]?.roundScore || 1;
+                                    const barWidth = Math.max(10, (result.roundScore / maxScore) * 100);
+                                    // Assign emojis based on position
+                                    const positionEmoji = index === 0 ? '🔥' : index === 1 ? '💪' : index === 2 ? '⭐' : '✨';
+
+                                    return (
+                                        <div
+                                            key={result.id}
+                                            className={`geo-ranking-item ${index === 0 ? 'winner' : ''}`}
+                                            style={{ animationDelay: `${index * 0.15}s` }}
+                                        >
+                                            <div className="ranking-position">
+                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                                            </div>
+                                            <div className="ranking-avatar">
+                                                {result.avatar ? (
+                                                    <img src={result.avatar} alt="" />
+                                                ) : <span>👤</span>}
+                                            </div>
+                                            <div className="ranking-info">
+                                                <div className="ranking-name">
+                                                    {result.name}
+                                                    <span className={`ranking-emoji delay-${index % 4}`}>{positionEmoji}</span>
+                                                </div>
+                                                <div className="ranking-score-bar-container">
+                                                    <div
+                                                        className="ranking-score-bar"
+                                                        style={{
+                                                            '--target-width': `${barWidth}%`,
+                                                            animationDelay: `${0.3 + index * 0.2}s`
+                                                        }}
+                                                    ></div>
+                                                </div>
+                                                <div className="ranking-distance">{formatDistance(result.distance)}</div>
+                                            </div>
+                                            <div className="ranking-scores">
+                                                <div className="score-round">+{result.roundScore?.toLocaleString()}</div>
+                                                <div className="score-total">{result.totalScore?.toLocaleString()} pts</div>
+                                            </div>
                                         </div>
-                                        <div className="ranking-avatar">
-                                            {result.avatar ? (
-                                                <img src={result.avatar} alt="" />
-                                            ) : <span>👤</span>}
-                                        </div>
-                                        <div className="ranking-info">
-                                            <div className="ranking-name">{result.name}</div>
-                                            <div className="ranking-distance">{formatDistance(result.distance)}</div>
-                                        </div>
-                                        <div className="ranking-scores">
-                                            <div className="score-round">+{result.roundScore?.toLocaleString()}</div>
-                                            <div className="score-total">{result.totalScore?.toLocaleString()} pts</div>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Bouton manche suivante */}
@@ -1196,20 +1297,26 @@ function GeoHostView({ onBack }) {
                         <div className="col-md-8">
                             {/* Podium */}
                             <div className="geo-podium mb-5">
-                                {finalResults?.slice(0, 3).map((result, index) => (
-                                    <div key={result.id} className={`geo-podium-place place-${index + 1}`}>
-                                        <div className="geo-podium-avatar">
-                                            {result.avatar ? (
-                                                <img src={result.avatar} alt="" />
-                                            ) : '🌐'}
+                                {finalResults?.slice(0, 3).map((result, index) => {
+                                    const emoji = index === 0 ? '🏆' : index === 1 ? '🥈' : '🥉';
+                                    return (
+                                        <div key={result.id} className={`geo-podium-place place-${index + 1} podium-animated`}>
+                                            <div className="geo-podium-avatar">
+                                                {result.avatar ? (
+                                                    <img src={result.avatar} alt="" />
+                                                ) : '🌐'}
+                                            </div>
+                                            <div className="geo-podium-medal">
+                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                                            </div>
+                                            <div className="geo-podium-name">
+                                                {result.name}
+                                                <span className={`ranking-emoji delay-${index + 1}`}>{emoji}</span>
+                                            </div>
+                                            <div className="geo-podium-score">{result.totalScore?.toLocaleString()} pts</div>
                                         </div>
-                                        <div className="geo-podium-medal">
-                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                                        </div>
-                                        <div className="geo-podium-name">{result.name}</div>
-                                        <div className="geo-podium-score">{result.totalScore?.toLocaleString()} pts</div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Awards */}
@@ -1237,7 +1344,7 @@ function GeoHostView({ onBack }) {
                             )}
 
                             {/* Full Leaderboard */}
-                            <div className="card p-4">
+                            <div className="card p-4 geo-final-ranking-container">
                                 <h5 className="text-info mb-3">Classement complet</h5>
                                 {finalResults?.map((result, index) => (
                                     <div key={result.id} className="geo-final-row">

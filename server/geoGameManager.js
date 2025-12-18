@@ -230,7 +230,7 @@ class GeoGameManager {
     pickRandomFrom(locations) {
         // Ajouter un léger décalage aléatoire pour varier les vues
         const baseLocation = locations[Math.floor(Math.random() * locations.length)];
-        const offset = 0.01; // ~1km de variation
+        const offset = 0.002; // ~200m de variation (was 1km, too far from coverage)
 
         return {
             lat: baseLocation.lat + (Math.random() - 0.5) * offset * 2,

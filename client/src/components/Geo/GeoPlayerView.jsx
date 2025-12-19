@@ -33,7 +33,6 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     const [reactionCooldown, setReactionCooldown] = useState(false); // Cooldown for emoji reactions
     const [isLateJoin, setIsLateJoin] = useState(false); // Player joined mid-game
     const [missedRounds, setMissedRounds] = useState(0); // Number of rounds missed
-    const [isMapExpanded, setIsMapExpanded] = useState(false); // Map expanded state for better guessing
 
     const streetViewRef = useRef(null);
     const mapRef = useRef(null);
@@ -309,20 +308,6 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
             initResultsMap();
         }
     }, [step, roundResults]);
-
-    // Resize map when expanded/collapsed
-    useEffect(() => {
-        if (mapInstance.current && window.google) {
-            // Small delay to let CSS transitions complete
-            setTimeout(() => {
-                window.google.maps.event.trigger(mapInstance.current, 'resize');
-                // Re-center on marker if exists
-                if (markerInstance.current) {
-                    mapInstance.current.panTo(markerInstance.current.getPosition());
-                }
-            }, 350);
-        }
-    }, [isMapExpanded]);
 
     const initMaps = () => {
         // Street View - use StreetViewService to find nearest coverage
@@ -902,70 +887,16 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                     )}
                 </div>
 
-                {/* Expanded Map Overlay */}
-                {isMapExpanded && (
-                    <div className="geo-map-expanded-overlay" onClick={() => setIsMapExpanded(false)}>
-                        <div className="geo-map-expanded-container" onClick={(e) => e.stopPropagation()}>
-                            {/* Close button */}
-                            <button
-                                className="geo-map-close-btn"
-                                onClick={() => setIsMapExpanded(false)}
-                            >
-                                ✕
-                            </button>
-
-                            {/* Timer in expanded view */}
-                            <div className="geo-map-expanded-timer">
-                                <span className={timeLeft <= 10 ? 'danger' : ''}>{formatTime(timeLeft)}</span>
-                            </div>
-
-                            {/* Map placeholder - actual map rendered below */}
-                            <div className="geo-map-expanded-placeholder">
-                                {/* Map will be portaled here via CSS when expanded */}
-                            </div>
-
-                            {/* Validate button */}
-                            <button
-                                className={`btn geo-map-expanded-btn ${guessMarker ? 'btn-success' : 'btn-secondary'}`}
-                                onClick={() => {
-                                    if (guessMarker) {
-                                        submitGuess();
-                                        setIsMapExpanded(false);
-                                    }
-                                }}
-                                disabled={!guessMarker}
-                            >
-                                {guessMarker ? '✓ VALIDER MA RÉPONSE' : '📍 Cliquez sur la carte pour placer votre marqueur'}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Map Container - switches between mini and expanded via CSS */}
-                <div
-                    className={`geo-minimap-container ${isMapExpanded ? 'expanded' : ''}`}
-                    onClick={() => !isMapExpanded && setIsMapExpanded(true)}
-                >
-                    <div ref={mapRef} className={`geo-minimap ${isMapExpanded ? 'geo-map-fullscreen' : ''}`}></div>
-
-                    {!isMapExpanded && (
-                        <>
-                            <div className="geo-minimap-expand-hint">
-                                <span>📍 Touchez pour agrandir</span>
-                            </div>
-                            {guessMarker && (
-                                <button
-                                    className="btn btn-success geo-guess-btn"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        submitGuess();
-                                    }}
-                                >
-                                    ✓ VALIDER
-                                </button>
-                            )}
-                        </>
-                    )}
+                {/* Mini Map */}
+                <div className="geo-minimap-container">
+                    <div ref={mapRef} className="geo-minimap"></div>
+                    <button
+                        className={`btn geo-guess-btn ${guessMarker ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={submitGuess}
+                        disabled={!guessMarker}
+                    >
+                        {guessMarker ? '✓ VALIDER' : 'CLIQUEZ POUR DEVINER'}
+                    </button>
                 </div>
             </div>
         );

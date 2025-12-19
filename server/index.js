@@ -45,7 +45,14 @@ const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    // Ping settings for mobile stability
+    pingTimeout: 30000,     // 30s before considering connection dead
+    pingInterval: 10000,    // Ping every 10s to keep connection alive
+    // Allow upgrades from polling to websocket
+    allowUpgrades: true,
+    // Increase for slow mobile connections
+    upgradeTimeout: 30000
 });
 
 // Fonction pour calculer les statistiques amusantes

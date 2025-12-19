@@ -456,6 +456,20 @@ io.on('connection', (socket) => {
                         myScore: result.myScore
                     });
                     console.log(`[GEO] ${playerName} reconnected to room ${roomCode}`);
+                } else if (result.lateJoin) {
+                    // Nouveau joueur qui rejoint en cours de partie (late join)
+                    callback({
+                        success: true,
+                        lateJoin: true,
+                        gameState: result.gameState,
+                        currentRound: result.currentRound,
+                        totalRounds: result.totalRounds,
+                        location: result.location,
+                        roundStartTime: result.roundStartTime,
+                        timePerRound: result.timePerRound,
+                        missedRounds: result.missedRounds
+                    });
+                    console.log(`[GEO] ${playerName} late joined room ${roomCode} (missed ${result.missedRounds} rounds)`);
                 } else {
                     callback({ success: true });
                     console.log(`[GEO] ${playerName} joined room ${roomCode}`);
@@ -540,7 +554,9 @@ io.on('connection', (socket) => {
                     success: true,
                     location: result.location,
                     round: result.round,
-                    total: result.total
+                    total: result.total,
+                    timePerRound: room.timePerRound,
+                    roundStartTime: room.roundStartTime
                 });
 
                 // Informer les joueurs

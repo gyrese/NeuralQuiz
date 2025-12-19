@@ -24,6 +24,7 @@ function GeoHostView({ onBack }) {
     const [showCountdown, setShowCountdown] = useState(false); // 3-2-1-GO! animation
     const [countdownNumber, setCountdownNumber] = useState(3);
     const [showConfetti, setShowConfetti] = useState(false); // Winner confetti
+    const [showQRCode, setShowQRCode] = useState(false); // Toggle for persistent QR code
 
     // Settings
     const [settings, setSettings] = useState({
@@ -43,6 +44,26 @@ function GeoHostView({ onBack }) {
     const isNextRoundPendingRef = useRef(false); // Flag to prevent double nextRound processing
     const isEndingRoundRef = useRef(false); // Ref mirror of isEndingRound for socket listener
     const correctLocationRef = useRef(null); // Ref for correctLocation to avoid stale closures
+    const gameStateRef = useRef(gameState); // Ref pour accéder à gameState dans les callbacks
+    const streetViewWatchdogRef = useRef(null); // Watchdog pour vérifier que Street View est visible
+    const streetViewLoadedRef = useRef(false); // Flag pour savoir si Street View est chargée
+
+    // Synchroniser gameStateRef et nettoyer les timers quand on sort de PLAYING
+    useEffect(() => {
+        gameStateRef.current = gameState;
+        // Si on sort de PLAYING, nettoyer le timer et le watchdog
+        if (gameState !== 'PLAYING') {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+            if (streetViewWatchdogRef.current) {
+                clearInterval(streetViewWatchdogRef.current);
+                streetViewWatchdogRef.current = null;
+            }
+            streetViewLoadedRef.current = false;
+        }
+    }, [gameState]);
 
     useEffect(() => {
         // Créer la room au montage
@@ -99,9 +120,19 @@ function GeoHostView({ onBack }) {
             setGuessedPlayers(new Set());
             setIsEndingRound(false);
             soundManager.play('start');
-            // Start timer - auto-end round when it expires
+
+            // Start timer synchronized with server's roundStartTime
             const duration = data.timePerRound || 60;
-            setTimeLeft(duration);
+            let initialTimeLeft = duration;
+
+            // Calculate elapsed time based on server's roundStartTime
+            if (data.roundStartTime) {
+                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
+                initialTimeLeft = Math.max(0, duration - elapsed);
+                console.log(`[Host] Timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
+            }
+
+            setTimeLeft(initialTimeLeft);
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
@@ -110,7 +141,11 @@ function GeoHostView({ onBack }) {
                         clearInterval(timerRef.current);
                         timerRef.current = null;
                         // Auto-end round when timer expires
-                        setTimeout(() => endRound(), 100);
+                        setTimeout(() => {
+                            if (gameStateRef.current === 'PLAYING') {
+                                endRound();
+                            }
+                        }, 100);
                         return 0;
                     }
                     return prev - 1;
@@ -196,17 +231,30 @@ function GeoHostView({ onBack }) {
             setGuessedPlayers(new Set());
             soundManager.play('start');
 
-            // Start timer with delay - auto-end round when it expires
+            // Start timer synchronized with server's roundStartTime
             const duration = data.timePerRound || 60;
             setTimeout(() => {
-                setTimeLeft(duration);
+                let initialTimeLeft = duration;
+
+                // Calculate elapsed time based on server's roundStartTime
+                if (data.roundStartTime) {
+                    const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
+                    initialTimeLeft = Math.max(0, duration - elapsed);
+                    console.log(`[Host] Next round timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
+                }
+
+                setTimeLeft(initialTimeLeft);
                 timerRef.current = setInterval(() => {
                     setTimeLeft(prev => {
                         if (prev <= 10 && prev > 0) soundManager.playTick();
                         if (prev <= 1) {
                             clearInterval(timerRef.current);
                             timerRef.current = null;
-                            setTimeout(() => endRound(), 100);
+                            setTimeout(() => {
+                                if (gameStateRef.current === 'PLAYING') {
+                                    endRound();
+                                }
+                            }, 100);
                             return 0;
                         }
                         return prev - 1;
@@ -419,6 +467,61 @@ function GeoHostView({ onBack }) {
             }
         };
         rotationRef.current = requestAnimationFrame(rotateCamera);
+
+        // Mark Street View as loaded
+        streetViewLoadedRef.current = true;
+
+        // Start watchdog to verify Street View stays visible
+        startStreetViewWatchdog();
+    };
+
+    // Watchdog: Vérifie périodiquement que la Street View est bien visible et la recharge sinon
+    const startStreetViewWatchdog = () => {
+        // Clear any existing watchdog
+        if (streetViewWatchdogRef.current) {
+            clearInterval(streetViewWatchdogRef.current);
+        }
+
+        let failCount = 0;
+        const MAX_FAILS = 3;
+
+        streetViewWatchdogRef.current = setInterval(() => {
+            // Only check during PLAYING state
+            if (gameStateRef.current !== 'PLAYING') {
+                clearInterval(streetViewWatchdogRef.current);
+                streetViewWatchdogRef.current = null;
+                return;
+            }
+
+            // Check if panorama exists and has valid position
+            if (!panoramaInstance.current) {
+                failCount++;
+                console.warn(`[Host Watchdog] No panorama instance (fail ${failCount}/${MAX_FAILS})`);
+            } else {
+                try {
+                    const pos = panoramaInstance.current.getPosition();
+                    const visible = panoramaInstance.current.getVisible();
+                    if (!pos || !visible) {
+                        failCount++;
+                        console.warn(`[Host Watchdog] Panorama not visible or no position (fail ${failCount}/${MAX_FAILS})`);
+                    } else {
+                        // Reset fail count on success
+                        failCount = 0;
+                    }
+                } catch (e) {
+                    failCount++;
+                    console.warn(`[Host Watchdog] Error checking panorama: ${e.message} (fail ${failCount}/${MAX_FAILS})`);
+                }
+            }
+
+            // If too many fails, try to reload Street View
+            if (failCount >= MAX_FAILS) {
+                console.log('[Host Watchdog] Too many fails, reloading Street View...');
+                failCount = 0;
+                streetViewLoadedRef.current = false;
+                initStreetView();
+            }
+        }, 2000); // Check every 2 seconds
     };
 
     // Init map pour les résultats
@@ -598,10 +701,41 @@ function GeoHostView({ onBack }) {
                 setCorrectLocation(response.location);
                 correctLocationRef.current = response.location; // Sync ref for initStreetView
                 setGuessedPlayers(new Set());
+                setIsEndingRound(false);
                 soundManager.play('start');
 
-                // Delayed timer start to ensure state is updated
-                setTimeout(() => startTimer(), 200);
+                // Start timer synchronized with server's roundStartTime
+                const duration = response.timePerRound || settings.timePerRound || 60;
+                setTimeout(() => {
+                    let initialTimeLeft = duration;
+
+                    // Calculate elapsed time based on server's roundStartTime
+                    if (response.roundStartTime) {
+                        const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
+                        initialTimeLeft = Math.max(0, duration - elapsed);
+                        console.log(`[Host] Start game timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
+                    }
+
+                    setTimeLeft(initialTimeLeft);
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    timerRef.current = setInterval(() => {
+                        setTimeLeft(prev => {
+                            if (prev <= 10 && prev > 0) soundManager.playTick();
+                            if (prev <= 1) {
+                                clearInterval(timerRef.current);
+                                timerRef.current = null;
+                                setTimeout(() => {
+                                    if (gameStateRef.current === 'PLAYING') {
+                                        endRound();
+                                    }
+                                }, 100);
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                }, 200);
+
                 // Force init Street View after DOM is ready (like nextRound does)
                 setTimeout(() => {
                     console.log('[HOST] Force initializing Street View for Game Start');
@@ -633,7 +767,14 @@ function GeoHostView({ onBack }) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
                     // Utiliser setTimeout pour éviter les problèmes de state
-                    setTimeout(() => endRound(), 100);
+                    // Vérifier qu'on est toujours en PLAYING avant d'appeler endRound
+                    setTimeout(() => {
+                        if (gameStateRef.current === 'PLAYING') {
+                            endRound();
+                        } else {
+                            console.log('[GEO] Timer expired but not in PLAYING state, skipping endRound');
+                        }
+                    }, 100);
                     return 0;
                 }
                 return prev - 1;
@@ -880,6 +1021,46 @@ function GeoHostView({ onBack }) {
                 <div className={`countdown-number ${countdownNumber === 'GO!' ? 'go' : ''}`}>
                     {countdownNumber}
                 </div>
+            </div>
+        );
+    };
+
+    // Persistent QR Code component (visible during PLAYING, ROUND_END, GAME_END)
+    const PersistentQRCode = () => {
+        if (gameState === 'INIT' || gameState === 'LOBBY') return null;
+
+        const joinUrl = window.location.origin;
+        const qrUrl = `${joinUrl}?code=${roomCode}`;
+
+        return (
+            <div className="geo-persistent-qr">
+                {showQRCode ? (
+                    <div className="geo-qr-panel">
+                        <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`}
+                            alt="QR Code"
+                        />
+                        <div className="geo-qr-panel-info">
+                            <div className="geo-qr-panel-code">{roomCode}</div>
+                            <div className="geo-qr-panel-hint">Scannez pour rejoindre</div>
+                        </div>
+                        <button
+                            className="geo-qr-toggle-btn mt-2 w-100 justify-content-center"
+                            onClick={() => setShowQRCode(false)}
+                        >
+                            ✕ Masquer
+                        </button>
+                    </div>
+                ) : (
+                    <div
+                        className="geo-qr-compact"
+                        onClick={() => setShowQRCode(true)}
+                        title="Afficher le QR code pour rejoindre"
+                    >
+                        <span className="geo-qr-compact-icon">📱</span>
+                        <span className="geo-qr-compact-pin">PIN: {roomCode}</span>
+                    </div>
+                )}
             </div>
         );
     };
@@ -1168,6 +1349,7 @@ function GeoHostView({ onBack }) {
                         </div>
                     </div>
                 </div>
+                <PersistentQRCode />
             </div>
         );
     }
@@ -1278,6 +1460,7 @@ function GeoHostView({ onBack }) {
                         </div>
                     </div>
                 </div>
+                <PersistentQRCode />
             </div>
         );
     }
@@ -1366,6 +1549,7 @@ function GeoHostView({ onBack }) {
                         </div>
                     </div>
                 </div>
+                <PersistentQRCode />
             </div>
         );
     }

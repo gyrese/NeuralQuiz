@@ -2417,3 +2417,121 @@
     background-color: var(--neon-blue);
     border-radius: 10px;
 }
+
+/* ===================================
+   PERSISTENT QR CODE OVERLAY
+   Pour rejoindre/reconnecter pendant la partie
+   =================================== */
+
+.geo-persistent-qr {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.geo-qr-toggle-btn {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+
+.geo-qr-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: var(--neon-green);
+}
+
+.geo-qr-panel {
+    background: white;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    animation: fadeInUp 0.3s ease-out;
+    max-width: 180px;
+}
+
+.geo-qr-panel img {
+    width: 130px;
+    height: 130px;
+    display: block;
+    margin: 0 auto 8px;
+    border-radius: 4px;
+}
+
+.geo-qr-panel-info {
+    text-align: center;
+}
+
+.geo-qr-panel-code {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #333;
+    letter-spacing: 2px;
+    font-family: var(--font-display);
+}
+
+.geo-qr-panel-hint {
+    font-size: 0.7rem;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* Version compacte pour afficher juste le code PIN */
+.geo-qr-compact {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+
+.geo-qr-compact:hover {
+    border-color: var(--neon-green);
+}
+
+.geo-qr-compact-icon {
+    font-size: 1.2rem;
+}
+
+.geo-qr-compact-pin {
+    color: white;
+    font-weight: bold;
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+}
+
+/* Hide on very small screens in collapsed state */
+@media (max-width: 480px) {
+    .geo-persistent-qr {
+        bottom: 10px;
+        left: 10px;
+    }
+
+    .geo-qr-panel {
+        max-width: 150px;
+        padding: 8px;
+    }
+
+    .geo-qr-panel img {
+        width: 100px;
+        height: 100px;
+    }
+}

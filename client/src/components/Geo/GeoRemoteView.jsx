@@ -33,6 +33,17 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
 
     const timerRef = useRef(null);
     const hasAutoConnected = useRef(false);
+    const stepRef = useRef(step); // Ref pour accéder à step dans les callbacks sans closure stale
+
+    // Garder stepRef synchronisé
+    useEffect(() => {
+        stepRef.current = step;
+        // Nettoyer le timer si on n'est plus en PLAYING
+        if (step !== 'PLAYING' && timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    }, [step]);
 
     // Socket event listeners - set up FIRST, then auto-connect
     useEffect(() => {
@@ -227,13 +238,16 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
                     // Auto-trigger end round when timer expires
-                    if (roomCodeRef.current) {
+                    // IMPORTANT: Vérifier qu'on est toujours en PLAYING avant d'envoyer
+                    if (roomCodeRef.current && stepRef.current === 'PLAYING') {
                         console.log('[Remote] Timer expired, auto-ending round');
                         socket.emit('geo-end-round', { roomCode: roomCodeRef.current.toUpperCase() }, (response) => {
                             if (response.error) {
                                 console.error('[Remote] Auto end round error:', response.error);
                             }
                         });
+                    } else {
+                        console.log('[Remote] Timer expired but not in PLAYING state, skipping auto-end');
                     }
                     return 0;
                 }

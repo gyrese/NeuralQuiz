@@ -96,22 +96,41 @@ class GeoGameManager {
         }
 
         // NOUVEAU JOUEUR
-        if (room.gameState !== 'LOBBY') return { error: 'Partie déjà en cours' };
+        // Allow late joiners during the game (they start with 0 points for missed rounds)
+        const isLateJoin = room.gameState !== 'LOBBY';
+
+        // Calculate how many rounds were missed
+        const missedRounds = isLateJoin ? room.currentRound - 1 : 0;
 
         room.players.set(playerId, {
             id: playerId,
             name: playerName,
             avatar: avatar || null,
             totalScore: 0,
-            roundScores: [],
+            roundScores: Array(missedRounds).fill(0), // Fill missed rounds with 0
             currentGuess: null,   // {lat, lng}
-            hasGuessed: false,
+            hasGuessed: room.gameState === 'PLAYING' ? false : true, // If joining during PLAYING, allow guess
             lastDistance: null,
-            roundDistances: [],
-            roundTimes: []
+            roundDistances: Array(missedRounds).fill(null),
+            roundTimes: Array(missedRounds).fill(null),
+            lateJoin: isLateJoin,
+            joinedAtRound: isLateJoin ? room.currentRound : 0
         });
 
-        return { success: true, room };
+        console.log(`[GEO] Player ${playerName} joined room ${roomCode}${isLateJoin ? ` (late join at round ${room.currentRound})` : ''}`);
+
+        return {
+            success: true,
+            room,
+            lateJoin: isLateJoin,
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            totalRounds: room.totalRounds,
+            location: room.currentLocation,
+            roundStartTime: room.roundStartTime,
+            timePerRound: room.timePerRound,
+            missedRounds
+        };
     }
 
     // Sélectionner un lieu aléatoire

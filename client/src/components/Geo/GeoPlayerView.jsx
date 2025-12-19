@@ -31,6 +31,8 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
     const [isRestoring, setIsRestoring] = useState(false); // Restoring session from localStorage
     const [pointsAnimation, setPointsAnimation] = useState(null); // { score: 1000 }
     const [reactionCooldown, setReactionCooldown] = useState(false); // Cooldown for emoji reactions
+    const [isLateJoin, setIsLateJoin] = useState(false); // Player joined mid-game
+    const [missedRounds, setMissedRounds] = useState(0); // Number of rounds missed
 
     const streetViewRef = useRef(null);
     const mapRef = useRef(null);
@@ -526,9 +528,38 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                     avatar
                 }));
 
-                // Si on est en PLAYING, on relance (sans le timer exact car on ne l'a pas sync ici, mais c'est pas grave)
-                if (response.gameState === 'PLAYING') {
-                    startTimer(60); // Valeur par défaut, l'host gère le vrai temps
+                // Si on est en PLAYING, on relance le timer synchronisé
+                if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
+                    const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
+                    const remaining = Math.max(0, response.timePerRound - elapsed);
+                    startTimer(remaining);
+                } else if (response.gameState === 'PLAYING') {
+                    startTimer(60);
+                }
+            } else if (response.lateJoin) {
+                // NOUVEAU: Joueur retardataire qui rejoint en cours de partie
+                console.log('[Player] Late join - joining game in progress');
+                setIsLateJoin(true);
+                setMissedRounds(response.missedRounds || 0);
+                setStep(response.gameState);
+                setCurrentRound(response.currentRound);
+                setTotalRounds(response.totalRounds);
+                setCurrentLocation(response.location);
+                setError(null);
+
+                // Save session
+                localStorage.setItem('geoSession', JSON.stringify({
+                    roomCode: roomCode.toUpperCase(),
+                    pseudo,
+                    avatar
+                }));
+
+                // Si on rejoint pendant PLAYING, démarrer le timer synchronisé
+                if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
+                    const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
+                    const remaining = Math.max(0, response.timePerRound - elapsed);
+                    startTimer(remaining);
+                    soundManager.play('start');
                 }
             } else {
                 setStep('WAITING');

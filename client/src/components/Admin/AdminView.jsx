@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import QuizEditor from './QuizEditor';
 import DrawAdmin from './DrawAdmin';
 import GeoAdmin from './GeoAdmin';
@@ -6,7 +7,8 @@ import AperoAdmin from '../Apero/AperoAdmin';
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api`;
 
-function AdminView({ onBack }) {
+function AdminView() {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('quizzes'); // 'quizzes', 'geo', 'draw', 'apero'
 
     // Quiz State
@@ -98,7 +100,7 @@ function AdminView({ onBack }) {
         <div className="container mt-4 text-light">
             {/* Header / Navigation */}
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <button className="btn btn-outline-secondary" onClick={onBack}>&lt; RETOUR</button>
+                <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>&lt; RETOUR</button>
                 <div className="btn-group">
                     <button
                         className={`btn ${activeTab === 'quizzes' ? 'btn-primary' : 'btn-outline-primary'}`}

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
 import { soundManager } from '../../utils/soundManager';
 import './GeoStyles.css';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-function GeoHostView({ onBack }) {
+function GeoHostView() {
+    const navigate = useNavigate();
     const [roomCode, setRoomCode] = useState(null);
     const [players, setPlayers] = useState([]);
     const [gameState, setGameState] = useState('INIT'); // INIT, LOBBY, PLAYING, ROUND_END, GAME_END
@@ -1542,7 +1544,7 @@ function GeoHostView({ onBack }) {
                                 <button className="btn btn-success btn-lg me-3" onClick={restartGame}>
                                     🔄 Rejouer
                                 </button>
-                                <button className="btn btn-outline-secondary btn-lg" onClick={onBack}>
+                                <button className="btn btn-outline-secondary btn-lg" onClick={() => navigate('/')}>
                                     🏠 Retour au menu
                                 </button>
                             </div>

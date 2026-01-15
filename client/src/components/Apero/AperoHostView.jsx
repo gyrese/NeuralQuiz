@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import './AperoStyles.css';
@@ -19,7 +20,8 @@ const THEMES = {
     'gold': { background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', text: '#ffd700' }
 };
 
-function AperoHostView({ onBack }) {
+function AperoHostView() {
+    const navigate = useNavigate();
     const [socket, setSocket] = useState(null);
     const [gameState, setGameState] = useState('SELECT_QUIZ'); // SELECT_QUIZ, LOBBY, PLAYING
     const [quizzes, setQuizzes] = useState([]);
@@ -230,7 +232,7 @@ function AperoHostView({ onBack }) {
     if (gameState === 'SELECT_QUIZ') {
         return (
             <div className="apero-host" style={{ padding: '40px' }}>
-                <button className="btn btn-outline-light mb-4" onClick={onBack}>
+                <button className="btn btn-outline-light mb-4" onClick={() => navigate('/apero')}>
                     ← Retour
                 </button>
                 <h2 className="text-warning mb-4">🍻 Sélectionnez un Quiz</h2>

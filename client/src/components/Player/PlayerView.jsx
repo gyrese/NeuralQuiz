@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 
-function PlayerView({ onBack }) {
+function PlayerView() {
+    const navigate = useNavigate();
+    const { roomCode: urlRoomCode } = useParams();
     const [step, setStep] = useState('LOGIN'); // LOGIN, PROFILE, WAITING, GAME, RESULT, END
-    const [roomCode, setRoomCode] = useState('');
+    const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [pseudo, setPseudo] = useState('');
     const [avatar, setAvatar] = useState(null); // Base64 string
     const [error, setError] = useState('');
@@ -156,7 +159,7 @@ function PlayerView({ onBack }) {
     return (
         <div className="player-view min-vh-100 d-flex flex-column text-light">
             <div className="p-2 d-flex justify-content-between align-items-center">
-                <button className="btn btn-sm btn-outline-secondary" onClick={onBack}>RETOUR</button>
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/quiz')}>RETOUR</button>
                 {step !== 'LOGIN' && roomCode && <span className="badge bg-dark border border-secondary text-light">PIN: {roomCode}</span>}
             </div>
 
@@ -446,7 +449,7 @@ function PlayerView({ onBack }) {
                     </div>
 
                     <div className="mt-5">
-                        <button className="btn btn-outline-primary btn-lg" onClick={onBack}>RETOUR À L'ACCUEIL</button>
+                        <button className="btn btn-outline-primary btn-lg" onClick={() => navigate('/')}>RETOUR À L'ACCUEIL</button>
                     </div>
                 </div>
             )}

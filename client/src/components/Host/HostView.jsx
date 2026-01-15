@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
 
-function HostView({ onBack }) {
+function HostView() {
+    const navigate = useNavigate();
     const [roomCode, setRoomCode] = useState(null);
     const [players, setPlayers] = useState([]);
     const [gameState, setGameState] = useState('INIT'); // INIT, LOBBY, GAME, RESULT
@@ -111,7 +113,7 @@ function HostView({ onBack }) {
     return (
         <div className="host-view min-vh-100 text-light">
             <div className="d-flex justify-content-between align-items-center p-3 border-bottom border-secondary" style={{ background: 'rgba(0,0,0,0.8)' }}>
-                <button className="btn btn-outline-secondary" onClick={onBack}>&lt; RETOUR</button>
+                <button className="btn btn-outline-secondary" onClick={() => navigate('/quiz')}>&lt; RETOUR</button>
                 <div className="h3 mb-0 text-primary glitch-text" data-text={`PIN: ${roomCode}`}>
                     PIN: {roomCode}
                 </div>
@@ -316,7 +318,7 @@ function HostView({ onBack }) {
                     )}
 
                     <div className="mb-5">
-                        <button className="btn btn-outline-light btn-lg" onClick={onBack}>RETOUR À L'ACCUEIL</button>
+                        <button className="btn btn-outline-light btn-lg" onClick={() => navigate('/')}>RETOUR À L'ACCUEIL</button>
                     </div>
                 </div>
             )}

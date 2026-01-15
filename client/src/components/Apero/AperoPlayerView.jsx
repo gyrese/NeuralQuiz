@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import './AperoStyles.css';
 
 const SOCKET_URL = `${window.location.protocol}//${window.location.hostname}:3001/apero`;
 
-function AperoPlayerView({ initialRoomCode }) {
+function AperoPlayerView() {
+    const { roomCode: urlRoomCode } = useParams();
     const [socket, setSocket] = useState(null);
     const [gameState, setGameState] = useState('JOIN'); // JOIN, WAITING, QUESTION, ANSWERED, REVEAL, ENDED
-    const [roomCode, setRoomCode] = useState(initialRoomCode || '');
+    const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [teamName, setTeamName] = useState('');
     const [isJoined, setIsJoined] = useState(false);
     const [error, setError] = useState('');

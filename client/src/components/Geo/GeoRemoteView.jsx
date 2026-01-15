@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import { soundManager } from '../../utils/soundManager';
 import './GeoStyles.css';
@@ -8,9 +9,11 @@ import './GeoStyles.css';
  * Allows the host to control the game from their phone while
  * the main display is shown on a TV.
  */
-function GeoRemoteView({ onBack, initialRoomCode }) {
+function GeoRemoteView() {
+    const navigate = useNavigate();
+    const { roomCode: urlRoomCode } = useParams();
     const [step, setStep] = useState('CONNECT'); // CONNECT, LOBBY, PLAYING, ROUND_END, GAME_END
-    const [roomCode, setRoomCode] = useState(initialRoomCode || '');
+    const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [error, setError] = useState('');
     const [isConnecting, setIsConnecting] = useState(false);
 
@@ -143,18 +146,18 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         });
 
         // Auto-connect AFTER listeners are set up (only once)
-        if (initialRoomCode && !hasAutoConnected.current) {
+        if (urlRoomCode && !hasAutoConnected.current) {
             hasAutoConnected.current = true;
             // Small delay to ensure socket is connected
             setTimeout(() => {
                 if (socket.connected) {
-                    setRoomCode(initialRoomCode.toUpperCase());
-                    connectWithCode(initialRoomCode.toUpperCase());
+                    setRoomCode(urlRoomCode.toUpperCase());
+                    connectWithCode(urlRoomCode.toUpperCase());
                 } else {
                     // Wait for socket connection
                     socket.once('connect', () => {
-                        setRoomCode(initialRoomCode.toUpperCase());
-                        connectWithCode(initialRoomCode.toUpperCase());
+                        setRoomCode(urlRoomCode.toUpperCase());
+                        connectWithCode(urlRoomCode.toUpperCase());
                     });
                 }
             }, 100);
@@ -319,7 +322,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
         return (
             <div className="geo-player-background">
                 <div className="container py-4">
-                    <button className="btn btn-outline-secondary mb-4" onClick={onBack}>
+                    <button className="btn btn-outline-secondary mb-4" onClick={() => navigate('/geo')}>
                         ← RETOUR
                     </button>
 
@@ -573,7 +576,7 @@ function GeoRemoteView({ onBack, initialRoomCode }) {
                         </button>
                         <button
                             className="btn btn-outline-secondary btn-lg"
-                            onClick={onBack}
+                            onClick={() => navigate('/')}
                         >
                             🏠 Retour au menu
                         </button>

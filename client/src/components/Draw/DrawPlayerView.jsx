@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import './DrawStyles.css';
 
@@ -16,11 +17,13 @@ const COLORS = [
 
 const BRUSH_SIZES = [5, 10, 20, 35];
 
-function DrawPlayerView({ onBack, initialRoomCode }) {
+function DrawPlayerView() {
+    const navigate = useNavigate();
+    const { roomCode: urlRoomCode } = useParams();
     // Connection state
     const [playerName, setPlayerName] = useState('');
     const [avatar, setAvatar] = useState('🎨');
-    const [roomCode, setRoomCode] = useState(initialRoomCode || '');
+    const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [isJoined, setIsJoined] = useState(false);
     const [error, setError] = useState('');
 
@@ -69,12 +72,12 @@ function DrawPlayerView({ onBack, initialRoomCode }) {
                 if (name) setPlayerName(name);
                 if (storedAvatar) setAvatar(storedAvatar);
                 // Only use stored room if no initial code provided
-                if (!initialRoomCode && storedRoom) setRoomCode(storedRoom);
+                if (!urlRoomCode && storedRoom) setRoomCode(storedRoom);
             } catch (e) {
                 console.error('Error parsing stored session:', e);
             }
         }
-    }, [initialRoomCode]);
+    }, [urlRoomCode]);
 
     // Socket event listeners
     useEffect(() => {
@@ -493,7 +496,7 @@ function DrawPlayerView({ onBack, initialRoomCode }) {
 
                     <button
                         className="draw-btn draw-btn-secondary"
-                        onClick={onBack}
+                        onClick={() => navigate('/draw')}
                         style={{ width: '100%', marginTop: '1rem' }}
                     >
                         ← Retour
@@ -706,7 +709,7 @@ function DrawPlayerView({ onBack, initialRoomCode }) {
 
                     <button
                         className="draw-btn draw-btn-secondary"
-                        onClick={onBack}
+                        onClick={() => navigate('/')}
                         style={{ marginTop: '2rem' }}
                     >
                         🏠 Menu

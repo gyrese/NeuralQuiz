@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
 import { QRCodeSVG } from 'qrcode.react';
 import './DrawStyles.css';
 
-function DrawHostView({ onBack }) {
+function DrawHostView() {
+    const navigate = useNavigate();
     const [gameState, setGameState] = useState('CREATING'); // CREATING, LOBBY, PLAYING, ROUND_END, GAME_END
     const [roomCode, setRoomCode] = useState('');
     const [players, setPlayers] = useState([]);
@@ -327,7 +329,7 @@ function DrawHostView({ onBack }) {
     if (gameState === 'LOBBY') {
         return (
             <div className="draw-lobby">
-                <button className="btn btn-outline-secondary position-absolute" style={{ top: 20, left: 20 }} onClick={onBack}>
+                <button className="btn btn-outline-secondary position-absolute" style={{ top: 20, left: 20 }} onClick={() => navigate('/draw')}>
                     ← Retour
                 </button>
 
@@ -571,7 +573,7 @@ function DrawHostView({ onBack }) {
                     <button className="draw-btn draw-btn-primary" onClick={restartGame}>
                         🔄 Rejouer
                     </button>
-                    <button className="draw-btn draw-btn-secondary" onClick={onBack}>
+                    <button className="draw-btn draw-btn-secondary" onClick={() => navigate('/')}>
                         🏠 Menu
                     </button>
                 </div>

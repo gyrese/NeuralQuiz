@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import { soundManager } from '../../utils/soundManager';
 import './GeoStyles.css';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-function GeoPlayerView({ onBack, initialRoomCode }) {
+function GeoPlayerView() {
+    const navigate = useNavigate();
+    const { roomCode: urlRoomCode } = useParams();
     const [step, setStep] = useState('JOIN'); // JOIN, WAITING, PLAYING, GUESSED, ROUND_END, GAME_END
-    const [roomCode, setRoomCode] = useState(initialRoomCode || '');
+    const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [pseudo, setPseudo] = useState('');
     const [avatar, setAvatar] = useState(null);
     const [error, setError] = useState('');
@@ -677,7 +680,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
         return (
             <div className="geo-player-background">
                 <div className="container py-4">
-                    <button className="btn btn-outline-secondary mb-4" onClick={onBack}>
+                    <button className="btn btn-outline-secondary mb-4" onClick={() => navigate('/geo')}>
                         ← RETOUR
                     </button>
 
@@ -998,7 +1001,7 @@ function GeoPlayerView({ onBack, initialRoomCode }) {
                         </div>
 
                         <div className="text-center mt-4">
-                            <button className="btn btn-outline-secondary btn-lg" onClick={onBack}>
+                            <button className="btn btn-outline-secondary btn-lg" onClick={() => navigate('/')}>
                                 🏠 Retour au menu
                             </button>
                         </div>

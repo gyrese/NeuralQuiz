@@ -8,11 +8,13 @@ import GeoPlayerView from './components/Geo/GeoPlayerView';
 import GeoRemoteView from './components/Geo/GeoRemoteView';
 import DrawHostView from './components/Draw/DrawHostView';
 import DrawPlayerView from './components/Draw/DrawPlayerView';
-import './components/Geo/GeoStyles.css';
-import './components/Draw/DrawStyles.css';
+import AperoHostView from './components/Apero/AperoHostView';
+import AperoPlayerView from './components/Apero/AperoPlayerView';
+import AperoAdmin from './components/Apero/AperoAdmin';
+
 
 function App() {
-  const [view, setView] = useState('HOME'); // HOME, GAME_SELECT, HOST, PLAYER, ADMIN, GEO_HOST, GEO_PLAYER, GEO_REMOTE, DRAW_HOST, DRAW_PLAYER
+  const [view, setView] = useState('HOME'); // HOME, GAME_SELECT, HOST, PLAYER, ADMIN, GEO_HOST, GEO_PLAYER, GEO_REMOTE, DRAW_HOST, DRAW_PLAYER, APERO_HOST, APERO_PLAYER, APERO_ADMIN
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [initialRoomCode, setInitialRoomCode] = useState(null);
 
@@ -46,6 +48,8 @@ function App() {
       // Check which game type
       if (game === 'draw') {
         setView('DRAW_PLAYER');
+      } else if (game === 'apero') {
+        setView('APERO_PLAYER');
       } else if (mode === 'remote') {
         setView('GEO_REMOTE');
       } else {
@@ -111,6 +115,20 @@ function App() {
                   <span className="badge bg-dark me-2">Dessin</span>
                   <span className="badge bg-dark me-2">Temps Réel</span>
                   <span className="badge bg-dark">Multijoueur</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Apéro Quiz Card (NEW) */}
+            <div className="col-md-4">
+              <div className="card game-card p-4 h-100" style={{ cursor: 'pointer', borderColor: 'rgba(255, 215, 0, 0.3)' }} onClick={() => setView('APERO_SELECT')}>
+                <div className="game-card-icon mb-3">🍻</div>
+                <h3 className="mb-3" style={{ color: '#ffd700', fontFamily: 'var(--font-display)', letterSpacing: '2px' }}>APÉRO_QUIZ</h3>
+                <p className="text-muted mb-4">Quiz de bar interactif - Les équipes répondent sur leur téléphone</p>
+                <div className="game-features">
+                  <span className="badge bg-dark me-2">Quiz</span>
+                  <span className="badge bg-dark me-2">Par Équipe</span>
+                  <span className="badge bg-dark">Bar</span>
                 </div>
               </div>
             </div>
@@ -182,6 +200,30 @@ function App() {
         </div>
       )}
 
+      {/* Apéro Quiz Selection (NEW) */}
+      {view === 'APERO_SELECT' && (
+        <div className="container text-center" style={{ marginTop: '15vh' }}>
+          <button className="btn btn-outline-secondary position-absolute" style={{ top: '20px', left: '20px' }} onClick={() => setView('HOME')}>
+            ← RETOUR
+          </button>
+          <h1 className="display-2 mb-5 fw-bold" style={{ color: '#ffd700', fontFamily: 'var(--font-display)', letterSpacing: '5px', textShadow: '0 0 20px rgba(255, 215, 0, 0.5)' }}>
+            🍻 APÉRO_QUIZ
+          </h1>
+          <p className="text-muted mb-5">Quiz de bar interactif - Les équipes répondent sur leur téléphone</p>
+          <div className="d-grid gap-4 col-md-4 mx-auto">
+            <button className="btn btn-lg py-3" style={{ background: 'linear-gradient(135deg, #f5af19, #f12711)', border: 'none', color: 'white', boxShadow: '0 0 20px rgba(245, 175, 25, 0.4)' }} onClick={() => setView('APERO_HOST')}>
+              LANCER UN QUIZ (ÉCRAN BAR)
+            </button>
+            <button className="btn btn-outline-light btn-lg py-3" style={{ borderColor: '#ffd700', color: '#ffd700', boxShadow: '0 0 10px rgba(255, 215, 0, 0.3)' }} onClick={() => setView('APERO_PLAYER')}>
+              REJOINDRE (ÉQUIPE)
+            </button>
+            <button className="btn btn-outline-secondary btn-lg py-3 mt-3" onClick={() => setView('APERO_ADMIN')}>
+              📝 Gérer les Quiz
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Views */}
       {view === 'HOST' && <HostView onBack={() => setView('QUIZ_SELECT')} />}
       {view === 'PLAYER' && <PlayerView onBack={() => setView('QUIZ_SELECT')} />}
@@ -191,6 +233,9 @@ function App() {
       {view === 'GEO_REMOTE' && <GeoRemoteView onBack={() => setView('GEO_SELECT')} initialRoomCode={initialRoomCode} />}
       {view === 'DRAW_HOST' && <DrawHostView onBack={() => setView('DRAW_SELECT')} />}
       {view === 'DRAW_PLAYER' && <DrawPlayerView onBack={() => setView('DRAW_SELECT')} initialRoomCode={initialRoomCode} />}
+      {view === 'APERO_HOST' && <AperoHostView onBack={() => setView('APERO_SELECT')} />}
+      {view === 'APERO_PLAYER' && <AperoPlayerView onBack={() => setView('APERO_SELECT')} initialRoomCode={initialRoomCode} />}
+      {view === 'APERO_ADMIN' && <AperoAdmin onBack={() => setView('APERO_SELECT')} />}
     </div>
   );
 }

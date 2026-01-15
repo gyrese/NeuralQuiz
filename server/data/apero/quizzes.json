@@ -1,0 +1,153 @@
+{
+  "quizzes": [
+    {
+      "id": "slide_mkfcoohkz0miy5ep7",
+      "title": "Nouveau Quiz",
+      "description": "",
+      "slides": [
+        {
+          "id": "slide_mkfcoohk3735mueit",
+          "type": "title",
+          "title": "🍻 Apéro Quiz",
+          "subtitle": "Préparez vos méninges !",
+          "theme": "gradient-purple",
+          "background": {
+            "type": "gradient",
+            "value": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+          }
+        }
+      ],
+      "createdAt": "2026-01-15T11:12:36.344Z",
+      "updatedAt": "2026-01-15T11:12:36.344Z"
+    },
+    {
+      "id": "slide_mkfcoohpi7j4htqs0",
+      "title": "quiz test",
+      "description": "",
+      "slides": [
+        {
+          "id": "slide_mkfcoohp6cky9qygc",
+          "type": "title",
+          "title": "🍻 Apéro Quiz",
+          "subtitle": "Préparez vos méninges !",
+          "theme": "gradient-purple",
+          "background": {
+            "type": "gradient",
+            "value": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+          }
+        },
+        {
+          "type": "question",
+          "questionType": "qcm",
+          "questionText": "Comment se nome ca ?",
+          "options": [
+            {
+              "label": "A",
+              "text": "ér\"ér\"ér"
+            },
+            {
+              "label": "B",
+              "text": "féf\"éf\"f"
+            },
+            {
+              "label": "C",
+              "text": "féf\"éf"
+            },
+            {
+              "label": "D",
+              "text": "\"fé\"f\"é"
+            }
+          ],
+          "correctAnswer": "A",
+          "timer": 20,
+          "theme": "dark",
+          "background": {
+            "type": "color",
+            "value": "#1a1a2e"
+          },
+          "id": "slide_1768475569194"
+        },
+        {
+          "type": "question",
+          "questionType": "estimation",
+          "questionText": "ca fait combien ?\n",
+          "correctAnswer": "4845",
+          "hint": "Entrez un nombre",
+          "timer": 30,
+          "theme": "dark",
+          "background": {
+            "type": "color",
+            "value": "#1a1a2e"
+          },
+          "id": "slide_1768475599583"
+        },
+        {
+          "type": "question",
+          "questionType": "text",
+          "questionText": "ecrit bobby",
+          "correctAnswer": "bobby",
+          "hint": "bob",
+          "timer": 30,
+          "theme": "gradient-orange",
+          "background": {
+            "type": "gradient",
+            "value": "linear-gradient(135deg, #f5af19 0%, #f12711 100%)"
+          },
+          "id": "slide_1768475638696"
+        },
+        {
+          "type": "score",
+          "title": "🏆 Classement",
+          "theme": "gold",
+          "background": {
+            "type": "gradient",
+            "value": "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)"
+          },
+          "id": "slide_1768475670565"
+        }
+      ],
+      "createdAt": "2026-01-15T11:12:36.349Z",
+      "updatedAt": "2026-01-15T11:14:50.369Z"
+    },
+    {
+      "id": "slide_mkfcrvvisil72o25o",
+      "title": "Nouveau Quiz",
+      "description": "",
+      "slides": [
+        {
+          "id": "slide_mkfcrvvix7pn0kexp",
+          "type": "title",
+          "title": "🍻 Apéro Quiz",
+          "subtitle": "Préparez vos méninges !",
+          "theme": "gradient-purple",
+          "background": {
+            "type": "gradient",
+            "value": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+          }
+        }
+      ],
+      "createdAt": "2026-01-15T11:15:05.886Z",
+      "updatedAt": "2026-01-15T11:15:05.886Z"
+    },
+    {
+      "id": "slide_mkfcrvvk9i5zmt3hk",
+      "title": "Nouveau Quiz",
+      "description": "",
+      "slides": [
+        {
+          "id": "slide_mkfcrvvka41jww540",
+          "type": "title",
+          "title": "🍻 Apéro Quiz",
+          "subtitle": "Préparez vos méninges !",
+          "theme": "gradient-purple",
+          "background": {
+            "type": "gradient",
+            "value": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+          }
+        }
+      ],
+      "createdAt": "2026-01-15T11:15:05.888Z",
+      "updatedAt": "2026-01-15T11:15:05.888Z"
+    }
+  ]
+}

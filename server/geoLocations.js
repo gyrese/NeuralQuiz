@@ -1,512 +1,89 @@
 /**
- * Liste de lieux vérifiés avec couverture Google Street View
- * Coordonnées sur routes principales, intersections et zones touristiques
- * Toutes les coordonnées ont été sélectionnées pour garantir la présence de Street View
+ * GeoTrackr - Location Database
+ * Gérée via JSON pour permettre le CRUD Admin
  */
 
-const WORLD_LOCATIONS = [
-    // ==========================================
-    // EUROPE (Coordonnées vérifiées sur routes)
-    // ==========================================
+const fs = require('fs');
+const path = require('path');
 
-    // France - Routes principales et centres accessibles
-    { lat: 48.8584, lng: 2.2945, country: 'France', city: 'Paris - Tour Eiffel' },
-    { lat: 48.8606, lng: 2.3376, country: 'France', city: 'Paris - Louvre' },
-    { lat: 48.8530, lng: 2.3499, country: 'France', city: 'Paris - Notre-Dame' },
-    { lat: 48.8738, lng: 2.2950, country: 'France', city: 'Paris - Arc de Triomphe' },
-    { lat: 43.2965, lng: 5.3698, country: 'France', city: 'Marseille - Vieux Port' },
-    { lat: 43.7102, lng: 7.2620, country: 'France', city: 'Nice - Promenade' },
-    { lat: 45.7676, lng: 4.8344, country: 'France', city: 'Lyon - Place Bellecour' },
-    { lat: 43.6047, lng: 1.4442, country: 'France', city: 'Toulouse - Capitole' },
-    { lat: 44.8378, lng: -0.5792, country: 'France', city: 'Bordeaux - Place Bourse' },
-    { lat: 47.2184, lng: -1.5536, country: 'France', city: 'Nantes - Centre' },
-    { lat: 48.5734, lng: 7.7521, country: 'France', city: 'Strasbourg - Petite France' },
-    { lat: 50.6292, lng: 3.0573, country: 'France', city: 'Lille - Grand Place' },
-    { lat: 49.4432, lng: 1.0999, country: 'France', city: 'Rouen - Cathédrale' },
-    { lat: 43.6108, lng: 3.8767, country: 'France', city: 'Montpellier - Comédie' },
-    { lat: 49.2583, lng: 4.0317, country: 'France', city: 'Reims - Cathédrale' },
+const DATA_FILE = path.join(__dirname, 'data', 'geoLocations.json');
 
-    // Royaume-Uni - Routes principales
-    { lat: 51.5007, lng: -0.1246, country: 'UK', city: 'London - Big Ben' },
-    { lat: 51.5081, lng: -0.0759, country: 'UK', city: 'London - Tower Bridge' },
-    { lat: 51.5014, lng: -0.1419, country: 'UK', city: 'London - Buckingham' },
-    { lat: 53.4808, lng: -2.2426, country: 'UK', city: 'Manchester - Piccadilly' },
-    { lat: 53.4084, lng: -2.9916, country: 'UK', city: 'Liverpool - Albert Dock' },
-    { lat: 55.9533, lng: -3.1883, country: 'UK', city: 'Edinburgh - Royal Mile' },
-    { lat: 55.8642, lng: -4.2518, country: 'UK', city: 'Glasgow - George Square' },
-    { lat: 51.4545, lng: -2.5879, country: 'UK', city: 'Bristol - Harbour' },
-    { lat: 54.9783, lng: -1.6178, country: 'UK', city: 'Newcastle - Quayside' },
-    { lat: 51.4816, lng: -3.1791, country: 'UK', city: 'Cardiff - Bay' },
+// Initial Load
+let WORLD_LOCATIONS = [];
 
-    // Allemagne - Centres touristiques
-    { lat: 52.5163, lng: 13.3777, country: 'Germany', city: 'Berlin - Brandenburger' },
-    { lat: 52.5200, lng: 13.4049, country: 'Germany', city: 'Berlin - Alexanderplatz' },
-    { lat: 48.1374, lng: 11.5755, country: 'Germany', city: 'Munich - Marienplatz' },
-    { lat: 53.5511, lng: 9.9937, country: 'Germany', city: 'Hamburg - Rathaus' },
-    { lat: 50.9375, lng: 6.9603, country: 'Germany', city: 'Cologne - Dom' },
-    { lat: 50.1109, lng: 8.6821, country: 'Germany', city: 'Frankfurt - Römer' },
-    { lat: 48.7758, lng: 9.1829, country: 'Germany', city: 'Stuttgart - Schlossplatz' },
-    { lat: 51.0504, lng: 13.7373, country: 'Germany', city: 'Dresden - Altstadt' },
-    { lat: 49.4521, lng: 11.0767, country: 'Germany', city: 'Nuremberg - Altstadt' },
-    { lat: 47.5596, lng: 7.5886, country: 'Germany', city: 'Basel - Marktplatz' },
+try {
+    if (fs.existsSync(DATA_FILE)) {
+        const data = fs.readFileSync(DATA_FILE, 'utf8');
+        WORLD_LOCATIONS = JSON.parse(data);
+        console.log('[GeoLocations] Loaded locations from JSON file');
+    } else {
+        console.error('[GeoLocations] Data file not found:', DATA_FILE);
+        WORLD_LOCATIONS = [];
+    }
+} catch (error) {
+    console.error('[GeoLocations] Error loading data file:', error);
+    WORLD_LOCATIONS = [];
+}
 
-    // Italie - Zones touristiques
-    { lat: 41.9029, lng: 12.4534, country: 'Italy', city: 'Rome - Vatican' },
-    { lat: 41.8902, lng: 12.4922, country: 'Italy', city: 'Rome - Colosseum' },
-    { lat: 41.9009, lng: 12.4833, country: 'Italy', city: 'Rome - Fontana Trevi' },
-    { lat: 45.4642, lng: 9.1900, country: 'Italy', city: 'Milan - Duomo' },
-    { lat: 45.4409, lng: 12.3155, country: 'Italy', city: 'Venice - San Marco' },
-    { lat: 43.7696, lng: 11.2558, country: 'Italy', city: 'Florence - Duomo' },
-    { lat: 43.7228, lng: 10.3966, country: 'Italy', city: 'Pisa - Torre' },
-    { lat: 40.8518, lng: 14.2681, country: 'Italy', city: 'Naples - Centro' },
-    { lat: 45.0703, lng: 7.6869, country: 'Italy', city: 'Turin - Piazza Castello' },
-    { lat: 44.4949, lng: 11.3426, country: 'Italy', city: 'Bologna - Piazza Maggiore' },
+// Helper to save
+function saveLocations() {
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(WORLD_LOCATIONS, null, 4), 'utf8');
+        return true;
+    } catch (error) {
+        console.error('[GeoLocations] Error saving data file:', error);
+        return false;
+    }
+}
 
-    // Espagne - Zones touristiques
-    { lat: 40.4168, lng: -3.7038, country: 'Spain', city: 'Madrid - Puerta del Sol' },
-    { lat: 40.4533, lng: -3.6883, country: 'Spain', city: 'Madrid - Santiago Bernabéu' },
-    { lat: 41.4036, lng: 2.1744, country: 'Spain', city: 'Barcelona - Sagrada Familia' },
-    { lat: 41.3809, lng: 2.1228, country: 'Spain', city: 'Barcelona - Camp Nou' },
-    { lat: 41.3851, lng: 2.1734, country: 'Spain', city: 'Barcelona - Las Ramblas' },
-    { lat: 37.3891, lng: -5.9845, country: 'Spain', city: 'Seville - Alcázar' },
-    { lat: 39.4699, lng: -0.3763, country: 'Spain', city: 'Valencia - Ciudad Artes' },
-    { lat: 36.7213, lng: -4.4214, country: 'Spain', city: 'Malaga - Puerto' },
-    { lat: 37.1773, lng: -3.5986, country: 'Spain', city: 'Granada - Alhambra' },
-    { lat: 43.2630, lng: -2.9350, country: 'Spain', city: 'Bilbao - Guggenheim' },
+// --- Public Methods ---
 
-    // Portugal
-    { lat: 38.6916, lng: -9.2160, country: 'Portugal', city: 'Lisbon - Belém' },
-    { lat: 38.7139, lng: -9.1334, country: 'Portugal', city: 'Lisbon - Baixa' },
-    { lat: 41.1496, lng: -8.6109, country: 'Portugal', city: 'Porto - Ribeira' },
-    { lat: 40.2033, lng: -8.4103, country: 'Portugal', city: 'Coimbra - Université' },
-    { lat: 37.0179, lng: -7.9304, country: 'Portugal', city: 'Faro - Centre' },
+function getAll() {
+    return WORLD_LOCATIONS;
+}
 
-    // Pays-Bas
-    { lat: 52.3702, lng: 4.8952, country: 'Netherlands', city: 'Amsterdam - Dam' },
-    { lat: 52.3600, lng: 4.8856, country: 'Netherlands', city: 'Amsterdam - Canals' },
-    { lat: 51.9244, lng: 4.4777, country: 'Netherlands', city: 'Rotterdam - Cube Houses' },
-    { lat: 52.0705, lng: 4.3007, country: 'Netherlands', city: 'The Hague - Binnenhof' },
-    { lat: 52.0907, lng: 5.1214, country: 'Netherlands', city: 'Utrecht - Dom' },
+function add(location) {
+    // location: { lat, lng, country, city }
+    if (!location.city || !location.lat || !location.lng) return false;
 
-    // Belgique
-    { lat: 50.8467, lng: 4.3525, country: 'Belgium', city: 'Brussels - Grand Place' },
-    { lat: 51.0543, lng: 3.7174, country: 'Belgium', city: 'Ghent - Gravensteen' },
-    { lat: 51.2093, lng: 3.2247, country: 'Belgium', city: 'Bruges - Markt' },
-    { lat: 51.2194, lng: 4.4025, country: 'Belgium', city: 'Antwerp - Grote Markt' },
+    // Check strict duplicate on city name to avoid confusion
+    if (WORLD_LOCATIONS.some(l => l.city.toLowerCase() === location.city.toLowerCase())) {
+        return false;
+    }
 
-    // Suisse
-    { lat: 46.2044, lng: 6.1432, country: 'Switzerland', city: 'Geneva - Jet d\'Eau' },
-    { lat: 47.3769, lng: 8.5417, country: 'Switzerland', city: 'Zurich - Bahnhofstrasse' },
-    { lat: 46.9480, lng: 7.4474, country: 'Switzerland', city: 'Bern - Altstadt' },
-    { lat: 47.0502, lng: 8.3093, country: 'Switzerland', city: 'Lucerne - Kapellbrücke' },
-    { lat: 46.0207, lng: 7.7491, country: 'Switzerland', city: 'Zermatt - Matterhorn' },
+    WORLD_LOCATIONS.push(location);
+    return saveLocations();
+}
 
-    // Autriche
-    { lat: 48.2082, lng: 16.3738, country: 'Austria', city: 'Vienna - Stephansdom' },
-    { lat: 48.1856, lng: 16.3134, country: 'Austria', city: 'Vienna - Schönbrunn' },
-    { lat: 47.8095, lng: 13.0470, country: 'Austria', city: 'Salzburg - Altstadt' },
-    { lat: 47.2692, lng: 11.3933, country: 'Austria', city: 'Innsbruck - Maria-Theresien' },
+function update(originalCity, newLocation) {
+    const index = WORLD_LOCATIONS.findIndex(l => l.city === originalCity);
+    if (index === -1) return false;
 
-    // Scandinavie
-    { lat: 59.3275, lng: 18.0649, country: 'Sweden', city: 'Stockholm - Gamla Stan' },
-    { lat: 57.7089, lng: 11.9746, country: 'Sweden', city: 'Gothenburg - Liseberg' },
-    { lat: 55.6761, lng: 12.5683, country: 'Denmark', city: 'Copenhagen - Nyhavn' },
-    { lat: 55.6736, lng: 12.5681, country: 'Denmark', city: 'Copenhagen - Tivoli' },
-    { lat: 59.9127, lng: 10.7461, country: 'Norway', city: 'Oslo - Opera House' },
-    { lat: 60.3913, lng: 5.3221, country: 'Norway', city: 'Bergen - Bryggen' },
-    { lat: 60.1699, lng: 24.9384, country: 'Finland', city: 'Helsinki - Senate Square' },
+    WORLD_LOCATIONS[index] = newLocation;
+    return saveLocations();
+}
 
-    // Europe de l'Est
-    { lat: 52.2297, lng: 21.0122, country: 'Poland', city: 'Warsaw - Old Town' },
-    { lat: 50.0614, lng: 19.9372, country: 'Poland', city: 'Krakow - Main Square' },
-    { lat: 50.0875, lng: 14.4213, country: 'Czech Republic', city: 'Prague - Charles Bridge' },
-    { lat: 50.0870, lng: 14.4185, country: 'Czech Republic', city: 'Prague - Old Town' },
-    { lat: 47.4979, lng: 19.0402, country: 'Hungary', city: 'Budapest - Parliament' },
-    { lat: 47.5025, lng: 19.0344, country: 'Hungary', city: 'Budapest - Chain Bridge' },
-    { lat: 48.1486, lng: 17.1077, country: 'Slovakia', city: 'Bratislava - Old Town' },
-    { lat: 44.4268, lng: 26.1025, country: 'Romania', city: 'Bucharest - Parliament' },
+function remove(city) {
+    const initialLength = WORLD_LOCATIONS.length;
+    WORLD_LOCATIONS = WORLD_LOCATIONS.filter(l => l.city !== city);
 
-    // Europe du Sud-Est
-    { lat: 37.9715, lng: 23.7267, country: 'Greece', city: 'Athens - Acropolis' },
-    { lat: 37.9755, lng: 23.7348, country: 'Greece', city: 'Athens - Plaka' },
-    { lat: 36.4618, lng: 25.3753, country: 'Greece', city: 'Santorini - Oia' },
-    { lat: 45.8150, lng: 15.9819, country: 'Croatia', city: 'Zagreb - Ban Jelačić' },
-    { lat: 43.5081, lng: 16.4402, country: 'Croatia', city: 'Split - Diocletian' },
-    { lat: 42.6507, lng: 18.0944, country: 'Croatia', city: 'Dubrovnik - Old Town' },
+    if (WORLD_LOCATIONS.length === initialLength) return false;
 
-    // Pays Baltes
-    { lat: 59.4370, lng: 24.7536, country: 'Estonia', city: 'Tallinn - Old Town' },
-    { lat: 56.9496, lng: 24.1052, country: 'Latvia', city: 'Riga - Old Town' },
-    { lat: 54.6872, lng: 25.2797, country: 'Lithuania', city: 'Vilnius - Cathedral' },
+    return saveLocations();
+}
 
-    // ==========================================
-    // ASIE (Coordonnées vérifiées)
-    // ==========================================
+// Stats helpers
+function getStats() {
+    return {
+        total: WORLD_LOCATIONS.length,
+        countries: [...new Set(WORLD_LOCATIONS.map(l => l.country))].length
+    };
+}
 
-    // Japon - Zones touristiques majeures
-    { lat: 35.6585, lng: 139.7454, country: 'Japan', city: 'Tokyo - Tokyo Tower' },
-    { lat: 35.7101, lng: 139.8107, country: 'Japan', city: 'Tokyo - Asakusa' },
-    { lat: 35.6595, lng: 139.7006, country: 'Japan', city: 'Tokyo - Shibuya Crossing' },
-    { lat: 34.9676, lng: 135.7728, country: 'Japan', city: 'Kyoto - Fushimi Inari' },
-    { lat: 35.0116, lng: 135.7681, country: 'Japan', city: 'Kyoto - Kinkaku-ji' },
-    { lat: 34.6687, lng: 135.5031, country: 'Japan', city: 'Osaka - Dotonbori' },
-    { lat: 34.6851, lng: 135.5261, country: 'Japan', city: 'Osaka - Castle' },
-    { lat: 34.3853, lng: 132.4553, country: 'Japan', city: 'Hiroshima - Peace Park' },
-    { lat: 43.0618, lng: 141.3545, country: 'Japan', city: 'Sapporo - Odori Park' },
-    { lat: 35.3607, lng: 138.7274, country: 'Japan', city: 'Mt Fuji - Kawaguchiko' },
-
-    // Corée du Sud
-    { lat: 37.5796, lng: 126.9770, country: 'South Korea', city: 'Seoul - Gyeongbokgung' },
-    { lat: 37.5512, lng: 126.9882, country: 'South Korea', city: 'Seoul - Myeongdong' },
-    { lat: 35.1544, lng: 129.1186, country: 'South Korea', city: 'Busan - Haeundae' },
-    { lat: 33.4890, lng: 126.4983, country: 'South Korea', city: 'Jeju - Centre' },
-
-    // Chine & Hong Kong & Macao
-    { lat: 22.2783, lng: 114.1747, country: 'Hong Kong', city: 'Hong Kong - Victoria Peak' },
-    { lat: 22.2988, lng: 114.1722, country: 'Hong Kong', city: 'Hong Kong - Kowloon' },
-    { lat: 22.1987, lng: 113.5439, country: 'Macau', city: 'Macau - Ruins of St. Paul' },
-
-    // Taiwan
-    { lat: 25.0339, lng: 121.5645, country: 'Taiwan', city: 'Taipei - Taipei 101' },
-    { lat: 25.0478, lng: 121.5171, country: 'Taiwan', city: 'Taipei - Shilin Market' },
-    { lat: 22.6273, lng: 120.3014, country: 'Taiwan', city: 'Kaohsiung - Pier-2' },
-
-    // Singapour
-    { lat: 1.2837, lng: 103.8591, country: 'Singapore', city: 'Singapore - Marina Bay' },
-    { lat: 1.2540, lng: 103.8199, country: 'Singapore', city: 'Singapore - Sentosa' },
-    { lat: 1.3048, lng: 103.8318, country: 'Singapore', city: 'Singapore - Orchard Road' },
-
-    // Malaisie
-    { lat: 3.1579, lng: 101.7116, country: 'Malaysia', city: 'KL - Petronas Towers' },
-    { lat: 3.1466, lng: 101.6958, country: 'Malaysia', city: 'KL - Merdeka Square' },
-    { lat: 5.4213, lng: 100.3286, country: 'Malaysia', city: 'Penang - George Town' },
-
-    // Thaïlande
-    { lat: 13.7516, lng: 100.4945, country: 'Thailand', city: 'Bangkok - Grand Palace' },
-    { lat: 13.7469, lng: 100.5349, country: 'Thailand', city: 'Bangkok - Wat Arun' },
-    { lat: 18.7887, lng: 98.9853, country: 'Thailand', city: 'Chiang Mai - Old City' },
-    { lat: 7.8953, lng: 98.3529, country: 'Thailand', city: 'Phuket - Patong Beach' },
-
-    // Vietnam
-    { lat: 21.0278, lng: 105.8342, country: 'Vietnam', city: 'Hanoi - Hoan Kiem' },
-    { lat: 10.7764, lng: 106.7009, country: 'Vietnam', city: 'HCMC - Ben Thanh' },
-    { lat: 16.4637, lng: 107.5908, country: 'Vietnam', city: 'Hue - Imperial City' },
-    { lat: 15.8801, lng: 108.3380, country: 'Vietnam', city: 'Hoi An - Old Town' },
-
-    // Indonésie
-    { lat: -6.1751, lng: 106.8650, country: 'Indonesia', city: 'Jakarta - Monas' },
-    { lat: -8.5069, lng: 115.2625, country: 'Indonesia', city: 'Bali - Kuta Beach' },
-    { lat: -8.4095, lng: 115.1889, country: 'Indonesia', city: 'Bali - Tanah Lot' },
-    { lat: -7.7956, lng: 110.3695, country: 'Indonesia', city: 'Yogyakarta - Malioboro' },
-
-    // Philippines
-    { lat: 14.5896, lng: 120.9815, country: 'Philippines', city: 'Manila - Intramuros' },
-    { lat: 10.3157, lng: 123.8854, country: 'Philippines', city: 'Cebu - Magellan Cross' },
-
-    // Inde
-    { lat: 27.1751, lng: 78.0421, country: 'India', city: 'Agra - Taj Mahal' },
-    { lat: 28.6129, lng: 77.2295, country: 'India', city: 'Delhi - India Gate' },
-    { lat: 28.6562, lng: 77.2410, country: 'India', city: 'Delhi - Red Fort' },
-    { lat: 19.0760, lng: 72.8777, country: 'India', city: 'Mumbai - Gateway' },
-    { lat: 26.9260, lng: 75.8235, country: 'India', city: 'Jaipur - Hawa Mahal' },
-    { lat: 12.9716, lng: 77.5946, country: 'India', city: 'Bangalore - MG Road' },
-
-    // Moyen-Orient
-    { lat: 25.1972, lng: 55.2744, country: 'UAE', city: 'Dubai - Burj Khalifa' },
-    { lat: 25.2532, lng: 55.3657, country: 'UAE', city: 'Dubai - Palm Jumeirah' },
-    { lat: 24.4539, lng: 54.3773, country: 'UAE', city: 'Abu Dhabi - Sheikh Zayed' },
-    { lat: 25.2940, lng: 51.5310, country: 'Qatar', city: 'Doha - Corniche' },
-    { lat: 41.0082, lng: 28.9784, country: 'Turkey', city: 'Istanbul - Hagia Sophia' },
-    { lat: 41.0055, lng: 28.9769, country: 'Turkey', city: 'Istanbul - Blue Mosque' },
-    { lat: 41.0256, lng: 28.9740, country: 'Turkey', city: 'Istanbul - Galata Tower' },
-    { lat: 38.6431, lng: 34.8307, country: 'Turkey', city: 'Cappadocia - Göreme' },
-    { lat: 31.7767, lng: 35.2345, country: 'Israel', city: 'Jerusalem - Old City' },
-    { lat: 32.0853, lng: 34.7818, country: 'Israel', city: 'Tel Aviv - Beach' },
-    { lat: 31.9454, lng: 35.9284, country: 'Jordan', city: 'Amman - Roman Theatre' },
-    { lat: 30.3285, lng: 35.4444, country: 'Jordan', city: 'Petra - Treasury' },
-
-    // ==========================================
-    // AMÉRIQUES (Coordonnées vérifiées)
-    // ==========================================
-
-    // États-Unis - Lieux iconiques
-    { lat: 40.7484, lng: -73.9857, country: 'USA', city: 'NYC - Empire State' },
-    { lat: 40.7580, lng: -73.9855, country: 'USA', city: 'NYC - Times Square' },
-    { lat: 40.6892, lng: -74.0445, country: 'USA', city: 'NYC - Statue of Liberty' },
-    { lat: 40.7527, lng: -73.9772, country: 'USA', city: 'NYC - Grand Central' },
-    { lat: 34.1341, lng: -118.3215, country: 'USA', city: 'LA - Hollywood Sign' },
-    { lat: 34.0195, lng: -118.4912, country: 'USA', city: 'LA - Santa Monica Pier' },
-    { lat: 37.8199, lng: -122.4783, country: 'USA', city: 'SF - Golden Gate' },
-    { lat: 37.7955, lng: -122.3937, country: 'USA', city: 'SF - Pier 39' },
-    { lat: 36.1147, lng: -115.1728, country: 'USA', city: 'Las Vegas - Strip' },
-    { lat: 36.0544, lng: -112.1401, country: 'USA', city: 'Grand Canyon - South Rim' },
-    { lat: 25.7617, lng: -80.1918, country: 'USA', city: 'Miami - South Beach' },
-    { lat: 38.8977, lng: -77.0365, country: 'USA', city: 'Washington - White House' },
-    { lat: 38.8893, lng: -77.0502, country: 'USA', city: 'Washington - Lincoln Memorial' },
-    { lat: 41.8826, lng: -87.6233, country: 'USA', city: 'Chicago - Millennium Park' },
-    { lat: 47.6062, lng: -122.3321, country: 'USA', city: 'Seattle - Space Needle' },
-    { lat: 29.9511, lng: -90.0715, country: 'USA', city: 'New Orleans - French Quarter' },
-    { lat: 21.2769, lng: -157.8261, country: 'USA', city: 'Hawaii - Waikiki Beach' },
-
-    // Canada
-    { lat: 43.6426, lng: -79.3871, country: 'Canada', city: 'Toronto - CN Tower' },
-    { lat: 45.5087, lng: -73.5540, country: 'Canada', city: 'Montreal - Old Port' },
-    { lat: 49.2827, lng: -123.1207, country: 'Canada', city: 'Vancouver - Stanley Park' },
-    { lat: 45.4215, lng: -75.6972, country: 'Canada', city: 'Ottawa - Parliament' },
-    { lat: 46.8139, lng: -71.2080, country: 'Canada', city: 'Quebec City - Old Town' },
-    { lat: 51.0486, lng: -114.0708, country: 'Canada', city: 'Calgary - Tower' },
-
-    // Mexique
-    { lat: 19.4326, lng: -99.1332, country: 'Mexico', city: 'Mexico City - Zócalo' },
-    { lat: 19.4330, lng: -99.1413, country: 'Mexico', city: 'Mexico City - Bellas Artes' },
-    { lat: 21.1619, lng: -86.8515, country: 'Mexico', city: 'Cancún - Hotel Zone' },
-    { lat: 20.2114, lng: -87.4653, country: 'Mexico', city: 'Tulum - Ruins' },
-    { lat: 20.6297, lng: -87.0739, country: 'Mexico', city: 'Playa del Carmen - 5th Ave' },
-
-    // Amérique Centrale & Caraïbes
-    { lat: 9.9281, lng: -84.0907, country: 'Costa Rica', city: 'San José - Centro' },
-    { lat: 8.9824, lng: -79.5199, country: 'Panama', city: 'Panama City - Casco Viejo' },
-    { lat: 23.1136, lng: -82.3666, country: 'Cuba', city: 'Havana - Malecón' },
-    { lat: 18.4861, lng: -69.9312, country: 'Dominican Republic', city: 'Santo Domingo - Zona Colonial' },
-    { lat: 18.4655, lng: -66.1057, country: 'Puerto Rico', city: 'San Juan - Old San Juan' },
-
-    // Amérique du Sud
-    { lat: -22.9519, lng: -43.2105, country: 'Brazil', city: 'Rio - Cristo Redentor' },
-    { lat: -22.9068, lng: -43.1729, country: 'Brazil', city: 'Rio - Copacabana' },
-    { lat: -23.5505, lng: -46.6333, country: 'Brazil', city: 'São Paulo - Paulista' },
-    { lat: -25.6953, lng: -54.4367, country: 'Brazil', city: 'Iguazu Falls - Brazilian Side' },
-    { lat: -34.6037, lng: -58.3816, country: 'Argentina', city: 'Buenos Aires - Plaza de Mayo' },
-    { lat: -34.6083, lng: -58.3712, country: 'Argentina', city: 'Buenos Aires - La Boca' },
-    { lat: -33.4489, lng: -70.6693, country: 'Chile', city: 'Santiago - Plaza de Armas' },
-    { lat: -33.0472, lng: -71.6127, country: 'Chile', city: 'Valparaíso - Cerro Alegre' },
-    { lat: -12.0464, lng: -77.0428, country: 'Peru', city: 'Lima - Plaza Mayor' },
-    { lat: -13.1631, lng: -72.5450, country: 'Peru', city: 'Machu Picchu - Entrance' },
-    { lat: -0.1807, lng: -78.4678, country: 'Ecuador', city: 'Quito - Centro Histórico' },
-    { lat: 4.7110, lng: -74.0721, country: 'Colombia', city: 'Bogotá - Plaza Bolívar' },
-    { lat: 6.2088, lng: -75.5659, country: 'Colombia', city: 'Medellín - El Poblado' },
-    { lat: 10.3910, lng: -75.4794, country: 'Colombia', city: 'Cartagena - Walled City' },
-
-    // ==========================================
-    // AFRIQUE (Coordonnées vérifiées)
-    // ==========================================
-
-    // Afrique du Nord
-    { lat: 29.9792, lng: 31.1342, country: 'Egypt', city: 'Cairo - Pyramids of Giza' },
-    { lat: 30.0444, lng: 31.2357, country: 'Egypt', city: 'Cairo - Tahrir Square' },
-    { lat: 25.7188, lng: 32.6573, country: 'Egypt', city: 'Luxor - Karnak Temple' },
-    { lat: 31.6295, lng: -7.9811, country: 'Morocco', city: 'Marrakech - Jemaa el-Fna' },
-    { lat: 34.0181, lng: -5.0078, country: 'Morocco', city: 'Fes - Medina' },
-    { lat: 35.7595, lng: -5.8340, country: 'Morocco', city: 'Tangier - Kasbah' },
-    { lat: 33.5731, lng: -7.5898, country: 'Morocco', city: 'Casablanca - Hassan II' },
-    { lat: 36.8065, lng: 10.1815, country: 'Tunisia', city: 'Tunis - Medina' },
-
-    // Afrique du Sud
-    { lat: -33.9249, lng: 18.4241, country: 'South Africa', city: 'Cape Town - Waterfront' },
-    { lat: -33.9628, lng: 18.4098, country: 'South Africa', city: 'Cape Town - Table Mountain' },
-    { lat: -26.2041, lng: 28.0473, country: 'South Africa', city: 'Johannesburg - Sandton' },
-    { lat: -25.7479, lng: 28.2293, country: 'South Africa', city: 'Pretoria - Union Buildings' },
-
-    // Afrique de l'Est
-    { lat: -1.2921, lng: 36.8219, country: 'Kenya', city: 'Nairobi - CBD' },
-    { lat: -6.1659, lng: 39.2026, country: 'Tanzania', city: 'Zanzibar - Stone Town' },
-    { lat: -1.9403, lng: 29.8739, country: 'Rwanda', city: 'Kigali - Centre' },
-    { lat: -20.1609, lng: 57.5012, country: 'Mauritius', city: 'Port Louis - Caudan' },
-
-    // ==========================================
-    // OCÉANIE (Coordonnées vérifiées)
-    // ==========================================
-
-    // Australie
-    { lat: -33.8568, lng: 151.2153, country: 'Australia', city: 'Sydney - Opera House' },
-    { lat: -33.8915, lng: 151.2767, country: 'Australia', city: 'Sydney - Bondi Beach' },
-    { lat: -37.8136, lng: 144.9631, country: 'Australia', city: 'Melbourne - Federation Square' },
-    { lat: -27.4698, lng: 153.0251, country: 'Australia', city: 'Brisbane - South Bank' },
-    { lat: -31.9505, lng: 115.8604, country: 'Australia', city: 'Perth - Elizabeth Quay' },
-    { lat: -16.9186, lng: 145.7781, country: 'Australia', city: 'Cairns - Esplanade' },
-    { lat: -28.0024, lng: 153.4316, country: 'Australia', city: 'Gold Coast - Surfers Paradise' },
-
-    // Nouvelle-Zélande
-    { lat: -36.8485, lng: 174.7633, country: 'New Zealand', city: 'Auckland - Sky Tower' },
-    { lat: -41.2865, lng: 174.7762, country: 'New Zealand', city: 'Wellington - Te Papa' },
-    { lat: -43.5321, lng: 172.6362, country: 'New Zealand', city: 'Christchurch - Cathedral' },
-    { lat: -45.0312, lng: 168.6626, country: 'New Zealand', city: 'Queenstown - Lakefront' },
-    { lat: -38.1446, lng: 176.2378, country: 'New Zealand', city: 'Rotorua - Government Gardens' },
-
-    // Îles du Pacifique
-    { lat: -17.7765, lng: 177.4356, country: 'Fiji', city: 'Suva - Centre' },
-    { lat: -22.2711, lng: 166.4416, country: 'New Caledonia', city: 'Nouméa - Anse Vata' },
-    { lat: -17.5334, lng: -149.5666, country: 'French Polynesia', city: 'Papeete - Waterfront' },
-
-    // ==========================================
-    // RUSSIE (Coordonnées vérifiées)
-    // ==========================================
-    { lat: 55.7539, lng: 37.6208, country: 'Russia', city: 'Moscow - Red Square' },
-    { lat: 55.7520, lng: 37.6175, country: 'Russia', city: 'Moscow - Kremlin' },
-    { lat: 59.9386, lng: 30.3141, country: 'Russia', city: 'St Petersburg - Hermitage' },
-    { lat: 59.9401, lng: 30.3289, country: 'Russia', city: 'St Petersburg - Church on Blood' },
-    { lat: 43.5992, lng: 39.7257, country: 'Russia', city: 'Sochi - Olympic Park' },
-
-    // ==========================================
-    // LA RÉUNION (DOM-TOM Français - Océan Indien)
-    // Routes principales avec couverture Street View vérifiée
-    // ==========================================
-    { lat: -20.8789, lng: 55.4481, country: 'Reunion', city: 'Saint-Denis - Barachois' },
-    { lat: -20.8957, lng: 55.4601, country: 'Reunion', city: 'Saint-Denis - Jardin de l\'État' },
-    { lat: -21.1139, lng: 55.5329, country: 'Reunion', city: 'Saint-Pierre - Front de mer' },
-    { lat: -21.1064, lng: 55.5134, country: 'Reunion', city: 'Saint-Pierre - Ravine Blanche' },
-    { lat: -21.0754, lng: 55.2241, country: 'Reunion', city: 'Saint-Paul - Centre' },
-    { lat: -21.0331, lng: 55.2164, country: 'Reunion', city: 'Boucan Canot - Plage' },
-    { lat: -20.8721, lng: 55.5304, country: 'Reunion', city: 'Sainte-Marie - Aéroport' },
-    { lat: -21.0123, lng: 55.2693, country: 'Reunion', city: 'Le Port - Centre' },
-    { lat: -21.2152, lng: 55.2884, country: 'Reunion', city: 'Saint-Leu - Centre' },
-    { lat: -21.3169, lng: 55.4846, country: 'Reunion', city: 'Saint-Louis - N1' },
-    { lat: -21.1356, lng: 55.4734, country: 'Reunion', city: 'Le Tampon - Mairie' },
-    { lat: -20.9156, lng: 55.6550, country: 'Reunion', city: 'Sainte-Suzanne - Cascade' },
-    { lat: -21.2618, lng: 55.6000, country: 'Reunion', city: 'Saint-Joseph - N2' },
-    { lat: -21.0527, lng: 55.6495, country: 'Reunion', city: 'Saint-Benoît - Marina' },
-    { lat: -21.1043, lng: 55.7035, country: 'Reunion', city: 'Sainte-Anne - Église' },
-    { lat: -21.0094, lng: 55.7082, country: 'Reunion', city: 'Salazie - Hell-Bourg' },
-    { lat: -21.1388, lng: 55.4712, country: 'Reunion', city: 'Cilaos - Centre' },
-    { lat: -21.0030, lng: 55.3062, country: 'Reunion', city: 'La Possession - Dos d\'Âne' },
-    { lat: -21.1680, lng: 55.2436, country: 'Reunion', city: 'L\'Étang-Salé - Plage' },
-    { lat: -21.3419, lng: 55.6128, country: 'Reunion', city: 'Petite-Île - Manapany' },
-
-    // ==========================================
-    // PARCS D'ATTRACTIONS (Coordonnées vérifiées)
-    // ==========================================
-
-    // Disney Parks
-    { lat: 48.8674, lng: 2.7836, country: 'France', city: 'Disneyland Paris - Entrée' },
-    { lat: 48.8722, lng: 2.7758, country: 'France', city: 'Disneyland Paris - Main Street' },
-    { lat: 28.4177, lng: -81.5812, country: 'USA', city: 'Walt Disney World - Magic Kingdom' },
-    { lat: 28.3747, lng: -81.5494, country: 'USA', city: 'Disney World - EPCOT' },
-    { lat: 28.3575, lng: -81.5583, country: 'USA', city: 'Disney World - Hollywood Studios' },
-    { lat: 28.3553, lng: -81.5901, country: 'USA', city: 'Disney World - Animal Kingdom' },
-    { lat: 33.8121, lng: -117.9190, country: 'USA', city: 'Disneyland California - Main Gate' },
-    { lat: 33.8068, lng: -117.9215, country: 'USA', city: 'Disneyland California - Downtown Disney' },
-    { lat: 35.6329, lng: 139.8804, country: 'Japan', city: 'Tokyo Disneyland' },
-    { lat: 35.6267, lng: 139.8850, country: 'Japan', city: 'Tokyo DisneySea' },
-    { lat: 22.3130, lng: 114.0413, country: 'Hong Kong', city: 'Hong Kong Disneyland' },
-    { lat: 31.1434, lng: 121.6580, country: 'China', city: 'Shanghai Disneyland' },
-
-    // Universal Studios
-    { lat: 28.4750, lng: -81.4664, country: 'USA', city: 'Universal Orlando - CityWalk' },
-    { lat: 28.4722, lng: -81.4683, country: 'USA', city: 'Universal Orlando - Islands of Adventure' },
-    { lat: 34.1381, lng: -118.3534, country: 'USA', city: 'Universal Studios Hollywood' },
-    { lat: 34.6366, lng: 135.4326, country: 'Japan', city: 'Universal Studios Japan - Osaka' },
-    { lat: 1.2540, lng: 103.8238, country: 'Singapore', city: 'Universal Studios Singapore' },
-
-    // Parcs Européens
-    { lat: 48.2680, lng: 7.7220, country: 'Germany', city: 'Europa-Park - Entrée' },
-    { lat: 48.2661, lng: 7.7217, country: 'Germany', city: 'Europa-Park - Quartier France' },
-    { lat: 41.0856, lng: 1.1557, country: 'Spain', city: 'PortAventura - Entrée' },
-    { lat: 41.0872, lng: 1.1479, country: 'Spain', city: 'PortAventura - Ferrari Land' },
-    { lat: 52.4395, lng: 5.0717, country: 'Netherlands', city: 'Walibi Holland' },
-    { lat: 51.6500, lng: 4.5556, country: 'Netherlands', city: 'Efteling - Entrée' },
-    { lat: 51.0492, lng: 4.5936, country: 'Belgium', city: 'Walibi Belgium' },
-    { lat: 50.8098, lng: 5.8114, country: 'Belgium', city: 'Plopsa Coo' },
-    { lat: 51.4010, lng: 5.9836, country: 'Germany', city: 'Phantasialand' },
-    { lat: 52.8400, lng: 13.6886, country: 'Germany', city: 'Tropical Islands' },
-    { lat: 55.7294, lng: 14.1556, country: 'Denmark', city: 'Legoland Billund' },
-    { lat: 45.0177, lng: 7.6227, country: 'Italy', city: 'Gardaland' },
-    { lat: 40.4569, lng: 3.6028, country: 'Spain', city: 'Parque Warner Madrid' },
-    { lat: 43.4350, lng: -1.5537, country: 'France', city: 'Parc Astérix' },
-    { lat: 46.6745, lng: -1.8753, country: 'France', city: 'Puy du Fou' },
-    { lat: 47.0668, lng: -0.8989, country: 'France', city: 'Futuroscope' },
-
-    // Parcs Asiatiques
-    { lat: 22.3402, lng: 113.9756, country: 'Macau', city: 'Studio City Macau' },
-    { lat: 37.5116, lng: 127.0981, country: 'South Korea', city: 'Lotte World - Seoul' },
-    { lat: 37.2895, lng: 127.0531, country: 'South Korea', city: 'Everland - Yongin' },
-    { lat: 25.0289, lng: 121.5162, country: 'Taiwan', city: 'Taipei Children\'s Amusement Park' },
-    { lat: 3.0423, lng: 101.6330, country: 'Malaysia', city: 'Sunway Lagoon' },
-    { lat: 13.8753, lng: 100.5292, country: 'Thailand', city: 'Dream World Bangkok' },
-    { lat: -6.3002, lng: 106.8922, country: 'Indonesia', city: 'Dunia Fantasi - Jakarta' },
-
-    // Parcs UK & Autres
-    { lat: 52.9879, lng: -1.8875, country: 'UK', city: 'Alton Towers' },
-    { lat: 51.7536, lng: -0.4296, country: 'UK', city: 'Harry Potter Studio Tour' },
-    { lat: 51.3494, lng: -2.2763, country: 'UK', city: 'Longleat Safari' },
-    { lat: 53.8030, lng: -1.5740, country: 'UK', city: 'Legoland Windsor' },
-    { lat: -27.8633, lng: 153.3194, country: 'Australia', city: 'Movie World - Gold Coast' },
-    { lat: -27.8694, lng: 153.3218, country: 'Australia', city: 'Sea World - Gold Coast' },
-    { lat: -27.9896, lng: 153.3130, country: 'Australia', city: 'Dreamworld - Gold Coast' },
-
-    // ==========================================
-    // LIEUX ADDITIONNELS (Plus de variété)
-    // ==========================================
-
-    // Stades célèbres
-    { lat: 51.5560, lng: -0.2796, country: 'UK', city: 'Wembley Stadium' },
-    { lat: 48.8414, lng: 2.2530, country: 'France', city: 'Parc des Princes' },
-    { lat: 48.9244, lng: 2.3601, country: 'France', city: 'Stade de France' },
-    { lat: 40.4530, lng: -3.6883, country: 'Spain', city: 'Santiago Bernabéu' },
-    { lat: 45.4784, lng: 9.1240, country: 'Italy', city: 'San Siro Stadium' },
-    { lat: 52.5145, lng: 13.2394, country: 'Germany', city: 'Olympiastadion Berlin' },
-
-    // Aéroports iconiques
-    { lat: 25.2528, lng: 55.3644, country: 'UAE', city: 'Dubai Airport - Terminal 3' },
-    { lat: 1.3644, lng: 103.9915, country: 'Singapore', city: 'Changi Airport - Jewel' },
-    { lat: 35.5494, lng: 139.7798, country: 'Japan', city: 'Haneda Airport' },
-
-    // Plages célèbres
-    { lat: 21.2765, lng: -157.8272, country: 'USA', city: 'Waikiki Beach - Hawaii' },
-    { lat: 25.8195, lng: -80.1225, country: 'USA', city: 'Miami Beach - South Beach' },
-    { lat: 18.2208, lng: -63.0686, country: 'St Martin', city: 'Maho Beach - Airport View' },
-    { lat: -8.7220, lng: 115.1689, country: 'Indonesia', city: 'Bali - Seminyak Beach' },
-    { lat: 7.7407, lng: 98.2983, country: 'Thailand', city: 'Maya Bay Beach - Phi Phi' },
-    { lat: -33.8915, lng: 151.2767, country: 'Australia', city: 'Bondi Beach - Sydney' },
-    { lat: -22.9711, lng: -43.1822, country: 'Brazil', city: 'Copacabana Beach - Rio' },
-    { lat: -22.9865, lng: -43.2066, country: 'Brazil', city: 'Ipanema Beach - Rio' },
-    { lat: 43.5516, lng: 7.0173, country: 'France', city: 'Plage de la Croisette - Cannes' },
-    { lat: 43.6955, lng: 7.2690, country: 'France', city: 'Plage de Nice - Promenade' },
-    { lat: 41.3887, lng: 2.1897, country: 'Spain', city: 'Barceloneta Beach - Barcelona' },
-    { lat: 36.7493, lng: -4.0613, country: 'Spain', city: 'Playa de la Malagueta - Malaga' },
-    { lat: 28.0609, lng: -16.7221, country: 'Spain', city: 'Playa de las Americas - Tenerife' },
-    { lat: 36.9468, lng: -121.9520, country: 'USA', city: 'Santa Cruz Beach Boardwalk' },
-    { lat: 34.0195, lng: -118.4912, country: 'USA', city: 'Santa Monica Beach - LA' },
-    { lat: 32.7980, lng: -117.2553, country: 'USA', city: 'La Jolla Beach - San Diego' },
-    { lat: 26.1224, lng: -80.1373, country: 'USA', city: 'Fort Lauderdale Beach' },
-    { lat: 7.8953, lng: 98.2959, country: 'Thailand', city: 'Patong Beach - Phuket' },
-    { lat: 35.1544, lng: 129.1592, country: 'South Korea', city: 'Haeundae Beach - Busan' },
-    { lat: -8.5069, lng: 115.2625, country: 'Indonesia', city: 'Kuta Beach - Bali' },
-    { lat: 1.2540, lng: 103.8199, country: 'Singapore', city: 'Sentosa Beach - Singapore' },
-    { lat: -28.0024, lng: 153.4316, country: 'Australia', city: 'Surfers Paradise Beach' },
-    { lat: 5.9631, lng: 80.4554, country: 'Sri Lanka', city: 'Unawatuna Beach' },
-    { lat: 15.5407, lng: 73.7545, country: 'India', city: 'Calangute Beach - Goa' },
-    { lat: 6.0192, lng: -75.6193, country: 'Colombia', city: 'Playa Blanca - Cartagena' },
-    { lat: 21.1450, lng: -86.7833, country: 'Mexico', city: 'Playa Delfines - Cancun' },
-    { lat: 18.4283, lng: -64.6178, country: 'British Virgin Islands', city: 'White Bay Beach' },
-    { lat: 12.1686, lng: -68.9900, country: 'Curacao', city: 'Cas Abao Beach' },
-
-    // Marchés & Bazars célèbres
-    { lat: 41.0108, lng: 28.9682, country: 'Turkey', city: 'Istanbul - Grand Bazaar' },
-    { lat: 13.7500, lng: 100.4929, country: 'Thailand', city: 'Bangkok - Chatuchak Weekend Market' },
-    { lat: 31.2339, lng: 121.4925, country: 'China', city: 'Shanghai - Yu Garden Market' },
-    { lat: 31.6296, lng: -7.9810, country: 'Morocco', city: 'Marrakech - Souk Medina' },
-    { lat: 31.6336, lng: -8.0089, country: 'Morocco', city: 'Marrakech - Jemaa el-Fna Market' },
-    { lat: 34.0525, lng: -5.0002, country: 'Morocco', city: 'Fes - Medina Souk' },
-    { lat: 48.8565, lng: 2.3497, country: 'France', city: 'Paris - Marché aux Fleurs' },
-    { lat: 51.5111, lng: -0.0763, country: 'UK', city: 'London - Borough Market' },
-    { lat: 51.5194, lng: -0.0548, country: 'UK', city: 'London - Spitalfields Market' },
-    { lat: 52.3741, lng: 4.8976, country: 'Netherlands', city: 'Amsterdam - Albert Cuyp Market' },
-    { lat: 41.8775, lng: 12.4760, country: 'Italy', city: 'Rome - Campo de\' Fiori Market' },
-    { lat: 43.7703, lng: 11.2525, country: 'Italy', city: 'Florence - Mercato Centrale' },
-    { lat: 41.3799, lng: 2.1717, country: 'Spain', city: 'Barcelona - La Boqueria Market' },
-    { lat: 40.4115, lng: -3.7043, country: 'Spain', city: 'Madrid - Mercado de San Miguel' },
-    { lat: 35.6852, lng: 139.7686, country: 'Japan', city: 'Tokyo - Tsukiji Outer Market' },
-    { lat: 35.6654, lng: 139.7707, country: 'Japan', city: 'Tokyo - Toyosu Fish Market' },
-    { lat: 22.2841, lng: 114.1553, country: 'Hong Kong', city: 'Hong Kong - Temple Street Night Market' },
-    { lat: 25.0373, lng: 121.5108, country: 'Taiwan', city: 'Taipei - Shilin Night Market' },
-    { lat: 10.7722, lng: 106.6980, country: 'Vietnam', city: 'Ho Chi Minh - Ben Thanh Market' },
-    { lat: 3.1538, lng: 101.7112, country: 'Malaysia', city: 'Kuala Lumpur - Central Market' },
-    { lat: -6.1755, lng: 106.8284, country: 'Indonesia', city: 'Jakarta - Tanah Abang Market' },
-    { lat: 19.4342, lng: -99.1406, country: 'Mexico', city: 'Mexico City - Mercado de la Ciudadela' },
-    { lat: -12.0423, lng: -77.0274, country: 'Peru', city: 'Lima - Mercado de Surquillo' },
-    { lat: -33.4372, lng: -70.6506, country: 'Chile', city: 'Santiago - Mercado Central' },
-    { lat: 47.5596, lng: -122.3421, country: 'USA', city: 'Seattle - Pike Place Market' },
-    { lat: 34.0551, lng: -118.2439, country: 'USA', city: 'Los Angeles - Grand Central Market' },
-    { lat: 29.9555, lng: -90.0650, country: 'USA', city: 'New Orleans - French Market' }
-];
-
-module.exports = WORLD_LOCATIONS;
+module.exports = {
+    getAll,
+    add,
+    update,
+    remove,
+    getStats
+};

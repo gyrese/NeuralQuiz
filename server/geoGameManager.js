@@ -4,13 +4,15 @@
  */
 
 // Import des coordonnées de lieux (300+ lieux dans le monde)
-const WORLD_LOCATIONS = require('./geoLocations');
+const geoLocations = require('./geoLocations');
 
 class GeoGameManager {
     constructor() {
         this.rooms = new Map(); // Map<roomCode, GeoRoom>
-        console.log(`[GEO] Loaded ${WORLD_LOCATIONS.length} locations`);
+        console.log(`[GEO] Loaded ${geoLocations.getAll().length} locations`);
     }
+
+    // ... (keep generateRoomCode, createRoom, getRoom, joinRoom as is) ...
 
     generateRoomCode() {
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -135,12 +137,13 @@ class GeoGameManager {
 
     // Sélectionner un lieu aléatoire
     getRandomLocation(mapType = ['world']) {
+        const allLocations = geoLocations.getAll();
         let locations = [];
         const selectedRegions = Array.isArray(mapType) ? mapType : [mapType];
 
         // Si "world" est sélectionné ou si la liste est vide, on prend tout
         if (selectedRegions.includes('world') || selectedRegions.length === 0) {
-            return this.pickRandomFrom(WORLD_LOCATIONS);
+            return this.pickRandomFrom(allLocations);
         }
 
         const regions = {
@@ -222,7 +225,7 @@ class GeoGameManager {
             // Vérifier si c'est une catégorie spéciale
             if (specialCategories[region]) {
                 const keywords = specialCategories[region];
-                const categoryLocations = WORLD_LOCATIONS.filter(l =>
+                const categoryLocations = allLocations.filter(l =>
                     keywords.some(keyword => l.city.toLowerCase().includes(keyword.toLowerCase()))
                 );
                 pool = pool.concat(categoryLocations);
@@ -230,14 +233,14 @@ class GeoGameManager {
             // Sinon c'est une région géographique
             else if (regions[region]) {
                 const countryList = regions[region];
-                const regionLocations = WORLD_LOCATIONS.filter(l => countryList.includes(l.country));
+                const regionLocations = allLocations.filter(l => countryList.includes(l.country));
                 pool = pool.concat(regionLocations);
             }
         });
 
         // Fallback
         if (pool.length === 0) {
-            pool = WORLD_LOCATIONS;
+            pool = allLocations;
         }
 
         // Dédoublonner (au cas où, ex: France inclu dans Europe ET France)

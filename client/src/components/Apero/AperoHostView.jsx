@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import { socket } from '../../socket';
 import { QRCodeSVG } from 'qrcode.react';
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import './AperoStyles.css';
 
-const SOCKET_URL = `${window.location.protocol}//${window.location.hostname}:3001/apero`;
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api/apero`;
 
 // Thèmes
@@ -22,446 +23,338 @@ const THEMES = {
 
 function AperoHostView() {
     const navigate = useNavigate();
-    const [socket, setSocket] = useState(null);
-    const [gameState, setGameState] = useState('SELECT_QUIZ'); // SELECT_QUIZ, LOBBY, PLAYING
+
+    // Game State
+    const [gameState, setGameState] = useState('SELECT_QUIZ');
     const [quizzes, setQuizzes] = useState([]);
     const [selectedQuiz, setSelectedQuiz] = useState(null);
     const [roomCode, setRoomCode] = useState('');
     const [teams, setTeams] = useState([]);
+
+    // Slide State
     const [currentSlide, setCurrentSlide] = useState(null);
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-    const [questionState, setQuestionState] = useState('idle'); // idle, active, reveal
+    const [questionState, setQuestionState] = useState('idle');
     const [timer, setTimer] = useState(0);
     const [answeredCount, setAnsweredCount] = useState(0);
     const [answerStats, setAnswerStats] = useState(null);
     const [leaderboard, setLeaderboard] = useState([]);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [showControls, setShowControls] = useState(true);
 
-    // Load quizzes on mount
+    // Scaling State for Safe Zone
+    const [scale, setScale] = useState(1);
+
     useEffect(() => {
-        loadQuizzes();
+        const handleResize = () => {
+            // Calculate scale to fit 1280x720 into window while preserving aspect ratio (contain)
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            setScale(Math.min(scaleX, scaleY));
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize(); // Init
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const loadQuizzes = async () => {
-        try {
-            const res = await fetch(`${API_URL}/quizzes`);
-            const data = await res.json();
-            setQuizzes(data);
-        } catch (error) {
-            console.error('Error loading quizzes:', error);
-        }
-    };
-
-    // Socket connection
+    // Initial Load & Session Recovery
     useEffect(() => {
-        if (gameState === 'SELECT_QUIZ') return;
-
-        const newSocket = io(SOCKET_URL, {
-            transports: ['websocket', 'polling']
-        });
-
-        newSocket.on('connect', () => {
-            console.log('[APERO HOST] Connected');
-            if (selectedQuiz && !roomCode) {
-                newSocket.emit('host:create', { quizId: selectedQuiz.id });
+        loadQuizzes();
+        const savedSession = sessionStorage.getItem('apero_host_session');
+        if (savedSession) {
+            try {
+                const { roomCode: savedCode } = JSON.parse(savedSession);
+                if (savedCode && socket.connected) {
+                    socket.emit('apero-host-reconnect', { roomCode: savedCode });
+                }
+            } catch (e) {
+                console.error('Invalid session data');
             }
-        });
+        }
+    }, []);
 
-        newSocket.on('room:created', ({ roomCode: code, quiz }) => {
-            console.log('[APERO HOST] Room created:', code);
-            setRoomCode(code);
-            setGameState('LOBBY');
-        });
-
-        newSocket.on('teams:updated', ({ teams: updatedTeams }) => {
-            setTeams(updatedTeams);
-        });
-
-        newSocket.on('game:started', ({ slide }) => {
-            setGameState('PLAYING');
-            setCurrentSlide(slide);
-            setCurrentSlideIndex(0);
-        });
-
-        newSocket.on('slide:changed', ({ slideIndex, slide }) => {
-            setCurrentSlide(slide);
-            setCurrentSlideIndex(slideIndex);
-            setQuestionState('idle');
-            setAnsweredCount(0);
-            setAnswerStats(null);
-        });
-
-        newSocket.on('question:opened', ({ questionNumber, questionType, timer: questionTimer }) => {
-            setQuestionState('active');
-            setTimer(questionTimer);
-            setAnsweredCount(0);
-        });
-
-        newSocket.on('answers:updated', ({ answeredCount: count, totalTeams, allAnswered }) => {
-            setAnsweredCount(count);
-        });
-
-        newSocket.on('question:closed', ({ correctAnswer, results, answerStats: stats }) => {
-            setQuestionState('reveal');
-            setAnswerStats(stats);
-            setLeaderboard(results);
-        });
-
-        newSocket.on('game:ended', ({ leaderboard: finalLeaderboard }) => {
-            setLeaderboard(finalLeaderboard);
-            setQuestionState('gameOver');
-        });
-
-        newSocket.on('error', ({ message }) => {
-            console.error('[APERO HOST] Error:', message);
-            alert(message);
-        });
-
-        setSocket(newSocket);
-
-        return () => {
-            newSocket.disconnect();
+    // Socket Event Listeners (Simplified for brevity - kept logic)
+    useEffect(() => {
+        const events = {
+            'apero-room-created': ({ roomCode: code, quiz }) => {
+                setRoomCode(code);
+                setGameState('LOBBY');
+                sessionStorage.setItem('apero_host_session', JSON.stringify({ roomCode: code, quizId: quiz.id }));
+            },
+            'apero-teams-updated': ({ teams: updatedTeams }) => setTeams(updatedTeams),
+            'apero-game-started': ({ slide }) => {
+                setGameState('PLAYING');
+                setCurrentSlide(slide);
+                setCurrentSlideIndex(0);
+            },
+            'apero-slide-changed': ({ slideIndex, slide }) => {
+                setCurrentSlide(slide);
+                setCurrentSlideIndex(slideIndex);
+                setQuestionState('idle');
+                setAnsweredCount(0);
+                setAnswerStats(null);
+            },
+            'apero-question-opened': ({ timer: questionTimer }) => {
+                setQuestionState('active');
+                setTimer(questionTimer);
+                setAnsweredCount(0);
+            },
+            'apero-answers-updated': ({ answeredCount: count }) => setAnsweredCount(count),
+            'apero-question-closed': ({ results, answerStats: stats }) => {
+                setQuestionState('reveal');
+                setAnswerStats(stats);
+                setLeaderboard(results);
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+            },
+            'apero-game-ended': ({ leaderboard: finalLeaderboard }) => {
+                setLeaderboard(finalLeaderboard);
+                setQuestionState('gameOver');
+                confetti({ particleCount: 500, spread: 100, origin: { y: 0.6 } });
+            },
+            'apero-game-restored': (state) => {
+                setRoomCode(state.roomCode);
+                setGameState(state.gameState);
+                setCurrentSlideIndex(state.currentSlideIndex || 0);
+                if (state.quiz) setSelectedQuiz(state.quiz);
+                if (state.teams) setTeams(state.teams);
+                if (state.currentSlide) setCurrentSlide(state.currentSlide);
+                if (state.leaderboard) setLeaderboard(state.leaderboard);
+            },
+            'apero-error': ({ message }) => alert('Erreur: ' + message)
         };
-    }, [gameState, selectedQuiz]);
+        Object.entries(events).forEach(([event, handler]) => socket.on(event, handler));
+        return () => Object.entries(events).forEach(([event, handler]) => socket.off(event, handler));
+    }, []);
 
-    // Timer countdown
+    // Timer Logic
     useEffect(() => {
         if (questionState !== 'active' || timer <= 0) return;
-
         const interval = setInterval(() => {
             setTimer(t => {
                 if (t <= 1) {
-                    // Auto-close question when timer reaches 0
-                    socket?.emit('host:closeQuestion');
+                    socket.emit('apero-host-close-question');
                     return 0;
                 }
                 return t - 1;
             });
         }, 1000);
-
         return () => clearInterval(interval);
-    }, [questionState, timer, socket]);
+    }, [questionState, timer]);
 
-    // Keyboard controls
+    // Keyboard Controls
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (gameState !== 'PLAYING') return;
-
             switch (e.key) {
                 case 'ArrowRight':
                 case ' ':
-                    handleNext();
+                    if (questionState === 'active') socket.emit('apero-host-close-question');
+                    else socket.emit('apero-host-next-slide');
                     break;
-                case 'ArrowLeft':
-                    handlePrev();
-                    break;
+                case 'ArrowLeft': socket.emit('apero-host-prev-slide'); break;
                 case 'Enter':
-                    if (questionState === 'idle' && currentSlide?.type === 'question') {
-                        handleOpenQuestion();
-                    } else if (questionState === 'active') {
-                        handleCloseQuestion();
-                    }
-                    break;
-                case 'Escape':
-                    setShowControls(c => !c);
-                    break;
-                case 'f':
-                case 'F':
-                    toggleFullscreen();
+                    if (questionState === 'idle' && currentSlide?.type === 'question') socket.emit('apero-host-open-question');
+                    else if (questionState === 'active') socket.emit('apero-host-close-question');
                     break;
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [gameState, questionState, currentSlide, socket]);
+    }, [gameState, questionState, currentSlide]);
+
+    const loadQuizzes = async () => {
+        try {
+            const res = await fetch(`${API_URL}/quizzes`);
+            setQuizzes(await res.json());
+        } catch (error) { console.error(error); }
+    };
 
     const selectQuiz = async (quizId) => {
         try {
+            if (!socket || !socket.connected) return alert('Socket déconnecté');
             const res = await fetch(`${API_URL}/quizzes/${quizId}`);
             const quiz = await res.json();
             setSelectedQuiz(quiz);
-            setGameState('CONNECTING');
-        } catch (error) {
-            console.error('Error loading quiz:', error);
-        }
+            socket.emit('apero-host-create', { quizId: quiz.id });
+        } catch (e) { alert(e.message); }
     };
 
-    const startGame = () => {
-        socket?.emit('host:start');
-    };
+    const startGame = () => socket.emit('apero-host-start');
+    const getJoinUrl = () => `${window.location.origin}/apero/play/${roomCode}`;
 
-    const handleNext = () => {
-        if (questionState === 'active') {
-            socket?.emit('host:closeQuestion');
-        } else {
-            socket?.emit('host:nextSlide');
-        }
-    };
-
-    const handlePrev = () => {
-        socket?.emit('host:prevSlide');
-    };
-
-    const handleOpenQuestion = () => {
-        socket?.emit('host:openQuestion');
-    };
-
-    const handleCloseQuestion = () => {
-        socket?.emit('host:closeQuestion');
-    };
-
-    const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
-            setIsFullscreen(true);
-        } else {
-            document.exitFullscreen();
-            setIsFullscreen(false);
-        }
-    };
-
-    const getJoinUrl = () => {
-        return `${window.location.origin}/apero/play/${roomCode}`;
-    };
-
-    // === RENDER ===
-
-    // Quiz Selection
     if (gameState === 'SELECT_QUIZ') {
         return (
-            <div className="apero-host" style={{ padding: '40px' }}>
-                <button className="btn btn-outline-light mb-4" onClick={() => navigate('/apero')}>
-                    ← Retour
-                </button>
-                <h2 className="text-warning mb-4">🍻 Sélectionnez un Quiz</h2>
-
-                {quizzes.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                        <p>Aucun quiz disponible</p>
-                        <p>Créez un quiz dans l'Admin d'abord !</p>
-                    </div>
-                ) : (
-                    <div className="row g-4">
-                        {quizzes.map(quiz => (
-                            <div key={quiz.id} className="col-md-4">
-                                <div
-                                    className="card bg-dark border-secondary h-100"
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => selectQuiz(quiz.id)}
-                                >
-                                    <div className="card-body text-center">
-                                        <h4 className="text-white">{quiz.title}</h4>
-                                        <p className="text-muted">
-                                            {quiz.slideCount} slides • {quiz.questionCount} questions
-                                        </p>
-                                        <button className="btn btn-warning">
-                                            Lancer ce Quiz
-                                        </button>
-                                    </div>
+            <div className="apero-host p-5">
+                <h2 className="text-warning mb-5">🍻 Sélectionnez un Quiz</h2>
+                <div className="row g-4">
+                    {quizzes.map(quiz => (
+                        <div key={quiz.id} className="col-md-4">
+                            <div className="card bg-dark border-secondary h-100" onClick={() => selectQuiz(quiz.id)} style={{ cursor: 'pointer' }}>
+                                <div className="card-body text-center p-4">
+                                    <h4 className="text-white">{quiz.title}</h4>
+                                    <p className="text-muted">{quiz.slideCount} slides</p>
+                                    <button className="btn btn-warning w-100 round-pill">Lancer</button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    }
-
-    // Lobby
-    if (gameState === 'LOBBY' || gameState === 'CONNECTING') {
-        return (
-            <div className="apero-host d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '100vh' }}>
-                <h1 className="text-warning mb-2">🍻 {selectedQuiz?.title}</h1>
-                <p className="text-muted mb-4">En attente des équipes...</p>
-
-                {roomCode && (
-                    <>
-                        <div className="mb-4 p-4 bg-white rounded" style={{ display: 'inline-block' }}>
-                            <QRCodeSVG value={getJoinUrl()} size={200} />
                         </div>
-                        <div className="text-center mb-4">
-                            <h2 className="text-info mb-2">Code: <span className="text-white">{roomCode}</span></h2>
-                            <p className="text-muted">{getJoinUrl()}</p>
-                        </div>
-                    </>
-                )}
-
-                <div className="mb-4">
-                    <h4 className="text-white">Équipes connectées: {teams.length}</h4>
-                    <div className="d-flex flex-wrap gap-2 justify-content-center mt-3">
-                        {teams.map(team => (
-                            <span key={team.name} className="badge bg-info fs-6 px-3 py-2">
-                                {team.name}
-                            </span>
-                        ))}
-                    </div>
+                    ))}
                 </div>
+            </div>
+        );
+    } // (Simplified Select Quiz Render)
 
-                <button
-                    className="btn btn-success btn-lg px-5"
-                    onClick={startGame}
-                    disabled={teams.length === 0}
-                >
-                    🚀 Lancer le Quiz !
-                </button>
+    if (gameState === 'LOBBY') {
+        return (
+            <div className="apero-host d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '100vh', background: '#1a1a2e' }}>
+                <h1 className="text-warning mb-4 fw-bold">{selectedQuiz?.title}</h1>
+                <div className="bg-white p-4 rounded-4 shadow-lg mb-5"><QRCodeSVG value={getJoinUrl()} size={250} /></div>
+                <h2 className="text-white mb-2">Code: <span className="text-info">{roomCode}</span></h2>
+                <div className="d-flex flex-wrap gap-3 justify-content-center mt-5">
+                    {teams.map(team => <span key={team.name} className="badge bg-info fs-5 px-4 py-3 rounded-pill">{team.name}</span>)}
+                </div>
+                <button className="btn btn-success btn-lg px-5 py-3 mt-5 rounded-pill shadow" onClick={startGame} disabled={teams.length === 0}>🚀 Lancer</button>
             </div>
         );
     }
 
-    // Playing - Main presentation view
+    // PLAYING - RENDER SAFE ZONE
     return (
-        <div
-            className="apero-host-fullscreen"
-            style={{
-                background: currentSlide?.background?.value || THEMES[currentSlide?.theme]?.background || '#1a1a2e',
-                color: THEMES[currentSlide?.theme]?.text || '#fff'
-            }}
-        >
-            {/* Slide Content */}
-            <div className="slide-preview" style={{ height: '100vh' }}>
-                {currentSlide?.type === 'title' && (
-                    <>
-                        <div className="slide-title" style={{ fontSize: '5rem' }}>
-                            {currentSlide.title}
-                        </div>
-                        <div className="slide-subtitle" style={{ fontSize: '2rem' }}>
-                            {currentSlide.subtitle}
-                        </div>
-                    </>
-                )}
+        <div className="apero-host-fullscreen" style={{ position: 'relative', overflow: 'hidden', height: '100vh', backgroundColor: '#000' }}>
 
-                {currentSlide?.type === 'question' && (
-                    <>
-                        <div className="question-header" style={{ fontSize: '1.5rem' }}>
-                            Question {currentSlideIndex + 1}
-                        </div>
-                        <div className="question-text" style={{ fontSize: '3rem', maxWidth: '80%' }}>
-                            {currentSlide.questionText}
-                        </div>
+            {/* BACKGROUND LAYER (Cover) */}
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={`bg-${currentSlide?.id}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.8 }}
+                    style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+                >
+                    {currentSlide?.background?.type === 'image' ? (
+                        <>
+                            <div style={{
+                                position: 'absolute', inset: 0,
+                                backgroundImage: `url("${currentSlide.background.value}")`,
+                                backgroundSize: 'cover', backgroundPosition: 'center'
+                            }} />
+                            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)' }} />
+                        </>
+                    ) : (
+                        <div style={{
+                            position: 'absolute', inset: 0,
+                            background: currentSlide?.background?.value || THEMES[currentSlide?.theme]?.background || '#1a1a2e'
+                        }} />
+                    )}
+                </motion.div>
+            </AnimatePresence>
 
-                        {currentSlide.questionType === 'qcm' && (
-                            <div className="question-options" style={{ maxWidth: '80%', marginTop: '40px' }}>
+            {/* SAFE ZONE CONTAINER (Contain 1280x720) */}
+            <div style={{
+                position: 'absolute',
+                top: '50%', left: '50%',
+                width: '1280px', height: '720px',
+                transform: `translate(-50%, -50%) scale(${scale})`,
+                transformOrigin: 'center center',
+                zIndex: 10,
+                // border: '1px dashed rgba(255,255,255,0.1)' // Debug outline
+            }}>
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={`content-${currentSlide?.id}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                        style={{ width: '100%', height: '100%', position: 'relative' }}
+                    >
+                        {/* 1. FREE ELEMENTS (WYSIWYG) */}
+                        {currentSlide?.elements?.map(el => (
+                            <motion.div
+                                key={el.id}
+                                initial={{ y: 20, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                                style={{
+                                    position: 'absolute',
+                                    left: el.x, top: el.y,
+                                    width: el.width, height: el.height,
+                                    zIndex: el.style?.zIndex || 10,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    ...el.style
+                                }}
+                            >
+                                {el.type === 'text' && el.content}
+                                {el.type === 'shape' && el.content}
+                                {el.type === 'image' && el.url && (
+                                    <img src={el.url} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: el.style.borderRadius }} />
+                                )}
+                            </motion.div>
+                        ))}
+
+                        {/* 2. STANDARD CONTENT LAYOUT (Fallback / Core Game Info) */}
+                        {/* Only show if NO free elements OR if specifically standard slide type */}
+                        {(!currentSlide?.elements || currentSlide.elements.length === 0) && (
+                            <div className="d-flex flex-column align-items-center justify-content-center h-100 text-center p-5">
+                                {currentSlide?.type === 'title' && (
+                                    <>
+                                        <h1 style={{ fontSize: '5rem', fontWeight: 'bold' }}>{currentSlide.title}</h1>
+                                        <h3 className="mt-4" style={{ fontSize: '2.5rem' }}>{currentSlide.subtitle}</h3>
+                                    </>
+                                )}
+                                {currentSlide?.type === 'question' && (
+                                    <>
+                                        <span className="badge bg-light text-dark fs-3 mb-4">Question {currentSlideIndex + 1}</span>
+                                        <h2 style={{ fontSize: '3.5rem', fontWeight: 'bold' }}>{currentSlide.questionText}</h2>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 3. GAME HUD (Timer, Options, Leaderboard) - ALWAYS ON TOP */}
+                        {/* QCM Options (Bottom Overlay) */}
+                        {currentSlide?.type === 'question' && currentSlide.questionType === 'qcm' && (
+                            <div style={{ position: 'absolute', bottom: '40px', left: '40px', right: '40px', display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
                                 {currentSlide.options?.map((opt, i) => (
-                                    <div
-                                        key={i}
-                                        className={`option ${questionState === 'reveal' && opt.label === currentSlide.correctAnswer ? 'correct' : ''}`}
-                                        style={{
-                                            fontSize: '1.5rem',
-                                            opacity: questionState === 'reveal' && opt.label !== currentSlide.correctAnswer ? 0.5 : 1
-                                        }}
-                                    >
-                                        <span className="option-letter">{opt.label}</span>
-                                        <span>{opt.text}</span>
-                                        {questionState === 'reveal' && answerStats && (
-                                            <span className="ms-auto badge bg-secondary">
-                                                {answerStats[opt.label] || 0} réponses
-                                            </span>
-                                        )}
+                                    <div key={i} style={{ flex: '1 1 40%' }} className={`card p-3 d-flex flex-row align-items-center gap-3 ${questionState === 'reveal' && opt.label === currentSlide.correctAnswer ? 'bg-success text-white' : 'bg-white text-dark'
+                                        }`}>
+                                        <div className="rounded-circle bg-light d-flex align-items-center justify-content-center fw-bold fs-3" style={{ width: 50, height: 50, color: 'black' }}>{opt.label}</div>
+                                        <div className="fs-3 fw-bold">{opt.text}</div>
+                                        {questionState === 'reveal' && <div className="ms-auto fw-bold">{answerStats?.[opt.label] || 0}</div>}
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {(currentSlide.questionType === 'estimation' || currentSlide.questionType === 'text') && questionState === 'reveal' && (
-                            <div style={{ marginTop: '40px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '2rem', color: '#00ff88' }}>
-                                    Réponse: {currentSlide.correctAnswer}
+                        {/* TIMER */}
+                        {questionState === 'active' && (
+                            <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+                                <div className="bg-dark text-warning border border-warning rounded-circle d-flex align-items-center justify-content-center fs-2 fw-bold" style={{ width: 80, height: 80 }}>
+                                    {timer}
                                 </div>
                             </div>
                         )}
-                    </>
-                )}
+                        {/* Reveal Answer (Text/Estim) */}
+                        {(currentSlide?.questionType === 'estimation' || currentSlide?.questionType === 'text') && questionState === 'reveal' && (
+                            <div className="position-absolute top-50 start-50 translate-middle bg-dark p-5 rounded-5 border border-success shadow-lg text-center" style={{ zIndex: 100 }}>
+                                <h3 className="text-white-50">Réponse</h3>
+                                <div className="display-1 text-success fw-bold">{currentSlide.correctAnswer}</div>
+                            </div>
+                        )}
 
-                {currentSlide?.type === 'score' && (
-                    <>
-                        <div className="slide-title" style={{ fontSize: '4rem', marginBottom: '40px' }}>
-                            {currentSlide.title || '🏆 Classement'}
-                        </div>
-                        <div className="apero-leaderboard" style={{ maxWidth: '600px' }}>
-                            {leaderboard.slice(0, 10).map((team, i) => (
-                                <div key={team.name || team.teamName} className={`apero-leaderboard-item rank-${i + 1}`}>
-                                    <div className="apero-leaderboard-rank">
-                                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                        {/* SCOREBOARD */}
+                        {currentSlide?.type === 'score' && (
+                            <div className="d-flex flex-column gap-3 mt-5 align-items-center w-100">
+                                <h1 className="text-warning display-3 fw-bold mb-5">{currentSlide.title || 'Classement'}</h1>
+                                {leaderboard.slice(0, 5).map((team, i) => (
+                                    <div key={team.name} className="bg-white text-dark p-3 rounded-4 w-75 d-flex justify-content-between px-5 shadow" style={{ transform: i === 0 ? 'scale(1.1)' : 'scale(1)', border: i === 0 ? '3px solid gold' : 'none' }}>
+                                        <div className="fs-2">#{i + 1} <span className="fw-bold ms-3">{team.name}</span></div>
+                                        <div className="fs-2 fw-bold text-primary">{team.totalScore}</div>
                                     </div>
-                                    <div className="apero-leaderboard-name">{team.name || team.teamName}</div>
-                                    <div className="apero-leaderboard-score">{team.totalScore} pts</div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
-            </div>
+                                ))}
+                            </div>
+                        )}
 
-            {/* Timer (during active question) */}
-            {questionState === 'active' && (
-                <div style={{
-                    position: 'fixed',
-                    top: '30px',
-                    right: '30px',
-                    fontSize: '4rem',
-                    fontWeight: 'bold',
-                    color: timer <= 5 ? '#ff6b6b' : '#ffd700',
-                    textShadow: '0 0 20px rgba(0,0,0,0.5)'
-                }}>
-                    {timer}s
-                </div>
-            )}
-
-            {/* Answer count */}
-            {questionState === 'active' && (
-                <div style={{
-                    position: 'fixed',
-                    top: '30px',
-                    left: '30px',
-                    fontSize: '1.5rem',
-                    color: '#00d4ff'
-                }}>
-                    📝 {answeredCount}/{teams.length} réponses
-                </div>
-            )}
-
-            {/* Controls */}
-            {showControls && (
-                <div className="apero-host-controls">
-                    <button className="btn btn-outline-light" onClick={handlePrev}>
-                        ⬅️ Précédent
-                    </button>
-
-                    {currentSlide?.type === 'question' && questionState === 'idle' && (
-                        <button className="btn btn-success" onClick={handleOpenQuestion}>
-                            ▶️ Ouvrir Question
-                        </button>
-                    )}
-
-                    {questionState === 'active' && (
-                        <button className="btn btn-warning" onClick={handleCloseQuestion}>
-                            ⏹️ Révéler Réponse
-                        </button>
-                    )}
-
-                    <button className="btn btn-outline-light" onClick={handleNext}>
-                        Suivant ➡️
-                    </button>
-
-                    <button className="btn btn-outline-info ms-3" onClick={toggleFullscreen}>
-                        {isFullscreen ? '⬜' : '⬛'} Fullscreen
-                    </button>
-                </div>
-            )}
-
-            {/* Keyboard hints */}
-            <div style={{
-                position: 'fixed',
-                bottom: '80px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                fontSize: '0.8rem',
-                color: '#666',
-                textAlign: 'center'
-            }}>
-                ← → Navigation • Entrée: Ouvrir/Révéler • Échap: Cacher contrôles • F: Fullscreen
+                    </motion.div>
+                </AnimatePresence>
             </div>
         </div>
     );

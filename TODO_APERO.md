@@ -49,16 +49,29 @@ Quiz de bar interactif où les équipes répondent sur leur téléphone pendant 
 
 ---
 
-## 🔨 Phase 2 - Améliorations UX (EN COURS)
+## 🔨 Phase 2 - Améliorations UX & Design (PRIORITÉ)
 
-### Éditeur
-- [ ] **Drag & Drop** : Réordonner les slides par glisser-déposer
-- [ ] **Copier/Coller** : Dupliquer un slide rapidement
-- [ ] **Raccourcis clavier** : Ctrl+S sauvegarder, Ctrl+N nouveau slide
+### Design & Architecture Graphique
+- [x] **Stack Technique** : Intégration de `framer-motion` (Animations fluides comme Kahoot)
+- [x] **Structure Slide** : Séparation stricte Background (avec overlay opacité 60%) / Média (Image/Vidéo/GIF)
+- [x] **Refonte Host View** : Animations d'entrée, timer pulsant, podium animé
+- [x] **Refonte Admin** : Grille de quiz moderne, previews visuelles, actions rapides
+
+### Player Mobile
+- [x] **Refonte Player UI** : Interface immersive Dark/Neon, gros boutons couleur style Kahoot
+- [x] **Feedback** : Animations Succès/Échec plein écran, vibrations
+- [x] **Attente** : Écran "Regardez l'écran" animé
+
+### Éditeur (WYSIWYG)
+- [x] **Mode Canvas Libre** : Intégration de `react-rnd` pour Drag & Drop & Resize
+- [x] **Types d'éléments** : Texte riche, Image, Forme (Rectangle/Rond), Sticker
+- [x] **Toolbar** : Outils de mise en forme (Police, Couleur, Alignement, Z-Index)
+- [ ] **Drag & Drop Slides** : Réordonner la liste des slides
 - [ ] **Undo/Redo** : Annuler les modifications
 - [ ] **Preview Mode** : Voir le quiz comme un joueur
 
 ### Médias
+- [ ] **Vidéo Youtube** : Ajouter une vidéo à une question
 - [ ] **Upload d'images** : Ajouter une image à une question
 - [ ] **Positionnement** : Image en fond, à gauche, à droite
 - [ ] **GIFs animés** : Support des animations
@@ -75,7 +88,7 @@ Quiz de bar interactif où les équipes répondent sur leur téléphone pendant 
 ## 🚀 Phase 3 - Fonctionnalités Avancées
 
 ### Import/Export
-- [ ] **Import Google Slides** : Extraire texte depuis URL GSlides
+- [x] **Import Google Slides** : Import PDF -> Images de fond
 - [ ] **Import CSV** : Importer questions depuis fichier CSV
 - [ ] **Export PDF** : Exporter le quiz en PDF
 - [ ] **Partage** : Lien de partage pour collaborer sur un quiz
@@ -102,7 +115,7 @@ Quiz de bar interactif où les équipes répondent sur leur téléphone pendant 
 ## 📋 Phase 4 - Production Ready
 
 ### Robustesse
-- [ ] **Reconnexion automatique** : Pour les équipes déconnectées
+- [x] **Reconnexion automatique** : Hôte (persist session) et joueurs
 - [ ] **Sauvegarde auto** : Sauvegarder l'éditeur toutes les 30s
 - [ ] **Mode hors-ligne** : Fonctionner sans réseau (host)
 

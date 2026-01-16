@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Rnd } from 'react-rnd';
 import './AperoStyles.css';
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api/apero`;
@@ -16,27 +17,39 @@ const THEMES = {
     'gold': { background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', text: '#ffd700' }
 };
 
+const generateId = () => 'el_' + Math.random().toString(36).substr(2, 9);
+
 function AperoEditor({ quizId, onBack }) {
     const [quiz, setQuiz] = useState(null);
     const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
+    const [selectedElementId, setSelectedElementId] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [zoom, setZoom] = useState(100);
+    const [zoom, setZoom] = useState(60); // Zoom par défaut plus petit pour voir tout le canvas HD
 
     useEffect(() => {
-        if (quizId) {
-            loadQuiz(quizId);
-        } else {
-            // Nouveau quiz
-            createNewQuiz();
-        }
+        if (quizId) loadQuiz(quizId);
+        else createNewQuiz();
     }, [quizId]);
+
+    // Keyboard shortcuts handled globally for delete
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Delete' && selectedElementId) {
+                deleteElement(selectedElementId);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedElementId, quiz, selectedSlideIndex]);
 
     const loadQuiz = async (id) => {
         setIsLoading(true);
         try {
             const res = await fetch(`${API_URL}/quizzes/${id}`);
             const data = await res.json();
+            // Ensure elements array exists
+            data.slides = data.slides.map(s => ({ ...s, elements: s.elements || [] }));
             setQuiz(data);
         } catch (error) {
             console.error('Error loading quiz:', error);
@@ -85,74 +98,169 @@ function AperoEditor({ quizId, onBack }) {
         setQuiz({ ...quiz, slides: newSlides });
     };
 
-    const addSlide = async (type) => {
-        let newSlide;
-        switch (type) {
-            case 'title':
-                newSlide = {
-                    type: 'title',
-                    title: 'Nouveau Titre',
-                    subtitle: '',
-                    theme: 'gradient-purple',
-                    background: { type: 'gradient', value: THEMES['gradient-purple'].background }
-                };
-                break;
-            case 'qcm':
-                newSlide = {
-                    type: 'question',
-                    questionType: 'qcm',
-                    questionText: 'Nouvelle question',
-                    options: [
-                        { label: 'A', text: '' },
-                        { label: 'B', text: '' },
-                        { label: 'C', text: '' },
-                        { label: 'D', text: '' }
-                    ],
-                    correctAnswer: 'A',
-                    timer: 20,
-                    theme: 'dark',
-                    background: { type: 'color', value: '#1a1a2e' }
-                };
-                break;
-            case 'estimation':
-                newSlide = {
-                    type: 'question',
-                    questionType: 'estimation',
-                    questionText: 'Question estimation',
-                    correctAnswer: '0',
-                    hint: 'Entrez un nombre',
-                    timer: 30,
-                    theme: 'dark',
-                    background: { type: 'color', value: '#1a1a2e' }
-                };
-                break;
-            case 'text':
-                newSlide = {
-                    type: 'question',
-                    questionType: 'text',
-                    questionText: 'Question texte libre',
-                    correctAnswer: '',
-                    hint: 'Entrez votre réponse',
-                    timer: 30,
-                    theme: 'dark',
-                    background: { type: 'color', value: '#1a1a2e' }
-                };
-                break;
-            case 'score':
-                newSlide = {
-                    type: 'score',
-                    title: '🏆 Classement',
-                    theme: 'gold',
-                    background: { type: 'gradient', value: THEMES['gold'].background }
-                };
-                break;
-            default:
-                return;
-        }
+    // --- Element Management ---
 
-        const newSlides = [...quiz.slides, { ...newSlide, id: 'slide_' + Date.now() }];
+    const addElement = (type, initialProps = {}) => {
+        const currentElements = quiz.slides[selectedSlideIndex].elements || [];
+        const newEl = {
+            id: Date.now().toString(),
+            type,
+            x: 100,
+            y: 100,
+            width: type === 'text' ? 300 : 200,
+            height: type === 'text' ? 100 : 200,
+            rotation: 0,
+            content: type === 'text' ? 'Nouveau texte' : '',
+            url: initialProps.url || '',
+            style: {
+                zIndex: (currentElements.length + 1) * 10,
+                fontSize: 24,
+                backgroundColor: type === 'shape' ? '#3498db' : 'transparent',
+                borderRadius: type === 'shape' ? 0 : 0,
+                color: '#ffffff',
+                textAlign: 'center',
+                ...initialProps.style
+            },
+            ...initialProps
+        };
+
+        updateSlide({ elements: [...currentElements, newEl] });
+        setSelectedElementId(newEl.id);
+    };
+
+    // --- Paste & Drop Handlers ---
+
+    useEffect(() => {
+        const handlePaste = (e) => {
+            // Ignore inputs
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    e.preventDefault();
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const ratio = img.width / img.height;
+                            const baseWidth = 300;
+                            addElement('image', {
+                                url: event.target.result,
+                                width: baseWidth,
+                                height: baseWidth / ratio,
+                                content: 'Image collée'
+                            });
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(blob);
+                }
+            }
+        };
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [quiz, selectedSlideIndex]); // Re-bind when quiz state changes to access latest closure
+
+    const handleCanvasDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const ratio = img.width / img.height;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left - 150;
+                        const y = e.clientY - rect.top - 100;
+                        addElement('image', {
+                            url: event.target.result,
+                            width: 300,
+                            height: 300 / ratio,
+                            x: x,
+                            y: y
+                        });
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const updateElement = (id, updates) => {
+        const currentElements = quiz.slides[selectedSlideIndex].elements || [];
+        const newElements = currentElements.map(el => el.id === id ? { ...el, ...updates } : el);
+        updateSlide({ elements: newElements });
+    };
+
+    const updateElementStyle = (id, styleUpdates) => {
+        const currentElements = quiz.slides[selectedSlideIndex].elements || [];
+        const newElements = currentElements.map(el => el.id === id ? { ...el, style: { ...el.style, ...styleUpdates } } : el);
+        updateSlide({ elements: newElements });
+    };
+
+    const deleteElement = (id) => {
+        const currentElements = quiz.slides[selectedSlideIndex].elements || [];
+        const newElements = currentElements.filter(el => el.id !== id);
+        updateSlide({ elements: newElements });
+        setSelectedElementId(null);
+    };
+
+    const changeZIndex = (id, direction) => {
+        const currentElements = quiz.slides[selectedSlideIndex].elements || [];
+        const newElements = currentElements.map(el => {
+            if (el.id === id) {
+                const currentZ = el.style?.zIndex || 10;
+                return { ...el, style: { ...el.style, zIndex: currentZ + direction } };
+            }
+            return el;
+        });
+        updateSlide({ elements: newElements });
+    };
+
+    // --- Slide Management ---
+
+    const addSlide = async (type) => {
+        let newSlide = {
+            id: 'slide_' + Date.now(),
+            type: 'question',
+            questionType: type === 'qcm' || type === 'estimation' || type === 'text' ? type : 'qcm',
+            title: 'Nouveau Slide',
+            subtitle: '',
+            theme: 'dark',
+            background: { type: 'color', value: '#1a1a2e' },
+            elements: [], // Initialize empty elements array
+            ...getInitialProps(type)
+        };
+
+        const newSlides = [...quiz.slides, newSlide];
         setQuiz({ ...quiz, slides: newSlides });
         setSelectedSlideIndex(newSlides.length - 1);
+        setSelectedElementId(null);
+    };
+
+    const getInitialProps = (type) => {
+        switch (type) {
+            case 'title': return { type: 'title', title: 'Grand Titre', subtitle: 'Sous-titre' };
+            case 'score': return { type: 'score', title: 'Classement' };
+            case 'qcm': return {
+                questionText: 'Votre question ?',
+                options: [{ label: 'A', text: '' }, { label: 'B', text: '' }, { label: 'C', text: '' }, { label: 'D', text: '' }],
+                correctAnswer: 'A', timer: 20
+            };
+            default: return { questionText: 'Question ?', correctAnswer: '', timer: 30 };
+        }
     };
 
     const deleteSlide = () => {
@@ -160,55 +268,40 @@ function AperoEditor({ quizId, onBack }) {
         const newSlides = quiz.slides.filter((_, i) => i !== selectedSlideIndex);
         setQuiz({ ...quiz, slides: newSlides });
         setSelectedSlideIndex(Math.max(0, selectedSlideIndex - 1));
-    };
-
-    const moveSlide = (direction) => {
-        if (!quiz) return;
-        const newIndex = selectedSlideIndex + direction;
-        if (newIndex < 0 || newIndex >= quiz.slides.length) return;
-
-        const newSlides = [...quiz.slides];
-        [newSlides[selectedSlideIndex], newSlides[newIndex]] = [newSlides[newIndex], newSlides[selectedSlideIndex]];
-        setQuiz({ ...quiz, slides: newSlides });
-        setSelectedSlideIndex(newIndex);
+        setSelectedElementId(null);
     };
 
     const currentSlide = quiz?.slides?.[selectedSlideIndex];
+    const selectedElement = currentSlide?.elements?.find(el => el.id === selectedElementId);
 
-    if (isLoading) {
-        return (
-            <div className="apero-editor d-flex justify-content-center align-items-center">
-                <div className="spinner-border text-info" role="status"></div>
-            </div>
-        );
-    }
+    if (isLoading) return <div className="text-white p-5">Chargement...</div>;
 
     return (
         <div className="apero-editor">
             {/* Toolbar */}
             <div className="apero-editor-toolbar">
                 <div className="d-flex align-items-center gap-3">
-                    <button className="btn btn-outline-light btn-sm" onClick={onBack}>
-                        ← Retour
-                    </button>
+                    <button className="btn btn-outline-light btn-sm" onClick={onBack}>← Retour</button>
                     <input
                         type="text"
                         className="form-control bg-dark text-white border-secondary"
-                        style={{ width: '300px' }}
+                        style={{ width: '200px' }}
                         value={quiz?.title || ''}
                         onChange={(e) => setQuiz({ ...quiz, title: e.target.value })}
                         placeholder="Titre du quiz"
                     />
+                    <div className="vr bg-secondary mx-2"></div>
+                    <div className="btn-group">
+                        <button className="btn btn-outline-info btn-sm" onClick={() => addElement('text')}>➕ Texte</button>
+                        <button className="btn btn-outline-warning btn-sm" onClick={() => addElement('image')}>➕ Image</button>
+                        <button className="btn btn-outline-success btn-sm" onClick={() => addElement('shape')}>➕ Forme</button>
+                    </div>
                 </div>
                 <div className="apero-editor-toolbar-actions">
-                    <button className="btn btn-outline-info btn-sm" onClick={() => setZoom(z => Math.max(50, z - 25))}>
-                        −
-                    </button>
-                    <span className="text-muted">{zoom}%</span>
-                    <button className="btn btn-outline-info btn-sm" onClick={() => setZoom(z => Math.min(100, z + 25))}>
-                        +
-                    </button>
-                    <button className="btn btn-success" onClick={saveQuiz} disabled={isSaving}>
+                    <button className="btn btn-outline-secondary btn-sm" onClick={() => setZoom(z => Math.max(30, z - 10))}>-</button>
+                    <span className="text-muted mx-2">{zoom}%</span>
+                    <button className="btn btn-outline-secondary btn-sm" onClick={() => setZoom(z => Math.min(100, z + 10))}>+</button>
+                    <button className="btn btn-success ms-3" onClick={saveQuiz} disabled={isSaving}>
                         {isSaving ? '...' : '💾 Sauvegarder'}
                     </button>
                 </div>
@@ -216,154 +309,266 @@ function AperoEditor({ quizId, onBack }) {
 
             {/* Main Content */}
             <div className="apero-editor-main">
-                {/* Slides Panel */}
+                {/* Slides List */}
                 <div className="apero-slides-panel">
-                    <div className="apero-slides-header">
-                        Slides ({quiz?.slides?.length || 0})
-                    </div>
                     <div className="apero-slides-list">
                         {quiz?.slides?.map((slide, index) => (
                             <div
                                 key={slide.id || index}
                                 className={`apero-slide-thumb ${index === selectedSlideIndex ? 'active' : ''}`}
-                                onClick={() => setSelectedSlideIndex(index)}
+                                onClick={() => { setSelectedSlideIndex(index); setSelectedElementId(null); }}
                             >
                                 <div className="apero-slide-thumb-number">{index + 1}</div>
-                                <div className="apero-slide-thumb-type">
-                                    {slide.type === 'title' && '📋 Titre'}
-                                    {slide.type === 'question' && `❓ ${slide.questionType?.toUpperCase()}`}
-                                    {slide.type === 'score' && '🏆 Score'}
-                                </div>
                                 <div className="apero-slide-thumb-title">
-                                    {slide.title || slide.questionText?.substring(0, 20) || 'Sans titre'}
+                                    {slide.title || slide.questionText || 'Slide ' + (index + 1)}
                                 </div>
                             </div>
                         ))}
                     </div>
-                    <div className="apero-slides-add">
-                        <select
-                            className="form-select bg-dark text-white"
-                            value=""
-                            onChange={(e) => e.target.value && addSlide(e.target.value)}
-                        >
-                            <option value="">+ Ajouter un slide</option>
-                            <option value="title">📋 Titre / Interlude</option>
-                            <option value="qcm">❓ Question QCM</option>
-                            <option value="estimation">🔢 Estimation</option>
-                            <option value="text">✏️ Texte libre</option>
-                            <option value="score">🏆 Classement</option>
-                        </select>
+                    <div className="p-2">
+                        <button className="btn btn-outline-light w-100 btn-sm" onClick={() => addSlide('qcm')}>+ Slide</button>
                     </div>
                 </div>
 
-                {/* Canvas */}
-                <div className="apero-canvas-container">
-                    <div className="apero-canvas-toolbar">
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => moveSlide(-1)} disabled={selectedSlideIndex === 0}>
-                            ⬆️
-                        </button>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => moveSlide(1)} disabled={selectedSlideIndex >= (quiz?.slides?.length || 1) - 1}>
-                            ⬇️
-                        </button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={deleteSlide} disabled={quiz?.slides?.length <= 1}>
-                            🗑️ Supprimer
-                        </button>
-                    </div>
-                    <div className="apero-canvas-wrapper">
+                {/* Canvas Area */}
+                <div className="apero-canvas-container" onClick={() => setSelectedElementId(null)}>
+                    <div className="apero-canvas-wrapper" style={{ padding: '40px' }}>
+
+                        {/* THE CANVAS - BASE 1280x720 */}
                         <div
-                            className={`apero-canvas zoom-${zoom}`}
+                            className="apero-canvas-hd"
+                            onDrop={handleCanvasDrop}
+                            onDragOver={handleDragOver}
                             style={{
-                                background: currentSlide?.background?.value || '#1a1a2e',
-                                color: THEMES[currentSlide?.theme]?.text || '#fff'
+                                width: '1280px',
+                                height: '720px',
+                                transform: `scale(${zoom / 100})`,
+                                transformOrigin: 'top left',
+                                position: 'relative',
+                                backgroundColor: currentSlide?.background?.type === 'image' ? '#000' : (currentSlide?.background?.value || '#1a1a2e'),
+                                backgroundImage: currentSlide?.background?.type === 'image' ? `url("${currentSlide.background.value}")` : 'none',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                overflow: 'hidden',
+                                boxShadow: '0 0 50px rgba(0,0,0,0.5)'
                             }}
+                            onClick={(e) => e.stopPropagation()} // Prevent deselection when clicking canvas bg
                         >
-                            <SlidePreview slide={currentSlide} />
+                            {/* Overlay Layer */}
+                            {currentSlide?.background?.type === 'image' && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 0 }} />
+                            )}
+
+                            {/* Elements Layer (Z-Index 10+) */}
+                            {currentSlide?.elements?.map(el => (
+                                <Rnd
+                                    key={el.id}
+                                    size={{ width: el.width, height: el.height }}
+                                    position={{ x: el.x, y: el.y }}
+                                    onDragStop={(e, d) => updateElement(el.id, { x: d.x, y: d.y })}
+                                    onResizeStop={(e, direction, ref, delta, position) => {
+                                        updateElement(el.id, {
+                                            width: parseInt(ref.style.width),
+                                            height: parseInt(ref.style.height),
+                                            ...position
+                                        });
+                                    }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedElementId(el.id);
+                                    }}
+                                    scale={zoom / 100}
+                                    bounds="parent"
+                                    style={{
+                                        position: 'absolute',
+                                        zIndex: el.style?.zIndex || 10,
+                                        border: selectedElementId === el.id ? '2px solid #00d4ff' : '1px dashed rgba(255,255,255,0.1)',
+                                        cursor: 'move'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '100%', height: '100%',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        ...el.style,
+                                        pointerEvents: 'none' // Let Rnd handle events
+                                    }}>
+                                        {el.type === 'text' && el.content}
+                                        {el.type === 'shape' && el.content}
+                                        {el.type === 'image' && (
+                                            el.url ? <img src={el.url} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: el.style.borderRadius }} /> : <span className="text-white-50">Image (vide)</span>
+                                        )}
+                                    </div>
+                                </Rnd>
+                            ))}
+
+                            {/* Standard Content Layer (Fallback / Fixed QCM) - Z-Index 5 */}
+                            <div style={{ position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none', padding: '40px' }}>
+                                <SlidePreview slide={currentSlide} />
+                            </div>
+
                         </div>
                     </div>
                 </div>
 
-                {/* Properties Panel */}
-                <div className="apero-properties-panel">
-                    <div className="apero-properties-header">
-                        Propriétés
+                {/* Properties Panel & Layers */}
+                <div className="apero-properties-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+                    {/* LAYERS EXPLORER (Haut à Droite, hauteur fixe si possible ou flex) */}
+                    <div style={{ flex: '0 0 40%', borderBottom: '1px solid #444', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                        <div className="apero-properties-header">
+                            📚 Calques ({currentSlide?.elements?.length || 0})
+                        </div>
+                        <div className="p-2">
+                            {/* Liste inversée pour avoir le Premier Plan en HAUT de liste */}
+                            {[...(currentSlide?.elements || [])]
+                                .sort((a, b) => (b.style?.zIndex || 0) - (a.style?.zIndex || 0))
+                                .map((el) => (
+                                    <div
+                                        key={el.id}
+                                        className={`d-flex align-items-center justify-content-between p-2 mb-1 rounded ${selectedElementId === el.id ? 'bg-primary text-white' : 'bg-dark text-white-50'}`}
+                                        style={{ cursor: 'pointer', border: '1px solid #333' }}
+                                        onClick={() => setSelectedElementId(el.id)}
+                                    >
+                                        <div className="d-flex align-items-center gap-2 overflow-hidden">
+                                            <span>
+                                                {el.type === 'text' && 'T'}
+                                                {el.type === 'image' && '🖼️'}
+                                                {el.type === 'shape' && '🟦'}
+                                            </span>
+                                            <span className="small text-truncate" style={{ maxWidth: '100px' }}>
+                                                {el.type === 'text' ? (el.content || 'Texte') : (el.type === 'image' ? 'Image' : 'Forme')}
+                                            </span>
+                                        </div>
+                                        <div className="btn-group btn-group-sm">
+                                            <button
+                                                className="btn btn-outline-light py-0 px-1"
+                                                title="Monter (Premier plan)"
+                                                onClick={(e) => { e.stopPropagation(); changeZIndex(el.id, 1); }}
+                                            >⬆️</button>
+                                            <button
+                                                className="btn btn-outline-light py-0 px-1"
+                                                title="Descendre (Arrière plan)"
+                                                onClick={(e) => { e.stopPropagation(); changeZIndex(el.id, -1); }}
+                                            >⬇️</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            {(!currentSlide?.elements || currentSlide.elements.length === 0) && (
+                                <div className="text-muted small text-center mt-3">Aucun élément</div>
+                            )}
+                        </div>
                     </div>
-                    <div className="apero-properties-content">
-                        {currentSlide && (
-                            <SlideProperties
-                                slide={currentSlide}
-                                onUpdate={updateSlide}
+
+                    {/* PROPERTIES (Bas à Droite) */}
+                    <div style={{ flex: '1', overflowY: 'auto', borderTop: '1px solid #444' }}>
+                        {selectedElement ? (
+                            <ElementProperties
+                                element={selectedElement}
+                                onUpdate={(updates) => updateElement(selectedElement.id, updates)}
+                                onStyleUpdate={(style) => updateElementStyle(selectedElement.id, style)}
+                                onDelete={() => deleteElement(selectedElement.id)}
                             />
+                        ) : (
+                            currentSlide && (
+                                <SlideProperties
+                                    slide={currentSlide}
+                                    onUpdate={updateSlide}
+                                />
+                            )
                         )}
                     </div>
+                </div>
+            </div>
+        </div >
+    );
+}
+
+// Composant Properties pour un Élément sélectionné
+function ElementProperties({ element, onUpdate, onStyleUpdate, onDelete }) {
+    return (
+        <div>
+            <div className="apero-properties-header d-flex justify-content-between align-items-center">
+                <span>Propriétés Élément</span>
+                <button className="btn btn-sm btn-danger" onClick={onDelete}>🗑️</button>
+            </div>
+            <div className="apero-properties-content">
+                <div className="apero-property-group">
+                    <label>Position</label>
+                    <div className="d-flex gap-2">
+                        <input type="number" className="form-control form-control-sm" value={Math.round(element.x)} onChange={(e) => onUpdate({ x: parseInt(e.target.value) })} />
+                        <input type="number" className="form-control form-control-sm" value={Math.round(element.y)} onChange={(e) => onUpdate({ y: parseInt(e.target.value) })} />
+                    </div>
+                </div>
+
+                {element.type === 'text' && (
+                    <div className="apero-property-group">
+                        <label>Contenu Texte</label>
+                        <textarea className="form-control" rows={3} value={element.content} onChange={(e) => onUpdate({ content: e.target.value })} />
+
+                        <label className="mt-2">Taille Police</label>
+                        <input type="text" className="form-control" value={element.style.fontSize} onChange={(e) => onStyleUpdate({ fontSize: e.target.value })} />
+
+                        <label className="mt-2">Couleur</label>
+                        <input type="color" className="form-control form-control-color w-100" value={element.style.color} onChange={(e) => onStyleUpdate({ color: e.target.value })} />
+
+                        <label className="mt-2">Fond</label>
+                        <input type="color" className="form-control form-control-color w-100" value={element.style.backgroundColor} onChange={(e) => onStyleUpdate({ backgroundColor: e.target.value })} />
+                    </div>
+                )}
+
+                {element.type === 'image' && (
+                    <div className="apero-property-group">
+                        <label>URL Image</label>
+                        <input type="text" className="form-control" value={element.url || ''} onChange={(e) => onUpdate({ url: e.target.value })} placeholder="https://..." />
+
+                        <label className="mt-2">Arrondi (Border Radius)</label>
+                        <input type="text" className="form-control" value={element.style.borderRadius || '0px'} onChange={(e) => onStyleUpdate({ borderRadius: e.target.value })} />
+                    </div>
+                )}
+
+                <div className="apero-property-group mt-3">
+                    <label>Profondeur (Z-Index)</label>
+                    <input type="number" className="form-control" value={element.style.zIndex} onChange={(e) => onStyleUpdate({ zIndex: parseInt(e.target.value) })} />
                 </div>
             </div>
         </div>
     );
 }
 
-// Composant pour l'aperçu du slide
+// Composant pour l'aperçu du slide (Contenu Fixe QCM/Titre)
 function SlidePreview({ slide }) {
     if (!slide) return null;
 
+    // Affiche seulement le titre/question en mode preview "ghost"
+    // Le vrai contenu est editable via les éléments maintenant, mais on garde ça pour la compatibilité
+    // On rend ça semi-transparent pour montrer que c'est le "layout fixe"
+
+    const containerStyle = { opacity: 0.8 };
+
     if (slide.type === 'title') {
         return (
-            <div className="slide-preview type-title">
-                <div className="slide-title">{slide.title || 'Titre'}</div>
+            <div className="slide-preview type-title" style={containerStyle}>
+                <div className="slide-title">{slide.title}</div>
                 <div className="slide-subtitle">{slide.subtitle}</div>
             </div>
         );
     }
 
-    if (slide.type === 'score') {
-        return (
-            <div className="slide-preview type-score">
-                <div className="slide-title">{slide.title || '🏆 Classement'}</div>
-                <div style={{ marginTop: '20px', color: '#888' }}>
-                    [Classement des équipes]
-                </div>
-            </div>
-        );
-    }
-
     if (slide.type === 'question') {
         return (
-            <div className="slide-preview type-question">
-                <div className="question-header">
-                    Question • {slide.timer || 20}s
-                </div>
-                <div className="question-text">
-                    {slide.questionText || 'Votre question ici...'}
-                </div>
-
+            <div className="slide-preview type-question" style={containerStyle}>
+                <div className="question-header">Question</div>
+                <div className="question-text">{slide.questionText}</div>
                 {slide.questionType === 'qcm' && (
                     <div className="question-options">
                         {slide.options?.map((opt, i) => (
-                            <div
-                                key={i}
-                                className={`option ${opt.label === slide.correctAnswer ? 'correct' : ''}`}
-                            >
+                            <div key={i} className={`option ${opt.label === slide.correctAnswer ? 'correct' : ''}`}>
                                 <span className="option-letter">{opt.label}</span>
-                                <span>{opt.text || '...'}</span>
+                                <span>{opt.text}</span>
                             </div>
                         ))}
                     </div>
                 )}
-
-                {slide.questionType === 'estimation' && (
-                    <div style={{ marginTop: '30px', textAlign: 'center' }}>
-                        <div style={{ color: '#888', marginBottom: '10px' }}>{slide.hint || 'Entrez un nombre'}</div>
-                        <div style={{ fontSize: '2rem', color: '#00d4ff' }}>[ ___ ]</div>
-                        <div style={{ marginTop: '20px', color: '#00ff88' }}>Réponse: {slide.correctAnswer}</div>
-                    </div>
-                )}
-
-                {slide.questionType === 'text' && (
-                    <div style={{ marginTop: '30px', textAlign: 'center' }}>
-                        <div style={{ color: '#888', marginBottom: '10px' }}>{slide.hint || 'Entrez votre réponse'}</div>
-                        <div style={{ fontSize: '1.5rem', color: '#00d4ff' }}>[ ________ ]</div>
-                        <div style={{ marginTop: '20px', color: '#00ff88' }}>Réponse: {slide.correctAnswer}</div>
-                    </div>
-                )}
             </div>
         );
     }
@@ -371,167 +576,66 @@ function SlidePreview({ slide }) {
     return null;
 }
 
-// Composant pour les propriétés du slide
+// Composant PROPS Globales (Background, Question Core...)
 function SlideProperties({ slide, onUpdate }) {
-    if (slide.type === 'title') {
-        return (
-            <>
+    return (
+        <div>
+            <div className="apero-properties-header">Propriétés Slide</div>
+            <div className="apero-properties-content">
                 <div className="apero-property-group">
-                    <h4>📝 Contenu</h4>
-                    <div className="apero-property-row">
-                        <label>Titre</label>
-                        <input
-                            type="text"
-                            value={slide.title || ''}
-                            onChange={(e) => onUpdate({ title: e.target.value })}
-                        />
-                    </div>
-                    <div className="apero-property-row">
-                        <label>Sous-titre</label>
-                        <input
-                            type="text"
-                            value={slide.subtitle || ''}
-                            onChange={(e) => onUpdate({ subtitle: e.target.value })}
-                        />
-                    </div>
-                </div>
-                <ThemeSelector slide={slide} onUpdate={onUpdate} />
-            </>
-        );
-    }
-
-    if (slide.type === 'score') {
-        return (
-            <>
-                <div className="apero-property-group">
-                    <h4>🏆 Classement</h4>
-                    <div className="apero-property-row">
-                        <label>Titre</label>
-                        <input
-                            type="text"
-                            value={slide.title || ''}
-                            onChange={(e) => onUpdate({ title: e.target.value })}
-                        />
-                    </div>
-                </div>
-                <ThemeSelector slide={slide} onUpdate={onUpdate} />
-            </>
-        );
-    }
-
-    if (slide.type === 'question') {
-        return (
-            <>
-                <div className="apero-property-group">
-                    <h4>❓ Question</h4>
-                    <div className="apero-property-row">
-                        <label>Texte de la question</label>
-                        <textarea
-                            value={slide.questionText || ''}
-                            onChange={(e) => onUpdate({ questionText: e.target.value })}
-                        />
-                    </div>
-                    <div className="apero-property-row">
-                        <label>Timer (secondes)</label>
-                        <input
-                            type="number"
-                            min="5"
-                            max="120"
-                            value={slide.timer || 20}
-                            onChange={(e) => onUpdate({ timer: parseInt(e.target.value) })}
-                        />
-                    </div>
+                    <label>Type Slide</label>
+                    <select className="form-select" value={slide.type} disabled>
+                        <option value="title">Titre</option>
+                        <option value="question">Question</option>
+                        <option value="score">Score</option>
+                    </select>
                 </div>
 
-                {slide.questionType === 'qcm' && (
+                <div className="apero-property-group">
+                    <label>Background URL</label>
+                    <input
+                        type="text"
+                        className="form-control"
+                        value={slide.background?.value || ''}
+                        onChange={(e) => onUpdate({ background: { type: 'image', value: e.target.value } })}
+                        placeholder="Image de fond..."
+                    />
+                </div>
+
+                {slide.type === 'question' && (
                     <div className="apero-property-group">
-                        <h4>📋 Options</h4>
-                        <div className="apero-options-grid">
-                            {slide.options?.map((opt, i) => (
-                                <div key={i} className="apero-option-item">
-                                    <span className={`apero-option-label ${opt.label === slide.correctAnswer ? 'correct' : ''}`}>
-                                        {opt.label}
-                                    </span>
-                                    <input
-                                        type="text"
-                                        value={opt.text || ''}
-                                        onChange={(e) => {
-                                            const newOptions = [...slide.options];
-                                            newOptions[i] = { ...newOptions[i], text: e.target.value };
-                                            onUpdate({ options: newOptions });
-                                        }}
-                                        placeholder={`Option ${opt.label}`}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        <div className="apero-property-row mt-3">
-                            <label>Bonne réponse</label>
-                            <div className="apero-correct-selector">
-                                {['A', 'B', 'C', 'D'].map(letter => (
-                                    <button
-                                        key={letter}
-                                        type="button"
-                                        className={`apero-correct-btn ${slide.correctAnswer === letter ? 'selected' : ''}`}
-                                        onClick={() => onUpdate({ correctAnswer: letter })}
-                                    >
-                                        {letter}
-                                    </button>
+                        <label>Question</label>
+                        <textarea className="form-control" value={slide.questionText} onChange={(e) => onUpdate({ questionText: e.target.value })} />
+
+                        <label className="mt-2">Temps (s)</label>
+                        <input type="number" className="form-control" value={slide.timer} onChange={(e) => onUpdate({ timer: parseInt(e.target.value) })} />
+
+                        {slide.questionType === 'qcm' && (
+                            <div className="mt-3">
+                                <label>Réponses QCM</label>
+                                {slide.options.map((opt, i) => (
+                                    <div key={i} className="d-flex gap-2 mb-1">
+                                        <span className="badge bg-secondary pt-2">{opt.label}</span>
+                                        <input
+                                            type="text"
+                                            className="form-control form-control-sm"
+                                            value={opt.text}
+                                            onChange={(e) => {
+                                                const newOpts = [...slide.options];
+                                                newOpts[i] = { ...opt, text: e.target.value };
+                                                onUpdate({ options: newOpts });
+                                            }}
+                                        />
+                                    </div>
                                 ))}
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
-                {(slide.questionType === 'estimation' || slide.questionType === 'text' || slide.questionType === 'date') && (
-                    <div className="apero-property-group">
-                        <h4>✅ Réponse</h4>
-                        <div className="apero-property-row">
-                            <label>Bonne réponse</label>
-                            <input
-                                type="text"
-                                value={slide.correctAnswer || ''}
-                                onChange={(e) => onUpdate({ correctAnswer: e.target.value })}
-                            />
-                        </div>
-                        <div className="apero-property-row">
-                            <label>Indice (affiché aux joueurs)</label>
-                            <input
-                                type="text"
-                                value={slide.hint || ''}
-                                onChange={(e) => onUpdate({ hint: e.target.value })}
-                                placeholder="Ex: Entrez un nombre"
-                            />
-                        </div>
-                    </div>
-                )}
-
-                <ThemeSelector slide={slide} onUpdate={onUpdate} />
-            </>
-        );
-    }
-
-    return null;
-}
-
-// Sélecteur de thème
-function ThemeSelector({ slide, onUpdate }) {
-    return (
-        <div className="apero-property-group">
-            <h4>🎨 Thème</h4>
-            <div className="apero-theme-grid">
-                {Object.entries(THEMES).map(([key, theme]) => (
-                    <button
-                        key={key}
-                        className={`apero-theme-btn ${slide.theme === key ? 'selected' : ''}`}
-                        style={{ background: theme.background }}
-                        onClick={() => onUpdate({
-                            theme: key,
-                            background: { type: theme.background.includes('gradient') ? 'gradient' : 'color', value: theme.background }
-                        })}
-                        title={key}
-                    />
-                ))}
+                <div className="alert alert-info mt-3 p-2 small">
+                    💡 Cliquez sur les boutons <b>+ Texte / Image</b> en haut pour ajouter des éléments libres.
+                </div>
             </div>
         </div>
     );

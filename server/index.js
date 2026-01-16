@@ -10,7 +10,7 @@ const quizController = require('./controllers/quizController');
 const geoController = require('./controllers/geoController');
 const drawController = require('./controllers/drawController');
 const adminController = require('./controllers/adminController');
-const { setupAperoController } = require('./controllers/aperoController');
+const aperoController = require('./controllers/aperoController');
 
 const app = express();
 app.use(cors());
@@ -18,6 +18,8 @@ app.use(express.json({ limit: '50mb' }));
 
 // Setup Admin Routes
 adminController.setupRoutes(app);
+// Setup Apero API Routes
+aperoController.setupAperoRoutes(app);
 
 // API REST pour l'Admin
 app.get('/api/quizzes', (req, res) => {
@@ -64,7 +66,7 @@ const io = new Server(server, {
 });
 
 // Setup Apéro Quiz Controller (uses its own namespace /apero)
-setupAperoController(io, app);
+// setupAperoController(io, app); // Deprecated
 
 const PORT = process.env.PORT || 3001;
 
@@ -76,6 +78,7 @@ io.on('connection', (socket) => {
     quizController.handleConnection(io, socket);
     geoController.handleConnection(io, socket);
     drawController.handleConnection(io, socket);
+    aperoController.handleConnection(io, socket);
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);

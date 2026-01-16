@@ -12,9 +12,12 @@
   "dependencies": {
     "bootstrap": "^5.3.8",
     "canvas-confetti": "^1.9.4",
+    "framer-motion": "^12.26.2",
+    "pdfjs-dist": "^5.4.530",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-rnd": "^10.5.2",
     "react-router-dom": "^7.12.0",
     "socket.io-client": "^4.8.1"
   },

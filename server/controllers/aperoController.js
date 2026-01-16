@@ -6,13 +6,10 @@
 const aperoGameManager = require('../aperoGameManager');
 const aperoQuizzes = require('../aperoQuizzes');
 
-function setupAperoController(io, app) {
-    const aperoNamespace = io.of('/apero');
-
-    // ================================================
-    // API REST - Gestion des Quiz (Admin)
-    // ================================================
-
+// ================================================
+// API REST - Gestion des Quiz (Admin)
+// ================================================
+function setupAperoRoutes(app) {
     // Liste tous les quiz
     app.get('/api/apero/quizzes', (req, res) => {
         res.json(aperoQuizzes.getAll());
@@ -110,213 +107,252 @@ function setupAperoController(io, app) {
         res.json(template);
     });
 
-    // ================================================
-    // SOCKET.IO - Jeu en temps réel
-    // ================================================
+    console.log('[APERO] Routes initialized');
+}
 
-    aperoNamespace.on('connection', (socket) => {
-        console.log(`[APERO] Socket connected: ${socket.id}`);
+// ================================================
+// SOCKET.IO - Jeu en temps réel (Main Namespace)
+// ================================================
+function handleConnection(io, socket) {
+    // console.log(`[APERO] Handling connection for socket: ${socket.id}`);
 
-        // === HOST Events ===
+    // === HOST Events ===
 
-        // Créer une salle
-        socket.on('host:create', ({ quizId }) => {
+    // Créer une salle
+    socket.on('apero-host-create', ({ quizId }) => {
+        console.log(`[APERO SERVER Debug] Request create Room for QuizID: ${quizId} from Socket: ${socket.id}`);
+
+        try {
             const quiz = aperoQuizzes.getById(quizId);
             if (!quiz) {
-                socket.emit('error', { message: 'Quiz non trouvé' });
+                console.error(`[APERO SERVER] Quiz NOT FOUND: ${quizId}`);
+                socket.emit('apero-error', { message: 'Quiz non trouvé sur le serveur' });
                 return;
             }
 
+            console.log(`[APERO SERVER] Quiz found: "${quiz.title}" (${quiz.slides.length} slides)`);
+
+            // Check if host already has a room (reconnection)
+            // Note: For now we create new room, but we could handle reconnection better
+
             const roomCode = aperoGameManager.createRoom(socket.id, quizId, quiz);
+            console.log(`[APERO SERVER] Room Code generated: ${roomCode}`);
+
             socket.join(roomCode);
             socket.roomCode = roomCode;
             socket.isHost = true;
 
-            socket.emit('room:created', {
+            const responsePayload = {
                 roomCode,
                 quiz: {
                     id: quiz.id,
                     title: quiz.title,
                     slideCount: quiz.slides.length
                 }
-            });
-        });
+            };
 
-        // Démarrer le jeu
-        socket.on('host:start', () => {
-            if (!socket.roomCode || !socket.isHost) return;
+            console.log('[APERO SERVER] Emitting apero-room-created...');
+            socket.emit('apero-room-created', responsePayload);
+            console.log('[APERO SERVER] Emit DONE.');
 
-            const result = aperoGameManager.startGame(socket.roomCode);
-            if (result.error) {
-                socket.emit('error', { message: result.error });
-                return;
-            }
+        } catch (e) {
+            console.error('[APERO SERVER] EXCEPTION in host-create:', e);
+            socket.emit('apero-error', { message: 'Erreur serveur: ' + e.message });
+        }
+    });
 
-            aperoNamespace.to(socket.roomCode).emit('game:started', {
-                slide: result.slide
-            });
-        });
-
-        // Navigation slides
-        socket.on('host:nextSlide', () => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.nextSlide(socket.roomCode);
-            if (result.gameOver) {
-                aperoNamespace.to(socket.roomCode).emit('game:ended', result);
-            } else if (result.success) {
-                aperoNamespace.to(socket.roomCode).emit('slide:changed', {
-                    slideIndex: result.slideIndex,
-                    slide: result.slide
-                });
-            }
-        });
-
-        socket.on('host:prevSlide', () => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.prevSlide(socket.roomCode);
-            if (result.success) {
-                aperoNamespace.to(socket.roomCode).emit('slide:changed', {
-                    slideIndex: result.slideIndex,
-                    slide: result.slide
-                });
-            }
-        });
-
-        socket.on('host:goToSlide', ({ slideIndex }) => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.goToSlide(socket.roomCode, slideIndex);
-            if (result.success) {
-                aperoNamespace.to(socket.roomCode).emit('slide:changed', {
-                    slideIndex: result.slideIndex,
-                    slide: result.slide
-                });
-            }
-        });
-
-        // Ouvrir une question (les joueurs peuvent répondre)
-        socket.on('host:openQuestion', () => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.openQuestion(socket.roomCode);
-            if (result.success) {
-                aperoNamespace.to(socket.roomCode).emit('question:opened', {
-                    questionNumber: result.questionNumber,
-                    questionType: result.questionType,
-                    timer: result.timer
-                });
-            }
-        });
-
-        // Fermer une question (révéler la réponse)
-        socket.on('host:closeQuestion', () => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.closeQuestion(socket.roomCode);
-            if (result.success) {
-                aperoNamespace.to(socket.roomCode).emit('question:closed', {
-                    correctAnswer: result.correctAnswer,
-                    results: result.results,
-                    answerStats: result.answerStats
-                });
-            }
-        });
-
-        // Obtenir le classement
-        socket.on('host:getLeaderboard', () => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.getLeaderboard(socket.roomCode);
-            if (result.success) {
-                socket.emit('leaderboard', result.leaderboard);
-            }
-        });
-
-        // Redémarrer
-        socket.on('host:restart', () => {
-            if (!socket.roomCode || !socket.isHost) return;
-
-            const result = aperoGameManager.restartGame(socket.roomCode);
-            if (result.success) {
-                aperoNamespace.to(socket.roomCode).emit('game:restarted');
-            }
-        });
-
-        // === TEAM Events ===
-
-        // Rejoindre une salle
-        socket.on('team:join', ({ roomCode, teamName }) => {
-            const room = aperoGameManager.getRoom(roomCode);
-            if (!room) {
-                socket.emit('error', { message: 'Salon introuvable' });
-                return;
-            }
-
-            const result = aperoGameManager.joinRoom(roomCode, socket.id, teamName);
-            if (result.error) {
-                socket.emit('error', { message: result.error });
-                return;
-            }
-
+    // Reconnexion Hôte (si changement de socket ID)
+    socket.on('apero-host-reconnect', ({ roomCode }) => {
+        const result = aperoGameManager.reconnectHost(roomCode, socket.id);
+        if (result.success) {
             socket.join(roomCode);
             socket.roomCode = roomCode;
-            socket.teamName = teamName;
+            socket.isHost = true;
 
-            socket.emit('team:joined', {
-                roomCode,
-                teamName,
-                reconnected: result.reconnected,
-                gameState: result.gameState
-            });
+            socket.emit('apero-game-restored', result);
+        } else {
+            socket.emit('apero-error', { message: 'Impossible de restaurer la session' });
+        }
+    });
 
-            // Notifier le host
-            aperoNamespace.to(roomCode).emit('teams:updated', {
-                teams: aperoGameManager.getTeamsInRoom(roomCode)
-            });
-        });
+    // Démarrer le jeu
+    socket.on('apero-host-start', () => {
+        if (!socket.roomCode || !socket.isHost) return;
 
-        // Soumettre une réponse
-        socket.on('team:answer', ({ answer }) => {
-            if (!socket.roomCode || !socket.teamName) return;
+        const result = aperoGameManager.startGame(socket.roomCode);
+        if (result.error) {
+            socket.emit('apero-error', { message: result.error });
+            return;
+        }
 
-            const result = aperoGameManager.submitAnswer(socket.roomCode, socket.teamName, answer);
-
-            if (result.error) {
-                socket.emit('error', { message: result.error });
-                return;
-            }
-
-            socket.emit('answer:confirmed', { answer });
-
-            // Notifier le host du nombre de réponses
-            aperoNamespace.to(socket.roomCode).emit('answers:updated', {
-                answeredCount: result.answeredCount,
-                totalTeams: result.totalTeams,
-                allAnswered: result.allAnswered
-            });
-        });
-
-        // === Déconnexion ===
-
-        socket.on('disconnect', () => {
-            console.log(`[APERO] Socket disconnected: ${socket.id}`);
-
-            const result = aperoGameManager.removeTeam(socket.id);
-            if (result) {
-                if (result.isHost) {
-                    aperoNamespace.to(result.roomCode).emit('room:closed');
-                } else {
-                    aperoNamespace.to(result.roomCode).emit('teams:updated', {
-                        teams: aperoGameManager.getTeamsInRoom(result.roomCode)
-                    });
-                }
-            }
+        io.to(socket.roomCode).emit('apero-game-started', {
+            slide: result.slide
         });
     });
 
-    console.log('[APERO] Controller initialized');
+    // Navigation slides
+    socket.on('apero-host-next-slide', () => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.nextSlide(socket.roomCode);
+        if (result.gameOver) {
+            io.to(socket.roomCode).emit('apero-game-ended', result);
+        } else if (result.success) {
+            io.to(socket.roomCode).emit('apero-slide-changed', {
+                slideIndex: result.slideIndex,
+                slide: result.slide
+            });
+        }
+    });
+
+    socket.on('apero-host-prev-slide', () => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.prevSlide(socket.roomCode);
+        if (result.success) {
+            io.to(socket.roomCode).emit('apero-slide-changed', {
+                slideIndex: result.slideIndex,
+                slide: result.slide
+            });
+        }
+    });
+
+    socket.on('apero-host-goto-slide', ({ slideIndex }) => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.goToSlide(socket.roomCode, slideIndex);
+        if (result.success) {
+            io.to(socket.roomCode).emit('apero-slide-changed', {
+                slideIndex: result.slideIndex,
+                slide: result.slide
+            });
+        }
+    });
+
+    // Ouvrir une question (les joueurs peuvent répondre)
+    socket.on('apero-host-open-question', () => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.openQuestion(socket.roomCode);
+        if (result.success) {
+            io.to(socket.roomCode).emit('apero-question-opened', {
+                questionNumber: result.questionNumber,
+                questionType: result.questionType,
+                timer: result.timer
+            });
+        }
+    });
+
+    // Fermer une question (révéler la réponse)
+    socket.on('apero-host-close-question', () => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.closeQuestion(socket.roomCode);
+        if (result.success) {
+            io.to(socket.roomCode).emit('apero-question-closed', {
+                correctAnswer: result.correctAnswer,
+                results: result.results,
+                answerStats: result.answerStats
+            });
+        }
+    });
+
+    // Obtenir le classement
+    socket.on('apero-host-get-leaderboard', () => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.getLeaderboard(socket.roomCode);
+        if (result.success) {
+            socket.emit('apero-leaderboard', result.leaderboard);
+        }
+    });
+
+    // Redémarrer
+    socket.on('apero-host-restart', () => {
+        if (!socket.roomCode || !socket.isHost) return;
+
+        const result = aperoGameManager.restartGame(socket.roomCode);
+        if (result.success) {
+            io.to(socket.roomCode).emit('apero-game-restarted');
+        }
+    });
+
+    // === TEAM Events ===
+
+    // Rejoindre une salle
+    socket.on('apero-team-join', ({ roomCode, teamName }) => {
+        const normalizedCode = roomCode?.toUpperCase();
+        const room = aperoGameManager.getRoom(normalizedCode);
+        if (!room) {
+            console.log(`[APERO] Team join failed - Room not found: ${normalizedCode}`);
+            socket.emit('apero-error', { message: 'Salon introuvable' });
+            return;
+        }
+
+        const result = aperoGameManager.joinRoom(normalizedCode, socket.id, teamName);
+        if (result.error) {
+            socket.emit('apero-error', { message: result.error });
+            return;
+        }
+
+        socket.join(normalizedCode);
+        socket.roomCode = normalizedCode;
+        socket.teamName = teamName;
+
+        socket.emit('apero-team-joined', {
+            roomCode: normalizedCode,
+            teamName,
+            reconnected: result.reconnected,
+            gameState: result.gameState
+        });
+
+        // Notifier le host
+        io.to(normalizedCode).emit('apero-teams-updated', {
+            teams: aperoGameManager.getTeamsInRoom(normalizedCode)
+        });
+    });
+
+    // Soumettre une réponse
+    socket.on('apero-team-answer', ({ answer }) => {
+        if (!socket.roomCode || !socket.teamName) return;
+
+        const result = aperoGameManager.submitAnswer(socket.roomCode, socket.teamName, answer);
+
+        if (result.error) {
+            socket.emit('apero-error', { message: result.error });
+            return;
+        }
+
+        socket.emit('apero-answer-confirmed', { answer });
+
+        // Notifier le host du nombre de réponses
+        io.to(socket.roomCode).emit('apero-answers-updated', {
+            answeredCount: result.answeredCount,
+            totalTeams: result.totalTeams,
+            allAnswered: result.allAnswered
+        });
+    });
+
+    // === Déconnexion ===
+    // Note: disconnect est géré globalement dans index.js mais on peut ajouter un listener spécifique ici si besoin
+    // ou plutôt, on laisse aperoGameManager gérer ça via une méthode explicite appelée depuis index.js
+    // Mais socket.on('disconnect') ici fonctionne car c'est le même socket object qui est passé.
+
+    socket.on('disconnect', () => {
+        // console.log(`[APERO] Socket disconnected check: ${socket.id}`);
+        // Check if this socket was part of an apéro game
+        const result = aperoGameManager.removeTeam(socket.id);
+        if (result) {
+            if (result.isHost && !result.hostDisconnected) {
+                io.to(result.roomCode).emit('apero-room-closed');
+            } else if (!result.isHost) {
+                io.to(result.roomCode).emit('apero-teams-updated', {
+                    teams: aperoGameManager.getTeamsInRoom(result.roomCode)
+                });
+            }
+        }
+    });
 }
 
-module.exports = { setupAperoController };
+module.exports = { setupAperoRoutes, handleConnection };
+

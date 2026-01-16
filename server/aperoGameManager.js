@@ -523,8 +523,21 @@ class AperoGameManager {
     removeTeam(socketId) {
         for (const [code, room] of this.rooms) {
             if (room.hostId === socketId) {
-                this.rooms.delete(code);
-                return { roomCode: code, isHost: true };
+                // Don't delete room immediately - give host time to reconnect
+                console.log(`[APERO] Host disconnected from room ${code}, keeping room alive for 60s`);
+                room.hostDisconnected = true;
+                room.hostDisconnectedAt = Date.now();
+
+                // Set timeout to delete room if host doesn't reconnect
+                if (room.hostTimeout) clearTimeout(room.hostTimeout);
+                room.hostTimeout = setTimeout(() => {
+                    if (this.rooms.has(code) && this.rooms.get(code).hostDisconnected) {
+                        console.log(`[APERO] Host didn't reconnect, deleting room ${code}`);
+                        this.rooms.delete(code);
+                    }
+                }, 60000); // 60 seconds grace period
+
+                return { roomCode: code, isHost: true, hostDisconnected: true };
             }
 
             for (const [teamName, team] of room.teams) {
@@ -539,6 +552,41 @@ class AperoGameManager {
             }
         }
         return null;
+    }
+
+    /**
+     * Reconnect host to existing room
+     */
+    reconnectHost(roomCode, newSocketId) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        if (room.hostTimeout) clearTimeout(room.hostTimeout);
+        room.hostId = newSocketId;
+        room.hostDisconnected = false;
+        console.log(`[APERO] Host reconnected to room ${roomCode}`);
+
+        return {
+            success: true,
+            quiz: room.quizData,
+            teams: Array.from(room.teams.values()).filter(t => !t.disconnected),
+            gameState: room.gameState,
+            currentSlideIndex: room.currentSlideIndex
+        };
+    }
+
+    /**
+     * Get room by code (for reconnection)
+     */
+    getRoomForHost(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return null;
+        return {
+            code: roomCode,
+            quiz: room.quizData,
+            teams: Array.from(room.teams.values()).filter(t => !t.disconnected),
+            gameState: room.gameState
+        };
     }
 
     getTeamsInRoom(roomCode) {

@@ -1,0 +1,296 @@
+/* ==========================================
+   APERO HOST - CINEMATIC THEME (Harry Potter Style)
+   ========================================== */
+
+.host-screen {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* Background Image - Full Screen */
+.host-background {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+}
+
+/* Overlay léger pour détacher les éléments si besoin */
+.host-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* ==========================================
+   ZONE DE JEU
+   ========================================== */
+.host-game-zone {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 40px;
+}
+
+/* --- LOGO (Bas Gauche) --- */
+.host-logo-corner {
+    position: absolute;
+    bottom: 30px;
+    left: 40px;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 70%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    /* Or subtil */
+}
+
+/* --- SLIDE NUMBER (Bas Droite) --- */
+.host-slide-number {
+    position: absolute;
+    bottom: 30px;
+    right: 40px;
+    background: white;
+    color: black;
+    font-size: 32px;
+    font-weight: 900;
+    padding: 10px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    transform: skew(-10deg);
+}
+
+/* --- QUESTION BUBBLE (Haut Droite) --- */
+.host-question-container {
+    position: absolute;
+    top: 10%;
+    right: 5%;
+    width: 55%;
+    /* Prend un peu plus de la moitié droite */
+    display: flex;
+    justify-content: flex-end;
+}
+
+.host-question-bubble {
+    background: white;
+    color: black;
+    border-radius: 20px;
+    padding: 20px 30px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border-left: 8px solid #c0392b;
+    /* Petit accent rouge comme sur l'image */
+    animation: slideInRight 0.5s ease-out;
+}
+
+.host-question-avatar {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+}
+
+.host-question-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.host-question-text {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+/* --- ANSWERS STACK (Droite Verticale) --- */
+.host-answers-stack {
+    position: absolute;
+    bottom: 15%;
+    /* Au dessus du logo/numéro */
+    right: 5%;
+    width: 45%;
+    /* Colonne de droite */
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.host-answer-row {
+    display: flex;
+    align-items: stretch;
+    background: linear-gradient(90deg, rgba(20, 30, 60, 0.9) 0%, rgba(20, 30, 60, 0.6) 100%);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    /* Bordure Or */
+    border-radius: 12px;
+    overflow: hidden;
+    height: 70px;
+    /* Hauteur fixe pour uniformité */
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
+    /* Lueur dorée légère */
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity: 0;
+    transform: translateX(50px);
+    animation: slideInStack 0.5s forwards;
+    cursor: default;
+}
+
+/* Décalage d'animation pour effet cascade */
+.host-answer-row:nth-child(1) {
+    animation-delay: 0.1s;
+    border-color: #4facfe;
+}
+
+/* A - Blueish override? Non, gardons Or pour style Harry Potter */
+.host-answer-row:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.host-answer-row:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.host-answer-row:nth-child(4) {
+    animation-delay: 0.4s;
+}
+
+.host-answer-letter {
+    width: 70px;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    /* Bleu Roi */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.host-answer-text {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding-left: 20px;
+    font-size: 22px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px black;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Effet "Sparkle" ou traînée lumineuse */
+.host-answer-text::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shine 3s infinite;
+}
+
+/* Reveal States */
+.host-answer-row.correct {
+    background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+    border-color: #fff;
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(56, 239, 125, 0.6);
+}
+
+.host-answer-row.wrong {
+    opacity: 0.4;
+    filter: grayscale(1);
+    transform: scale(0.95);
+}
+
+/* --- ANIMATIONS --- */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInStack {
+    from {
+        transform: translateX(50px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes shine {
+    0% {
+        left: -100%;
+    }
+
+    20% {
+        left: 100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+/* Mode Édition - Adaptation */
+.editor-preview .host-slide-number {
+    bottom: 10px;
+    right: 10px;
+    font-size: 20px;
+}
+
+.editor-preview .host-question-container {
+    top: 5%;
+}
+
+.editor-preview .host-answers-stack {
+    bottom: 10%;
+    gap: 8px;
+}
+
+.editor-preview .host-answer-row {
+    height: 40px;
+}
+
+.editor-preview .host-answer-letter {
+    width: 40px;
+    font-size: 16px;
+}
+
+.editor-preview .host-answer-text {
+    font-size: 14px;
+}
+
+.editor-preview .host-question-text {
+    font-size: 16px;
+}

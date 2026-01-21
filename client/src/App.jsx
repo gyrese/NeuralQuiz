@@ -55,11 +55,11 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app">
-        {!isConnected && (
+        {/* {!isConnected && (
           <div style={{ backgroundColor: 'red', color: 'white', textAlign: 'center', padding: '5px' }}>
             DÉCONNECTÉ DU SERVEUR
           </div>
-        )}
+        )} */}
 
         <Routes>
           {/* Home */}

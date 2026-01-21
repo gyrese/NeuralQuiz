@@ -5,11 +5,53 @@
 
 const aperoGameManager = require('../aperoGameManager');
 const aperoQuizzes = require('../aperoQuizzes');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configuration de l'upload
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'img-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // Limite 5MB
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Seules les images sont autorisées !'));
+        }
+    }
+});
 
 // ================================================
 // API REST - Gestion des Quiz (Admin)
 // ================================================
 function setupAperoRoutes(app) {
+
+    // --- UPLOAD ROUTE ---
+    app.post('/api/apero/upload', upload.single('image'), (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ error: 'Aucun fichier uploadé' });
+            }
+            // Retourne l'URL relative accessible via le serveur statique
+            const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+            res.json({ url: fileUrl });
+        } catch (error) {
+            console.error('Upload error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // Liste tous les quiz
     app.get('/api/apero/quizzes', (req, res) => {
         res.json(aperoQuizzes.getAll());
@@ -240,6 +282,39 @@ function handleConnection(io, socket) {
                 questionType: result.questionType,
                 timer: result.timer
             });
+        } else {
+            socket.emit('apero-error', { message: 'Open failed: ' + result.error });
+        }
+    });
+
+    // Une équipe rejoint
+    socket.on('apero-team-join', ({ roomCode, teamName, avatar }, callback) => {
+        if (!roomCode || !teamName) {
+            const errorMsg = 'Données manquantes';
+            if (callback) callback({ error: errorMsg });
+            else socket.emit('apero-error', { message: errorMsg });
+            return;
+        }
+
+        const result = aperoGameManager.joinRoom(roomCode, socket.id, teamName, avatar);
+
+        if (result.success) {
+            socket.join(roomCode);
+            socket.roomCode = roomCode;
+            socket.teamName = result.team.name;
+
+            // Reply to sender (ACK)
+            if (callback) callback({ success: true, ...result });
+
+            // Broadcast to room (Host needs to know)
+            io.to(roomCode).emit('apero-team-joined', {
+                roomCode,
+                teamName: result.team.name,
+                avatar: result.team.avatar
+            });
+        } else {
+            if (callback) callback({ error: result.error });
+            else socket.emit('apero-error', { message: result.error });
         }
     });
 
@@ -280,37 +355,7 @@ function handleConnection(io, socket) {
     // === TEAM Events ===
 
     // Rejoindre une salle
-    socket.on('apero-team-join', ({ roomCode, teamName }) => {
-        const normalizedCode = roomCode?.toUpperCase();
-        const room = aperoGameManager.getRoom(normalizedCode);
-        if (!room) {
-            console.log(`[APERO] Team join failed - Room not found: ${normalizedCode}`);
-            socket.emit('apero-error', { message: 'Salon introuvable' });
-            return;
-        }
 
-        const result = aperoGameManager.joinRoom(normalizedCode, socket.id, teamName);
-        if (result.error) {
-            socket.emit('apero-error', { message: result.error });
-            return;
-        }
-
-        socket.join(normalizedCode);
-        socket.roomCode = normalizedCode;
-        socket.teamName = teamName;
-
-        socket.emit('apero-team-joined', {
-            roomCode: normalizedCode,
-            teamName,
-            reconnected: result.reconnected,
-            gameState: result.gameState
-        });
-
-        // Notifier le host
-        io.to(normalizedCode).emit('apero-teams-updated', {
-            teams: aperoGameManager.getTeamsInRoom(normalizedCode)
-        });
-    });
 
     // Soumettre une réponse
     socket.on('apero-team-answer', ({ answer }) => {
@@ -355,4 +400,3 @@ function handleConnection(io, socket) {
 }
 
 module.exports = { setupAperoRoutes, handleConnection };
-

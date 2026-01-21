@@ -57,7 +57,7 @@ class AperoGameManager {
     /**
      * Une équipe rejoint la partie
      */
-    joinRoom(roomCode, socketId, teamName) {
+    joinRoom(roomCode, socketId, teamName, avatar = null) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: 'Salon introuvable' };
 
@@ -70,6 +70,7 @@ class AperoGameManager {
             const team = room.teams.get(teamName);
             team.socketId = socketId;
             team.disconnected = false;
+            if (avatar) team.avatar = avatar; // Update avatar on reconnect if provided
             console.log(`[APERO] Team "${teamName}" reconnected to room ${roomCode}`);
             return {
                 success: true,
@@ -83,6 +84,7 @@ class AperoGameManager {
         // Nouvelle équipe
         const team = {
             name: teamName,
+            avatar: avatar || '👤', // Default emoji if none provided
             socketId: socketId,
             totalScore: 0,
             answers: [],           // Historique des réponses
@@ -103,8 +105,14 @@ class AperoGameManager {
      */
     startGame(roomCode) {
         const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-        if (!room.quizData?.slides?.length) return { error: 'Aucun quiz chargé' };
+        if (!room) {
+            console.error(`[APERO] StartGame Error: Room ${roomCode} not found`);
+            return { error: 'Salon introuvable' };
+        }
+        if (!room.quizData?.slides?.length) {
+            console.error(`[APERO] StartGame Error: No slides in quiz for room ${roomCode}`);
+            return { error: 'Aucun quiz chargé' };
+        }
 
         room.gameState = 'PLAYING';
         room.currentSlideIndex = 0;
@@ -535,7 +543,7 @@ class AperoGameManager {
                         console.log(`[APERO] Host didn't reconnect, deleting room ${code}`);
                         this.rooms.delete(code);
                     }
-                }, 60000); // 60 seconds grace period
+                }, 300000); // 5 minutes grace period
 
                 return { roomCode: code, isHost: true, hostDisconnected: true };
             }

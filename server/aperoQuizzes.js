@@ -85,6 +85,7 @@ class AperoQuizzes {
             id: q.id,
             title: q.title,
             description: q.description,
+            slides: q.slides || [], // Include full slides for thumbnails
             slideCount: q.slides?.length || 0,
             questionCount: q.slides?.filter(s => s.type === 'question').length || 0,
             createdAt: q.createdAt,

@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* Bootstrap Overrides */
   --bs-body-bg: #050505;

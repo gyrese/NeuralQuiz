@@ -66,22 +66,23 @@ Quiz de bar interactif où les équipes répondent sur leur téléphone pendant 
 - [x] **Mode Canvas Libre** : Intégration de `react-rnd` pour Drag & Drop & Resize
 - [x] **Types d'éléments** : Texte riche, Image, Forme (Rectangle/Rond), Sticker
 - [x] **Toolbar** : Outils de mise en forme (Police, Couleur, Alignement, Z-Index)
-- [ ] **Drag & Drop Slides** : Réordonner la liste des slides
+- [x] **Menu Contextuel** : Clic droit (Copier/Coller, Premier plan, Animer...)
+- [x] **Édition Rapide** : Double-clic pour éditer le texte
+- [x] **Animations d'éléments** : Apparition/Disparition au clic (Séquenceur)
+- [ ] **Drag & Drop Slides** : Réordonner la liste des slides (Sidebar)
 - [ ] **Undo/Redo** : Annuler les modifications
 - [ ] **Preview Mode** : Voir le quiz comme un joueur
 
-### Médias
+### Médias & Contenu
+- [ ] **Upload d'images** : Stockage local des images (Backend)
+- [ ] **Import Google Slides** : Script d'extraction du texte depuis GSlides
 - [ ] **Vidéo Youtube** : Ajouter une vidéo à une question
-- [ ] **Upload d'images** : Ajouter une image à une question
-- [ ] **Positionnement** : Image en fond, à gauche, à droite
 - [ ] **GIFs animés** : Support des animations
-- [ ] **Redimensionnement** : Ajuster la taille de l'image
 
 ### Thèmes & Styles
 - [ ] **Thème par slide** : Pouvoir changer le thème slide par slide
 - [ ] **Couleurs personnalisées** : Picker de couleur pour background
-- [ ] **Polices** : Choix de police pour le texte
-- [ ] **Animations** : Transitions entre slides
+- [ ] **Animations Globales** : Transitions entre slides (Fondus, Glissements)
 
 ---
 

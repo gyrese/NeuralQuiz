@@ -21,6 +21,9 @@ adminController.setupRoutes(app);
 // Setup Apero API Routes
 aperoController.setupAperoRoutes(app);
 
+// Servir les fichiers uploadés (Images, etc.)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // API REST pour l'Admin
 app.get('/api/quizzes', (req, res) => {
     res.json(quizManager.getAllQuizzes());

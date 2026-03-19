@@ -196,6 +196,90 @@
     font-family: var(--font-display);
 }
 
+/* Response Success Card - Enhanced visibility */
+.geo-response-success {
+    background: rgba(0, 255, 65, 0.15);
+    border: 2px solid var(--neon-green);
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    animation: responseCardPulse 2s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+}
+
+.geo-response-success .response-emoji {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    animation: responseEmojiPop 0.6s ease-out;
+}
+
+.geo-response-success h3 {
+    color: var(--neon-green);
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: 1px;
+}
+
+@keyframes responseCardPulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(0, 255, 65, 0.6);
+    }
+}
+
+@keyframes responseEmojiPop {
+    0% {
+        transform: scale(0) rotate(-180deg);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.15);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Waiting Message - Enhanced visibility */
+.geo-waiting-message {
+    text-align: center;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.geo-waiting-spinner {
+    margin-bottom: 1.5rem;
+}
+
+.geo-waiting-spinner .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    border-width: 0.4rem;
+}
+
+.geo-waiting-text {
+    color: var(--neon-blue);
+    font-size: 1.1rem;
+    font-weight: 500;
+    animation: waitingPulse 2s ease-in-out infinite;
+    letter-spacing: 0.5px;
+}
+
+@keyframes waitingPulse {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+        text-shadow: 0 0 10px rgba(0, 219, 222, 0.8);
+    }
+}
+
 /* Results Map */
 .geo-results-map {
     width: 100%;
@@ -334,6 +418,11 @@
     font-weight: bold;
     color: #fff;
     margin-bottom: 0.25rem;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0 auto 0.25rem;
 }
 
 .geo-podium-score {
@@ -360,6 +449,9 @@
 
 .geo-final-name {
     flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .geo-final-score {
@@ -592,23 +684,27 @@
         bottom: 0.5rem;
         right: 0.5rem;
         left: 0.5rem;
+        z-index: 110;
     }
 
     .geo-minimap {
         width: 100%;
-        height: 120px;
+        height: 240px;
+        border-radius: 12px;
     }
 
     /* Mobile: agrandir au tap (focus) */
     .geo-minimap-container:focus-within .geo-minimap,
     .geo-minimap-container:active .geo-minimap {
-        height: 250px;
+        height: 320px;
+        box-shadow: 0 0 30px rgba(0, 255, 65, 0.6), 0 12px 48px rgba(0, 0, 0, 0.6);
     }
 
     /* Ou quand on interagit avec la carte */
     .geo-minimap:focus,
     .geo-minimap:active {
-        height: 250px;
+        height: 320px;
+        box-shadow: 0 0 30px rgba(0, 255, 65, 0.6), 0 12px 48px rgba(0, 0, 0, 0.6);
     }
 
     .geo-podium {
@@ -623,6 +719,35 @@
 
     .geo-results-map {
         height: 300px;
+    }
+}
+
+/* Extra small screens - improve map for tiny phones */
+@media (max-width: 480px) {
+    .geo-minimap {
+        height: 280px;
+    }
+
+    .geo-minimap-container:focus-within .geo-minimap,
+    .geo-minimap-container:active .geo-minimap {
+        height: 360px;
+    }
+
+    .geo-minimap:focus,
+    .geo-minimap:active {
+        height: 360px;
+    }
+}
+
+/* Landscape orientation - optimize for better map view */
+@media (max-height: 500px) and (orientation: landscape) {
+    .geo-minimap {
+        height: 160px;
+    }
+
+    .geo-minimap-container:focus-within .geo-minimap,
+    .geo-minimap-container:active .geo-minimap {
+        height: 240px;
     }
 }
 
@@ -1904,7 +2029,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
+    z-index: 8999;
+    pointer-events: none;
     animation: fadeIn 0.3s ease-out;
 }
 
@@ -2025,7 +2151,7 @@
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 9000;
+    z-index: 8998;
     overflow: hidden;
 }
 

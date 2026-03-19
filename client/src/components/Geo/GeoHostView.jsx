@@ -49,6 +49,11 @@ function GeoHostView() {
     const gameStateRef = useRef(gameState); // Ref pour accéder à gameState dans les callbacks
     const streetViewWatchdogRef = useRef(null); // Watchdog pour vérifier que Street View est visible
     const streetViewLoadedRef = useRef(false); // Flag pour savoir si Street View est chargée
+    const isRequestingLocationRef = useRef(false); // Flag to prevent multiple parallel new location requests
+    const roundStartTimeRef = useRef(null); // For smooth timer interpolation
+    const timerDurationRef = useRef(null); // For smooth timer interpolation
+    const allPlayersAnsweredRef = useRef(false); // Track if all players have answered
+    const allPlayersAnsweredTimeRef = useRef(null); // When all players answered (timestamp)
 
     // Synchroniser gameStateRef et nettoyer les timers quand on sort de PLAYING
     useEffect(() => {
@@ -113,6 +118,10 @@ function GeoHostView() {
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             rotationRef.current = null;
             panoramaInstance.current = null;
+            
+            // Reset "all players answered" flags for new round
+            allPlayersAnsweredRef.current = false;
+            allPlayersAnsweredTimeRef.current = null;
 
             setGameState('PLAYING');
             setCurrentRound(data.round);
@@ -134,23 +143,78 @@ function GeoHostView() {
                 console.log(`[Host] Timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
             }
 
+            // Store refs for smooth interpolation
+            roundStartTimeRef.current = data.roundStartTime || Date.now();
+            timerDurationRef.current = duration;
+
             setTimeLeft(initialTimeLeft);
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
-                    if (prev <= 10 && prev > 0) soundManager.playTick();
-                    if (prev <= 1) {
-                        clearInterval(timerRef.current);
-                        timerRef.current = null;
-                        // Auto-end round when timer expires
-                        setTimeout(() => {
-                            if (gameStateRef.current === 'PLAYING') {
-                                endRound();
+                    // Use server time for smooth interpolation to avoid jitter
+                    const startTime = roundStartTimeRef.current;
+                    const dur = timerDurationRef.current;
+                    
+                    if (startTime && dur) {
+                        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                        const remaining = Math.max(0, dur - elapsed);
+                        
+                        if (remaining <= 10 && remaining > 0) soundManager.playTick();
+                        
+                        // Check if we should end the round
+                        let shouldEnd = false;
+                        if (remaining <= 0) {
+                            shouldEnd = true;
+                            console.log('[Host] Timer reached 0');
+                        } else if (allPlayersAnsweredRef.current && allPlayersAnsweredTimeRef.current) {
+                            // All players answered - check if 3+ seconds have passed
+                            const timePassedSinceAllAnswered = Math.floor((Date.now() - allPlayersAnsweredTimeRef.current) / 1000);
+                            if (timePassedSinceAllAnswered >= 3) {
+                                shouldEnd = true;
+                                console.log('[Host] All answered 3+ seconds ago, ending round');
                             }
-                        }, 100);
-                        return 0;
+                        }
+                        
+                        if (shouldEnd) {
+                            clearInterval(timerRef.current);
+                            timerRef.current = null;
+                            setTimeout(() => {
+                                if (gameStateRef.current === 'PLAYING') {
+                                    endRound();
+                                }
+                            }, 100);
+                            return 0;
+                        }
+                        return remaining;
+                    } else {
+                        // Fallback to simple decrement
+                        if (prev <= 10 && prev > 0) soundManager.playTick();
+                        
+                        // Check if we should end the round
+                        let shouldEnd = false;
+                        if (prev <= 1) {
+                            shouldEnd = true;
+                            console.log('[Host] Fallback timer reached 0');
+                        } else if (allPlayersAnsweredRef.current && allPlayersAnsweredTimeRef.current) {
+                            const timePassedSinceAllAnswered = Math.floor((Date.now() - allPlayersAnsweredTimeRef.current) / 1000);
+                            if (timePassedSinceAllAnswered >= 3) {
+                                shouldEnd = true;
+                                console.log('[Host] Fallback: All answered 3+ seconds ago, ending round');
+                            }
+                        }
+                        
+                        if (shouldEnd) {
+                            clearInterval(timerRef.current);
+                            timerRef.current = null;
+                            setTimeout(() => {
+                                if (gameStateRef.current === 'PLAYING') {
+                                    endRound();
+                                }
+                            }, 100);
+                            return 0;
+                        }
+                        return prev - 1;
                     }
-                    return prev - 1;
                 });
             }, 1000);
         });
@@ -179,6 +243,10 @@ function GeoHostView() {
             }
             setGameState('ROUND_END');
             setRoundResults(data.results);
+            setPlayers(prevPlayers => prevPlayers.map(p => {
+                const res = data.results.find(r => r.id === p.id);
+                return res ? { ...p, totalScore: res.totalScore } : p;
+            }));
             setCorrectLocation(data.correctLocation);
             correctLocationRef.current = data.correctLocation; // Sync ref
             setIsEndingRound(false);
@@ -231,6 +299,11 @@ function GeoHostView() {
             correctLocationRef.current = data.location; // Sync ref for initStreetView
             setRoundResults(null);
             setGuessedPlayers(new Set());
+            
+            // Reset "all players answered" flags for new round
+            allPlayersAnsweredRef.current = false;
+            allPlayersAnsweredTimeRef.current = null;
+            
             soundManager.play('start');
 
             // Start timer synchronized with server's roundStartTime
@@ -245,29 +318,64 @@ function GeoHostView() {
                     console.log(`[Host] Next round timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
                 }
 
+                // Store refs for smooth interpolation
+                roundStartTimeRef.current = data.roundStartTime || Date.now();
+                timerDurationRef.current = duration;
+
                 setTimeLeft(initialTimeLeft);
+                if (timerRef.current) clearInterval(timerRef.current);
                 timerRef.current = setInterval(() => {
                     setTimeLeft(prev => {
-                        if (prev <= 10 && prev > 0) soundManager.playTick();
-                        if (prev <= 1) {
-                            clearInterval(timerRef.current);
-                            timerRef.current = null;
-                            setTimeout(() => {
-                                if (gameStateRef.current === 'PLAYING') {
-                                    endRound();
-                                }
-                            }, 100);
-                            return 0;
+                        // Use server time for smooth interpolation
+                        const startTime = roundStartTimeRef.current;
+                        const dur = timerDurationRef.current;
+                        
+                        if (startTime && dur) {
+                            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                            const remaining = Math.max(0, dur - elapsed);
+                            
+                            if (remaining <= 10 && remaining > 0) soundManager.playTick();
+                            if (remaining <= 0) {
+                                clearInterval(timerRef.current);
+                                timerRef.current = null;
+                                setTimeout(() => {
+                                    if (gameStateRef.current === 'PLAYING') {
+                                        endRound();
+                                    }
+                                }, 100);
+                                return 0;
+                            }
+                            return remaining;
+                        } else {
+                            // Fallback to simple decrement
+                            if (prev <= 10 && prev > 0) soundManager.playTick();
+                            if (prev <= 1) {
+                                clearInterval(timerRef.current);
+                                timerRef.current = null;
+                                setTimeout(() => {
+                                    if (gameStateRef.current === 'PLAYING') {
+                                        endRound();
+                                    }
+                                }, 100);
+                                return 0;
+                            }
+                            return prev - 1;
                         }
-                        return prev - 1;
                     });
                 }, 1000);
             }, 200);
 
             // Force init Street View after DOM is ready
             setTimeout(() => {
-                console.log('[HOST] Force initializing Street View from geo-next-round');
-                initStreetView();
+                if (window.google) {
+                    console.log('[HOST] Force initializing Street View from geo-next-round');
+                    initStreetView();
+                } else {
+                    console.warn('[HOST] Google Maps not available yet, retrying...');
+                    setTimeout(() => {
+                        if (window.google) initStreetView();
+                    }, 500);
+                }
             }, 500);
         });
 
@@ -321,6 +429,14 @@ function GeoHostView() {
             setTotalRounds(newSettings.roundsCount || 5);
         });
 
+        const handleConnect = () => {
+            if (roomCodeRef.current) {
+                console.log('[Host] Reconnected via Socket.IO -> re-joining room');
+                socket.emit('geo-host-reconnect', { roomCode: roomCodeRef.current });
+            }
+        };
+        socket.on('connect', handleConnect);
+
         return () => {
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
@@ -333,81 +449,190 @@ function GeoHostView() {
             socket.off('geo-game-over');
             socket.off('geo-game-restarted');
             socket.off('geo-settings-updated');
+            socket.off('connect', handleConnect);
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             if (autoNextRef.current) clearInterval(autoNextRef.current);
         };
     }, []);
 
-    // Détection automatique "Tous ont répondu"
+    // Détection automatique "Tous ont répondu" - ensure 3-second minimum countdown
     useEffect(() => {
         if (gameState === 'PLAYING' && players.length > 0 && guessedPlayers.size === players.length) {
-            // Force le timer à 3 secondes max si tous ont répondu
+            // First time all players answered
+            if (!allPlayersAnsweredRef.current) {
+                console.log('[Host] All players answered! Ensuring 3-second countdown...');
+                allPlayersAnsweredRef.current = true;
+                allPlayersAnsweredTimeRef.current = Date.now();
+            }
+            // Ensure timer doesn't drop below 3 seconds
             setTimeLeft(prev => Math.min(prev, 3));
         }
     }, [guessedPlayers, players.length, gameState]);
 
-    // Charger Google Maps API et initialiser Street View
-    // Trigger on PLAYING (during game) and ROUND_END (to show results)
+    // Global flag to prevent multiple API loading attempts
+    const googleMapsLoadingRef = useRef(false);
+    const googleMapsReadyRef = useRef(false);
+    const streetViewInitAttemptRef = useRef(null); // Track current init attempt
+
+    // Charger Google Maps API avec garantie que window.google.maps est disponible
     useEffect(() => {
-        if ((gameState === 'PLAYING' || gameState === 'ROUND_END') && correctLocation) {
-            // Delay to ensure DOM is rendered before initializing Street View
+        const loadGoogleMapsAPI = async () => {
+            // Already loaded or loading
+            if (googleMapsReadyRef.current) {
+                console.log('[Host] Google Maps API already ready');
+                return;
+            }
+            if (googleMapsLoadingRef.current) {
+                console.log('[Host] Google Maps API already loading');
+                return;
+            }
+
+            googleMapsLoadingRef.current = true;
+
+            // Check if already present
+            if (window.google?.maps?.StreetViewService) {
+                console.log('[Host] Google Maps API already available on window');
+                googleMapsReadyRef.current = true;
+                googleMapsLoadingRef.current = false;
+                return;
+            }
+
+            console.log('[Host] Starting Google Maps API load...');
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+            script.async = true;
+
+            return new Promise((resolve, reject) => {
+                script.onload = () => {
+                    console.log('[Host] Google Maps script loaded, waiting for window.google.maps...');
+                    
+                    // Poll for window.google.maps.StreetViewService
+                    let attempts = 0;
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+                        if (window.google?.maps?.StreetViewService) {
+                            clearInterval(checkInterval);
+                            console.log('[Host] ✓ window.google.maps.StreetViewService is ready after', attempts, 'checks');
+                            googleMapsReadyRef.current = true;
+                            googleMapsLoadingRef.current = false;
+                            resolve();
+                        } else if (attempts > 50) { // Timeout after 5 seconds (50 * 100ms)
+                            clearInterval(checkInterval);
+                            console.error('[Host] ✗ Timeout waiting for window.google.maps.StreetViewService');
+                            googleMapsLoadingRef.current = false;
+                            reject(new Error('Google Maps API timeout'));
+                        }
+                    }, 100);
+                };
+
+                script.onerror = () => {
+                    console.error('[Host] ✗ Failed to load Google Maps API script');
+                    googleMapsLoadingRef.current = false;
+                    reject(new Error('Failed to load Google Maps API'));
+                };
+
+                document.head.appendChild(script);
+            }).catch(error => {
+                console.error('[Host] Google Maps loading error:', error);
+                googleMapsLoadingRef.current = false;
+            });
+        };
+
+        loadGoogleMapsAPI();
+    }, []);
+
+    // Initialiser Street View quand la partie commence
+    useEffect(() => {
+        if ((gameState === 'PLAYING' || gameState === 'ROUND_END') && correctLocation && googleMapsReadyRef.current) {
+            const attemptId = Math.random();
+            streetViewInitAttemptRef.current = attemptId;
+            
+            console.log(`[Host] useEffect trigger for init (attempt ${attemptId})`);
+            
+            // Delay to ensure DOM is rendered and API is ready
             const timeoutId = setTimeout(() => {
-                if (!window.google) {
-                    const script = document.createElement('script');
-                    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGeoHost`;
-                    script.async = true;
-                    window.initGeoHost = () => initStreetView();
-                    document.head.appendChild(script);
-                } else {
+                // Only proceed if this is still the current attempt
+                if (streetViewInitAttemptRef.current === attemptId) {
                     initStreetView();
+                } else {
+                    console.log(`[Host] Skipping old init attempt ${attemptId}`);
                 }
             }, 300);
 
-            return () => clearTimeout(timeoutId);
+            return () => {
+                clearTimeout(timeoutId);
+            };
         }
     }, [gameState, currentRound, correctLocation]);
 
     const initStreetView = (retryCount = 0) => {
+        // Verify API is ready before attempting initialization
+        if (!window.google?.maps?.StreetViewService) {
+            console.warn(`[Host] initStreetView called but google.maps not ready (retry ${retryCount})`);
+            if (retryCount < 5) {
+                setTimeout(() => initStreetView(retryCount + 1), 200);
+            } else {
+                console.error('[Host] ✗ Gave up on initStreetView after 5 retries - API not available');
+            }
+            return;
+        }
+
         // Use ref to get the latest correctLocation value
         const location = correctLocationRef.current;
         if (!location || !streetViewRef.current) {
-            console.log('[Host] initStreetView called but missing location or ref', { location, ref: !!streetViewRef.current, retryCount });
-            // Retry up to 3 times with increasing delay
+            console.log('[Host] initStreetView: missing location or ref', { location: !!location, ref: !!streetViewRef.current, retry: retryCount });
             if (retryCount < 3) {
                 setTimeout(() => initStreetView(retryCount + 1), 300);
             }
             return;
         }
 
-        console.log('[Host] Checking Street View coverage for:', location.city, location.lat, location.lng);
+        console.log(`[Host] ✓ Initializing Street View for ${location.city} (retry ${retryCount})`);
+        streetViewLoadedRef.current = false; // Reset flag
 
-        // Use StreetViewService to check if coverage exists
-        const streetViewService = new window.google.maps.StreetViewService();
-        const position = { lat: location.lat, lng: location.lng };
+        try {
+            const streetViewService = new window.google.maps.StreetViewService();
+            const position = { lat: location.lat, lng: location.lng };
 
-        // Use 500m radius for better coverage (50m was too restrictive)
-        streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
-            if (status === 'OK') {
-                console.log('[Host] Street View coverage found, initializing panorama');
-                initPanorama(location, data.location.latLng);
-            } else {
-                console.warn('[Host] No Street View coverage for this location, status:', status);
-                // Only request new location during PLAYING state, not during ROUND_END
-                if (gameState === 'PLAYING') {
-                    requestNewLocation();
+            // Use 500m radius for better coverage
+            streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
+                if (status === 'OK') {
+                    console.log('[Host] ✓ Street View coverage found, initializing panorama');
+                    initPanorama(location, data.location.latLng);
                 } else {
-                    console.log('[Host] In ROUND_END state, cannot request new location');
+                    console.warn('[Host] ✗ No Street View coverage for this location, status:', status);
+                    // Only request new location during PLAYING state
+                    if (gameStateRef.current === 'PLAYING') {
+                        requestNewLocation();
+                    }
                 }
+            });
+        } catch (error) {
+            console.error('[Host] Error in initStreetView:', error);
+            if (retryCount < 3) {
+                setTimeout(() => initStreetView(retryCount + 1), 300);
             }
-        });
+        }
     };
 
     // Request a new location from the server when current one has no Street View
     const requestNewLocation = () => {
+        if (isRequestingLocationRef.current) {
+            console.log('[Host] Already requesting new location, skipping duplicate');
+            return;
+        }
+        if (!googleMapsReadyRef.current) {
+            console.warn('[Host] Google Maps not ready, cannot request new location');
+            return;
+        }
+        
+        isRequestingLocationRef.current = true;
+        
         const currentRoomCode = roomCodeRef.current || roomCode;
         console.log('[Host] Requesting new location from server');
         socket.emit('geo-request-new-location', { roomCode: currentRoomCode }, (response) => {
+            isRequestingLocationRef.current = false;
             if (response.success && response.location) {
                 console.log('[Host] Received new location:', response.location.city);
                 setCorrectLocation(response.location);
@@ -436,7 +661,7 @@ function GeoHostView() {
 
         // ALWAYS create a new instance because the DOM element (streetViewRef.current) 
         // might have been destroyed/recreated by React between rounds/states.
-        console.log('[Host] Creating new panorama instance');
+        console.log('[Host] Creating new panorama instance with interactive controls');
         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
             streetViewRef.current,
             {
@@ -445,9 +670,9 @@ function GeoHostView() {
                 zoom: 0,
                 addressControl: false,
                 showRoadLabels: false,
-                linksControl: false,
-                panControl: false,
-                zoomControl: false,
+                linksControl: true,   // Enable navigation links for interactivity
+                panControl: true,     // Enable panning
+                zoomControl: true,    // Enable zooming
                 enableCloseButton: false,
                 fullscreenControl: false,
                 motionTracking: false,
@@ -485,7 +710,7 @@ function GeoHostView() {
         }
 
         let failCount = 0;
-        const MAX_FAILS = 3;
+        const MAX_FAILS = 4; // Tolerance of ~12 seconds
 
         streetViewWatchdogRef.current = setInterval(() => {
             // Only check during PLAYING state
@@ -516,14 +741,14 @@ function GeoHostView() {
                 }
             }
 
-            // If too many fails, try to reload Street View
+            // If too many fails, try to get a new location because panorama is broken
             if (failCount >= MAX_FAILS) {
-                console.log('[Host Watchdog] Too many fails, reloading Street View...');
+                console.log('[Host Watchdog] Too many fails, panorama is likely black/empty. Requesting new location...');
                 failCount = 0;
                 streetViewLoadedRef.current = false;
-                initStreetView();
+                requestNewLocation();
             }
-        }, 2000); // Check every 2 seconds
+        }, 3000); // Check every 3 seconds for mobile network tolerance
     };
 
     // Init map pour les résultats
@@ -575,7 +800,9 @@ function GeoHostView() {
 
             onRemove() {
                 if (this.div) {
-                    this.div.parentNode.removeChild(this.div);
+                    if (this.div.parentNode) {
+                        this.div.parentNode.removeChild(this.div);
+                    }
                     this.div = null;
                 }
             }
@@ -741,7 +968,11 @@ function GeoHostView() {
                 // Force init Street View after DOM is ready (like nextRound does)
                 setTimeout(() => {
                     console.log('[HOST] Force initializing Street View for Game Start');
-                    initStreetView();
+                    if (window.google) {
+                        initStreetView();
+                    } else {
+                        console.warn('[HOST] Google Maps not available yet in startGame, will retry via useEffect');
+                    }
                 }, 500);
             } else {
                 console.error('Erreur démarrage:', response.error);
@@ -828,6 +1059,10 @@ function GeoHostView() {
 
                 setGameState('ROUND_END');
                 setRoundResults(response.results);
+                setPlayers(prevPlayers => prevPlayers.map(p => {
+                    const res = response.results.find(r => r.id === p.id);
+                    return res ? { ...p, totalScore: res.totalScore } : p;
+                }));
                 setCorrectLocation(response.correctLocation);
                 soundManager.play('end');
 
@@ -914,7 +1149,11 @@ function GeoHostView() {
                 // Force re-init Street View with a slightly longer delay to ensure DOM mount
                 setTimeout(() => {
                     console.log('[HOST] Force initializing Street View for Next Round');
-                    initStreetView();
+                    if (window.google) {
+                        initStreetView();
+                    } else {
+                        console.warn('[HOST] Google Maps not available yet in nextRound, will retry via useEffect');
+                    }
                 }, 500);
             } else {
                 console.error('[GEO] nextRound error:', response.error);
@@ -1292,7 +1531,6 @@ function GeoHostView() {
                         <div className="geo-playing-streetview-panel">
                             <div className="streetview-frame">
                                 <div
-                                    key={`sv-${currentRound}`}
                                     ref={streetViewRef}
                                     className="geo-playing-streetview"
                                 ></div>

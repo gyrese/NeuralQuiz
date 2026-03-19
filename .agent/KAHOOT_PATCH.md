@@ -1,4 +1,4 @@
-# 🔧 PATCH KAHOOT POUR APÉRO EDITOR
+![alt text](image.png)# 🔧 PATCH KAHOOT POUR APÉRO EDITOR
 
 ## Instructions pour ajouter les fonctionnalités Kahoot sans casser Google Slides
 

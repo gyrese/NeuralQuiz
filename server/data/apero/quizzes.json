@@ -9,7 +9,7 @@
           "id": "slide_mkfcoohp6cky9qygc",
           "type": "title",
           "title": "🍻 Apéro Quiz",
-          "subtitle": "",
+          "subtitle": "Sous-titre",
           "theme": "gradient-purple",
           "background": {
             "type": "image",
@@ -19,7 +19,7 @@
           "layout": {},
           "slideType": "libre",
           "titleText": "",
-          "titleLogo": null,
+          "titleLogo": "",
           "bgOpacity": 0.2
         },
         {
@@ -49,7 +49,7 @@
           "theme": "dark",
           "background": {
             "type": "image",
-            "value": "http://192.168.1.14:3001/uploads/img-1768989210749-923982431.png"
+            "value": "http://localhost:3001/uploads/img-1769061775432-195563621.png"
           },
           "id": "slide_1768475569194",
           "elements": [],
@@ -58,16 +58,24 @@
           "question": "Combien de naines ?",
           "answers": [
             {
-              "id": "true",
-              "text": "Vrai",
-              "correct": true,
-              "color": "#1368ce"
+              "id": "a",
+              "text": "Réponse A",
+              "correct": true
             },
             {
-              "id": "false",
-              "text": "Faux",
-              "correct": false,
-              "color": "#e21b3c"
+              "id": "b",
+              "text": "Réponse B",
+              "correct": false
+            },
+            {
+              "id": "c",
+              "text": "Réponse C",
+              "correct": false
+            },
+            {
+              "id": "d",
+              "text": "Réponse D",
+              "correct": false
             }
           ],
           "qcmMedia": null,
@@ -78,7 +86,7 @@
           "sliderMax": 100,
           "sliderStep": 1,
           "sliderUnit": "",
-          "sliderCorrect": 99,
+          "sliderCorrect": 50,
           "sliderTolerance": 5
         },
         {
@@ -184,7 +192,7 @@
         }
       ],
       "createdAt": "2026-01-15T11:12:36.349Z",
-      "updatedAt": "2026-01-21T11:51:55.846Z"
+      "updatedAt": "2026-01-22T08:30:57.509Z"
     },
     {
       "id": "slide_mknjq6nbkkllvqbrj",

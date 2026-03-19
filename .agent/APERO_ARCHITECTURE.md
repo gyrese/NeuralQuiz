@@ -74,7 +74,7 @@
 - Zoom controls (⊖ 60% ⊕)
 
 #### **Propriétés (Sidebar Droite)**
-- **Calques** (z-index, delete)
+- **Calques** (z-index, delete): de l intégralité des objets, meme les fixes, et :les rendres moins fixe
 - **Diapositive**: Background, Thème
 - **Texte**: Font, Size, Color, Align
 - **Image**: URL, Size

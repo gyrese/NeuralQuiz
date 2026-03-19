@@ -273,15 +273,24 @@ function handleConnection(io, socket) {
 
     // Ouvrir une question (les joueurs peuvent répondre)
     socket.on('apero-host-open-question', () => {
+        console.log('[APERO] Host open-question received. roomCode:', socket.roomCode, 'isHost:', socket.isHost);
         if (!socket.roomCode || !socket.isHost) return;
 
         const result = aperoGameManager.openQuestion(socket.roomCode);
+        console.log('[APERO] openQuestion result:', result.success ? 'SUCCESS' : result.error);
+
         if (result.success) {
+            // Get all sockets in the room for debugging
+            const room = io.sockets.adapter.rooms.get(socket.roomCode);
+            console.log('[APERO] Broadcasting to room:', socket.roomCode, 'Clients in room:', room ? room.size : 0);
+
             io.to(socket.roomCode).emit('apero-question-opened', {
                 questionNumber: result.questionNumber,
                 questionType: result.questionType,
-                timer: result.timer
+                timer: result.timer,
+                slide: result.slide // Full slide data for player rendering
             });
+            console.log('[APERO] Emitted apero-question-opened to room');
         } else {
             socket.emit('apero-error', { message: 'Open failed: ' + result.error });
         }
@@ -289,30 +298,46 @@ function handleConnection(io, socket) {
 
     // Une équipe rejoint
     socket.on('apero-team-join', ({ roomCode, teamName, avatar }, callback) => {
+        console.log('[APERO-JOIN] Received join request:', { roomCode, teamName, hasAvatar: !!avatar, hasCallback: !!callback });
+
         if (!roomCode || !teamName) {
             const errorMsg = 'Données manquantes';
+            console.log('[APERO-JOIN] Error: Missing data');
             if (callback) callback({ error: errorMsg });
             else socket.emit('apero-error', { message: errorMsg });
             return;
         }
 
-        const result = aperoGameManager.joinRoom(roomCode, socket.id, teamName, avatar);
+        const normalizedCode = roomCode.toUpperCase();
+        console.log('[APERO-JOIN] Attempting to join room:', normalizedCode);
+
+        const result = aperoGameManager.joinRoom(normalizedCode, socket.id, teamName, avatar);
+        console.log('[APERO-JOIN] Join result:', { success: result.success, error: result.error });
 
         if (result.success) {
-            socket.join(roomCode);
-            socket.roomCode = roomCode;
+            socket.join(normalizedCode);
+            socket.roomCode = normalizedCode;
             socket.teamName = result.team.name;
+            console.log('[APERO-JOIN] Success! Socket joined room:', normalizedCode);
 
             // Reply to sender (ACK)
-            if (callback) callback({ success: true, ...result });
+            if (callback) callback({ success: true, roomCode: normalizedCode, ...result });
 
             // Broadcast to room (Host needs to know)
-            io.to(roomCode).emit('apero-team-joined', {
-                roomCode,
+            io.to(normalizedCode).emit('apero-team-joined', {
+                roomCode: normalizedCode,
                 teamName: result.team.name,
                 avatar: result.team.avatar
             });
+
+            // BROADCAST FULL LIST (Required for Host View)
+            const teams = aperoGameManager.getTeamsInRoom(normalizedCode);
+            console.log('[APERO-JOIN] Broadcasting teams update. Total teams:', teams.length);
+            io.to(normalizedCode).emit('apero-teams-updated', {
+                teams: teams
+            });
         } else {
+            console.log('[APERO-JOIN] Join failed:', result.error);
             if (callback) callback({ error: result.error });
             else socket.emit('apero-error', { message: result.error });
         }

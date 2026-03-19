@@ -410,11 +410,25 @@ class GeoGameManager {
             return { error: `Cannot end round: game is in ${room.gameState} state` };
         }
 
+        // 🔒 Race condition guard: only one endRound at a time
+        if (room.isEndingRound) {
+            console.log(`[GEO] endRound already in progress for room ${roomCode}, ignoring duplicate call`);
+            return { error: 'Round end already in progress' };
+        }
+        room.isEndingRound = true;
+
         room.gameState = 'ROUND_END';
 
         // Compiler les résultats du round
         const results = [];
         for (const player of room.players.values()) {
+            // Fix unhandled missing guesses so they don't inherit old score
+            if (!player.hasGuessed) {
+                player.roundScores.push(0);
+                player.roundDistances.push(null);
+                player.roundTimes.push(null);
+            }
+
             results.push({
                 id: player.id,
                 name: player.name,
@@ -430,6 +444,8 @@ class GeoGameManager {
         // Trier par score du round
         results.sort((a, b) => b.roundScore - a.roundScore);
 
+        room.isEndingRound = false; // Unlock after processing
+
         return {
             success: true,
             correctLocation: room.currentLocation,
@@ -442,6 +458,12 @@ class GeoGameManager {
     nextRound(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: 'Salon introuvable' };
+
+        // 🔒 Race condition guard: only allow from ROUND_END state
+        if (room.gameState !== 'ROUND_END') {
+            console.log(`[GEO] nextRound called but room ${roomCode} is in state ${room.gameState}, ignoring`);
+            return { error: `Cannot advance round: game is in ${room.gameState} state` };
+        }
 
         room.currentRound++;
 

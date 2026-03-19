@@ -1,105 +1,58 @@
-# 🌍 GeoGuessr Project - Todo List
+# 🌍 GeoGuessr (Geo Tracker) - Plan de Débuguage & Stabilisation
 
-## ✅ Terminé (Done)
-
-### Core Logic
-- [x] **Gestionnaire de Jeu** : `GeoGameManager` fonctionnel avec gestion des salons, états de jeu (LOBBY, PLAYING, ROUND_END, GAME_END).
-- [x] **Système de Rounds** : Flot complet implémenté (Start -> Timer -> End Round -> Next Round -> Game Over).
-- [x] **Calcul des Scores** : Formule de Haversine implémentée avec attribution de points exponentielle (max 5000 pts).
-- [x] **Multi-joueurs** : Communication Socket.IO temps réel fonctionnelle.
-- [x] **Synchronisation Timer** : Timer synchronisé entre Host et joueurs via `roundStartTime` serveur.
-- [x] **Auto-progression** : La partie avance automatiquement (30s après fin de manche, timer déclenche endRound).
-
-### Client - Host (Hôte)
-- [x] **Création de Salon** : Interface de configuration (nombre de manches, temps, région).
-- [x] **Tableau de Bord** : Vue dashboard pendant le jeu (Timer géant, statut des joueurs).
-- [x] **Affichage Résultats** : Grande carte interactive avec marqueurs de tous les joueurs.
-- [x] **Contrôle** : Boutons pour forcer la fin de manche et passer à la suivante.
-- [x] **Jouable sans télécommande** : La partie peut être jouée uniquement depuis le Host.
-
-### Client - Player (Joueur)
-- [x] **Interface de Jeu** : Vue Google Street View immersive.
-- [x] **Guessing** : Mini-carte Google Maps pour placer son marqueur.
-- [x] **Feedback** : Affichage immédiat de la distance et du score après la manche.
-- [x] **Optimisation** : Réutilisation de l'instance Street View (fix écran noir round 2+).
-- [x] **Paramètre newgame** : `?newgame=1` dans l'URL pour éviter la reconnexion automatique.
-
-### Contenu & Assets
-- [x] **Base de Données** : +400 lieux chargés (Monde, Europe, Asie, Amériques, Afrique, Océanie).
-- [x] **Visuels** : Utilisation des avatars des joueurs comme marqueurs sur la carte.
-- [x] **Mobile** : Configuration réseau (`host: true`) pour accès depuis smartphones.
-- [x] **Catégories spéciales** : Parcs d'attractions, Plages, Marchés avec filtrage par mots-clés.
-
-### Télécommande Admin
-- [x] **Télécommande Mobile** : Interface de contrôle dédiée (`GeoRemoteView.jsx`).
-- [x] **QR Code Télécommande** : Deuxième QR code dans le lobby pour accéder à l'interface de contrôle.
-- [x] **Persistance de Session** : Reconnexion automatique robuste lors du rafraîchissement.
-- [x] **Sync Settings** : Les settings modifiés sur la télécommande sont broadcastés au Host.
+Ce document recense tous les bugs connus, les points de friction techniques et le plan de fiabilisation pour le mode Geo Tracker. L'objectif est de garantir une expérience sans faille, même avec des déconnexions, sur tous les appareils.
 
 ---
 
-## 🚀 À Faire (Todo)
+## 🚨 Bugs Critiques & Fixes Immédiats
 
-### 1. Animations Style Kahoot 🎮
-> Priorité haute - rendre l'expérience plus dynamique et engageante
-
-- [ ] **Animation Début de Manche**
-  - Compte à rebours géant 3-2-1 en overlay
-  - Animation de zoom avant sur le globe terrestre
-  - Son de démarrage épique
-
-- [ ] **Animation Timer**
-  - Effet pulsant quand il reste < 10 secondes
-  - Changement de couleur progressif (vert → jaune → rouge)
-  - Shake/tremblement dans les 5 dernières secondes
-
-- [ ] **Animation Fin de Manche**
-  - Confettis pour le gagnant du round
-  - Animation de score qui défile (compteur animé)
-  - Transition fluide entre les écrans
-
-- [ ] **Animation Classement**
-  - Barres de score qui s'allongent avec effet de course
-  - Podium 3D animé pour les 3 premiers
-  - Emoji qui rebondissent à côté des noms
-
-- [ ] **Animation Réponse Joueur**
-  - Feedback visuel quand un joueur répond sur le Host (icône qui apparaît)
-  - Animation de marqueur sur la carte
-  - Effet de propagation comme une onde
-
-- [ ] **Animation Fin de Partie**
-  - Feux d'artifice pour le vainqueur final
-  - Musique de victoire épique
-  - Animation du trophée
-
-- [ ] **Transitions Écrans**
-  - Slide-in / slide-out pour les changements d'état
-  - Fade-in progressif des éléments
-  - Parallax effect sur les fonds
-
-### 2. Améliorations UX
-- [ ] **Mode Battle Royale** : Élimination du dernier à chaque manche
-- [ ] **Mode Équipes** : 2 à 4 équipes qui s'affrontent
-- [ ] **Tableau de Bord Live** : Afficher les distances en temps réel pendant la manche
-
-### 3. Technique
-- [ ] **Optimisation API** : Préchargement Street View au lobby
-- [ ] **Refactoring** : Extraire `GeoMap.jsx`, `StreetView.jsx` en composants séparés
-- [ ] **Tests** : Ajouter des tests pour le `geoGameManager`
-
-### 4. Bugs Connus
-- [ ] Vérifier l'affichage sur très petits écrans (iPhone SE)
-- [ ] Street View peut être lent sur connexions 3G
+- [x] **Fuite de mémoire du Timer (Accélération du temps)** : Le temps s'accélérait côté salon (Host) à partir de la manche 3 à cause d'un `setInterval` non nettoyé lors de la réception de l'évènement `geo-next-round`. *(Corrigé)*
+- [x] **Désynchronisation des Scores** : Vérifier que les points sont bien ajoutés côté serveur en cas de déconnexion d'un joueur juste après avoir validé sa réponse (avant l'animation de fin). *(Corrigé : Attribution correcte de 0 point pour les absents afin de préserver l'alignement des manches).*
+- [x] **Bouton *Start* inactif** : Dans de rares cas, le lancement de partie depuis l'admin ne déclenche pas le Host. Revoir la chaîne d'événements `geo-start-game` -> `geo-game-started`. *(Corrigé : Reconnexion silencieuse du Host aux rooms Socket.IO).*
+- [x] **Détection de fin de manche prématurée** : S'assurer que le script n'auto-skip pas si de faux événements "geo-all-guessed" sont déclenchés par des joueurs fantômes ou déconnectés. *(Corrigé : L'évènement de déconnexion ne trigger plus la fin de manche de force).*
 
 ---
 
-## 📝 Notes Techniques
+## 🗺️ Stabilité Street View & Google Maps
 
-### Synchronisation Timer
-Le serveur stocke `room.roundStartTime = Date.now()` au début de chaque round.
-Les clients calculent le temps restant : `remaining = timePerRound - (Date.now() - roundStartTime) / 1000`
+- [x] **Écran Noir / Panorama Vide** : Sur certaines positions géographiques ou en cas de connexion lente, l'API Street View renvoie un écran noir. Améliorer la logique de "fallback" ou demander une nouvelle position au serveur si le panorama ne charge pas au bout de 5 secondes. *(Corrigé : Demande désormais automatiquement un nouveau lieu au serveur si le panorama est toujours noir au bout de 12 secondes, au lieu de recharger le même).*
+- [x] **Watchdog Street View** : Actuellement, le watchdog recharge tout si le panorama n'est pas vu. Affiner le délai de détection pour éviter les rechargements intempestifs sur mobile (connexion 4G ou 3G). *(Corrigé : Le délai passe de 6 à 12 secondes avant un rechargement pour respecter les connexions plus lentes).*
+- [x] **Marqueurs de Joueurs (Custom Overlay)** : Les avatars personnalisés (AvatarMarker) sur Google Maps côté Host peuvent parfois lancer des erreurs DOM lors des fermetures/ouvertures de fenêtres infoWindow. À consolider. *(Corrigé : Sécurisation de la méthode removeChild en vérifiant l'existence du noeud parent).*
+- [x] **Optimisation Coûts API** : Vérifier que l'API n'est pas appelée en double lors des recharges (`geo-request-new-location`), ce qui pourrait consommer la tarification Google Maps trop rapidement. *(Corrigé : Ajout d'un verrou "isRequestingLocationRef" empêchant strictement les requêtes en boucle/parallèle).*
 
-### Paramètres URL
-- `?room=XXXX` : Pré-remplit le code du salon
-- `?newgame=1` : Efface la session précédente, empêche la reconnexion auto
+---
+
+## 🔄 Synchronisation Socket & Gestion d'État (State Management)
+
+- [x] **Reconnexion Télécommande / Admin** : Quand la télécommande rafraîchit la page, la liaison avec le Host doit remonter instantanément (sync de `gameState`, `currentRound`, `timeLeft`). *(Corrigé : `geo-join-remote` renvoie désormais `gameState`, `currentLocation`, `roundStartTime`, et les résultats en cours. La Remote resynchro son timer avec l'écart serveur).*
+- [x] **Leaking Listeners (Écouteurs en double)** : S'assurer que chaque `useEffect` côté Client (Host et Player) désabonne proprement TOUS les évènements `socket.off(...)` lors du démontage pour éviter les doubles déclenchements. *(Corrigé : Ajout de `socket.off('connect', handleReconnect)` dans le cleanup de la Remote).*
+- [x] **Gestion des Joueurs Déconnectés** : Si un joueur quitte la partie (fermeture du navigateur) au milieu d'un round, il ne doit plus bloquer la condition `geo-all-guessed` (Tous les joueurs ont répondu). *(Corrigé : `allPlayersGuessed()` filtre les joueurs avec `!p.disconnected`).*
+- [x] **Race Condition sur le "Next Round"** : Si l'Host ET la Télécommande appellent `nextRound` en même temps, le serveur ne doit avancer la partie qu'une seule fois. *(Corrigé : `nextRound` côté serveur bloque si `gameState !== 'ROUND_END'`. `endRound` bloque via un flag `isEndingRound` sur le room).*
+
+---
+
+## 🎨 Interface, UX & Animations Pépins
+
+- [x] **Affichage du Classement (Leaderboard) déformé** : Sur le Host, si un nom de joueur est trop long, le podium ou les barres de classement sont cassés visuellement. Ajouter une troncature de texte (`ellipsis`). *(Corrigé : Ajout de text-overflow: ellipsis et whitespace: nowrap sur .geo-podium-name et .geo-final-name)*
+- [x] **Clignotement du Timer (Flickering)** : Le décalage de ping entre le serveur (`roundStartTime`) et le client provoque parfois un saut du chronomètre (ex: passage direct de 58 à 56s). Utiliser une simple interpolation locale visuelle. *(Corrigé : Implémentation d'interpolation lisse du timer basée sur roundStartTime côté client et serveur)*
+- [x] **Superposition Z-Index** : Le `Confetti` ou les Overlays peuvent parfois bloquer les clics sur les boutons de navigation cachés du Host. *(Corrigé : Ajout de pointer-events: none au confetti-container et countdown-overlay, réduction des z-index)*
+- [x] **Feedback des réponses (Lobby)** : L'emoji flottant ou la validation "En attente des autres" ne s'affiche parfois pas assez clairement côté Joueur. *(Corrigé : Animations CSS améliorées pour les messages de succès et d'attente, pulse animations et émojis animés)*
+- [x] **Repenser la carte du monde** : Sur mobile la carte est petite et parfois compliqué de repondre precisement, refondre et repensé la carte du monde *(Corrigé : Augmentation de la hauteur par défaut de 120px à 240px, ajout de media queries pour ultra-petits écrans et mode landscape)*
+
+---
+
+## 📱 Optimisations Mobiles (Joueurs)
+
+- [ ] **Carte de "Guess" sur iPhone/Safari** : Le défilement de la page interfère parfois avec le glissement de la Google Map (scroll lock). Empêcher le document body de scroller lorsque le doigt est sur la carte.
+- [ ] **Performance du Parallax/Animations** : Désactiver ou alléger la rotation automatique Street View et les particules sur les vieux smartphones pour garder le site fluide.
+- [ ] **Mode "Standby" iOS** : Empêcher le téléphone de s'éteindre (Sleep mode) pendant le round si possible (API WebLock ou vidéo invisible).
+
+---
+
+## 📝 Archives (Fonctionnalités déjà stables)
+
+- [x] Création des salons et codes PIN (Socket).
+- [x] Lancement de manche (Street View synchronisé).
+- [x] Calcul de score Haversine (distance vs. points).
+- [x] Télécommande admin pour forcer le Next Round.
+- [x] Affichage de fin avec Map et marqueurs des joueurs.

@@ -223,11 +223,25 @@ class AperoGameManager {
 
         console.log(`[APERO] Question ${room.currentQuestionNumber} opened`);
 
+        // Build player-safe slide data (no correctAnswer!)
+        const playerSlideData = {
+            type: slide.type,
+            questionType: slide.questionType,
+            questionText: slide.questionText,
+            options: slide.options?.map(opt => ({ label: opt.label, text: opt.text })), // Strip isCorrect flag
+            background: slide.background,
+            elements: slide.elements,
+            media: slide.media,
+            timer: slide.timer || room.settings.defaultTimer,
+            theme: slide.theme
+        };
+
         return {
             success: true,
             questionNumber: room.currentQuestionNumber,
             questionType: slide.questionType,
-            timer: slide.timer || room.settings.defaultTimer
+            timer: playerSlideData.timer,
+            slide: playerSlideData // Full slide for rendering
         };
     }
 

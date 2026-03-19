@@ -102,7 +102,15 @@ function GeoRemoteView() {
             setGuessedCount(0);
             setError(''); // Clear any previous errors
             soundManager.play('start');
-            startTimer(data.timePerRound || 60);
+            // Sync timer from server's roundStartTime
+            const duration = data.timePerRound || 60;
+            if (data.roundStartTime) {
+                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
+                const remaining = Math.max(0, duration - elapsed);
+                startTimer(remaining);
+            } else {
+                startTimer(duration);
+            }
         });
 
         socket.on('geo-game-over', (data) => {
@@ -163,6 +171,16 @@ function GeoRemoteView() {
             }, 100);
         }
 
+        // Auto-reconnect: if socket reconnects while already in a room, re-join
+        const handleReconnect = () => {
+            const savedCode = roomCodeRef.current;
+            if (savedCode) {
+                console.log('[Remote] Socket reconnected, re-joining room:', savedCode);
+                connectWithCode(savedCode);
+            }
+        };
+        socket.on('connect', handleReconnect);
+
         return () => {
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
@@ -175,6 +193,7 @@ function GeoRemoteView() {
             socket.off('geo-game-restarted');
             socket.off('geo-host-disconnected');
             socket.off('geo-settings-updated');
+            socket.off('connect', handleReconnect);
             if (timerRef.current) clearInterval(timerRef.current);
         };
     }, []); // Empty deps - set up once on mount
@@ -204,6 +223,14 @@ function GeoRemoteView() {
                 setTotalRounds(response.totalRounds || 5);
                 setTimePerRound(response.timePerRound || 60);
                 setRoomCode(code);
+                
+                if (response.results) {
+                    if (response.gameState === 'GAME_END') {
+                        setFinalResults(response.results);
+                    } else {
+                        setRoundResults(response.results);
+                    }
+                }
 
                 if (response.gameState === 'PLAYING' && response.roundStartTime) {
                     const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);

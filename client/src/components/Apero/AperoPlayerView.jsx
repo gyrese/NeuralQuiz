@@ -3,39 +3,35 @@ import { useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import './AperoPlayer.css';
 
-const THEME = {
-    bg: 'radial-gradient(circle at top, #2b1055 0%, #000000 100%)',
-    text: '#fff',
-    font: "'Segoe UI', sans-serif"
+// Kahoot-style answer colors
+const ANSWER_COLORS = {
+    A: { bg: '#e21b3c', icon: '▲' },  // Red triangle
+    B: { bg: '#1368ce', icon: '◆' },  // Blue diamond
+    C: { bg: '#d89e00', icon: '●' },  // Yellow circle
+    D: { bg: '#26890c', icon: '■' }   // Green square
 };
-
-const QCM_COLORS = {
-    A: { bg: 'linear-gradient(135deg, #ff0f7b 0%, #f89b29 100%)', shadow: '0 0 20px rgba(255, 15, 123, 0.5)' },
-    B: { bg: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', shadow: '0 0 20px rgba(0, 198, 255, 0.5)' },
-    C: { bg: 'linear-gradient(135deg, #f09819 0%, #edde5d 100%)', shadow: '0 0 20px rgba(240, 152, 25, 0.5)' },
-    D: { bg: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', shadow: '0 0 20px rgba(67, 233, 123, 0.5)' }
-};
-
-const ICONS = { A: '▲', B: '◆', C: '●', D: '■' };
-
-const AVATARS = ['👽', '🤖', '👾', '🦄', '😎', '🍕', '🍻', '🎮', '💀', '🤡', '🤠', '🎃']; // Fallback/Legacy
 
 function AperoPlayerView() {
     const { roomCode: urlRoomCode } = useParams();
-    const [gameState, setGameState] = useState('JOIN');
+
+    // Connection State
+    const [gameState, setGameState] = useState('JOIN'); // JOIN, WAITING, QUESTION, ANSWERED, REVEAL, ENDED
     const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [teamName, setTeamName] = useState('');
-    // Avatar Seed for DiceBear (Random Robot)
     const [avatarSeed, setAvatarSeed] = useState(Math.random().toString(36).substring(7));
     const [isJoined, setIsJoined] = useState(false);
     const [error, setError] = useState('');
 
+    // Game State
+    const [currentSlide, setCurrentSlide] = useState(null);
     const [questionNumber, setQuestionNumber] = useState(0);
-    const [questionType, setQuestionType] = useState('qcm');
     const [timer, setTimer] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [inputValue, setInputValue] = useState('');
+
+    // Results
     const [isCorrect, setIsCorrect] = useState(null);
     const [points, setPoints] = useState(0);
     const [totalScore, setTotalScore] = useState(0);
@@ -43,31 +39,48 @@ function AperoPlayerView() {
 
     const getAvatarUrl = (seed) => `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${seed}`;
 
-    // Socket Logic (Kept identical)
+    // Scaling for WYSIWYG Slide Display
+    const [scale, setScale] = useState(1);
+
+    useEffect(() => {
+        const handleResize = () => {
+            // Mobile: Fit the 1280px width into the current window width
+            // We want the slide to be fully visible at the top
+            const targetWidth = 1280;
+            const availableWidth = window.innerWidth;
+            const newScale = Math.min(availableWidth / targetWidth, 1);
+            setScale(newScale);
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize(); // Init scaling immediately
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // ==================== SOCKET EVENTS ====================
     useEffect(() => {
         const events = {
-            'apero-team-joined': ({ roomCode: code, teamName: name, avatar: sAvatar }) => {
+            'apero-team-joined': ({ roomCode: code, teamName: name }) => {
                 setIsJoined(true);
                 setRoomCode(code);
                 setTeamName(name);
-                // If sAvatar is a URL (contains http), we might want to extract seed, but simply storing it is fine if we handle display logic
-                // But for simplicity, let's keep using our local seed if we are the one joining, or update if provided
-                if (sAvatar && sAvatar.includes('dicebear')) {
-                    // Extract seed if needed, or just rely on the fact that we sent it
-                }
                 setGameState('WAITING');
                 setError('');
             },
-            'apero-game-started': () => setGameState('WAITING'),
+            'apero-game-started': () => {
+                setGameState('WAITING');
+            },
             'apero-slide-changed': () => {
+                // Host moved to a new slide - reset player state
                 setGameState('WAITING');
                 setSelectedAnswer(null);
                 setInputValue('');
                 setIsCorrect(null);
+                setCurrentSlide(null);
             },
-            'apero-question-opened': ({ questionNumber: qNum, questionType: qType, timer: qTimer }) => {
+            'apero-question-opened': ({ questionNumber: qNum, questionType, timer: qTimer, slide }) => {
+                console.log('[PLAYER] Question opened:', { qNum, questionType, slide });
                 setQuestionNumber(qNum);
-                setQuestionType(qType);
+                setCurrentSlide(slide);
                 setTimer(qTimer);
                 setGameState('QUESTION');
                 setSelectedAnswer(null);
@@ -97,6 +110,7 @@ function AperoPlayerView() {
                 setGameState('WAITING');
                 setTotalScore(0);
                 setSelectedAnswer(null);
+                setCurrentSlide(null);
             },
             'apero-room-closed': () => {
                 setGameState('JOIN');
@@ -110,12 +124,14 @@ function AperoPlayerView() {
         return () => Object.entries(events).forEach(([event, handler]) => socket.off(event, handler));
     }, [teamName]);
 
+    // Timer countdown
     useEffect(() => {
         if (gameState !== 'QUESTION' || timer <= 0) return;
         const interval = setInterval(() => setTimer(t => Math.max(0, t - 1)), 1000);
         return () => clearInterval(interval);
     }, [gameState, timer]);
 
+    // ==================== HANDLERS ====================
     const handleJoin = (e) => {
         e.preventDefault();
         if (!roomCode.trim() || !teamName.trim()) return setError('Remplissez tout !');
@@ -125,12 +141,11 @@ function AperoPlayerView() {
             teamName: teamName.trim(),
             avatar: getAvatarUrl(avatarSeed)
         }, (response) => {
-            if (response.error) {
+            if (response?.error) {
                 setError(response.error);
             } else {
                 setIsJoined(true);
                 setRoomCode(response.roomCode || roomCode.toUpperCase());
-                // Event apero-team-joined will likely fire too, but we handle immediate success here
                 setGameState('WAITING');
                 setError('');
             }
@@ -140,56 +155,46 @@ function AperoPlayerView() {
     const handleAnswer = (answer) => {
         if (gameState !== 'QUESTION' || selectedAnswer) return;
         if (navigator.vibrate) navigator.vibrate(50);
-        socket?.emit('team:answer', { answer });
+        socket.emit('apero-team-answer', { answer });
     };
 
     const handleSubmitInput = (e) => {
         e?.preventDefault();
         if (!inputValue.trim()) return;
         if (navigator.vibrate) navigator.vibrate(50);
-        socket?.emit('team:answer', { answer: inputValue.trim() });
+        socket.emit('apero-team-answer', { answer: inputValue.trim() });
     };
 
-    // --- STYLED COMPONENTS (Inline for now) ---
-    const pageStyle = {
-        minHeight: '100vh',
-        background: THEME.bg,
-        color: THEME.text,
-        fontFamily: THEME.font,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: 20, overflow: 'hidden'
-    };
-
-    // ========== JOIN SCREEN ==========
+    // ==================== RENDER: JOIN SCREEN ====================
     if (!isJoined) {
         return (
-            <div style={pageStyle}>
+            <div className="apero-player-page" style={{
+                backgroundImage: 'url(/assets/images/mobile_lobby_bg.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                position: 'relative',
+                minHeight: '100vh' // Ensure full height on mobile
+            }}>
+                {/* Dark Overlay for readability using pseudo-element or absolute div logic via CSS class or inline if needed.
+                    However, `apero-player-page` usually has styles. Let's add an inline overlay div inside if we can't edit CSS easily,
+                    OR simpler: just rely on the card's background opacity.
+                */}
+                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 0 }}></div>
+
                 <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    style={{ width: '100%', maxWidth: 400, textAlign: 'center' }}
+                    className="apero-join-card"
+                    style={{ position: 'relative', zIndex: 1 }} // Ensure it sits on top of overlay
                 >
-                    <div style={{ fontSize: 60, marginBottom: 20, filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))' }}>🍻</div>
-                    <h1 style={{
-                        fontSize: 40, fontWeight: 900, marginBottom: 40,
-                        background: 'linear-gradient(to right, #00c6ff, #0072ff)',
-                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                        textTransform: 'uppercase', letterSpacing: 2
-                    }}>APÉRO QUIZ</h1>
+                    <div className="join-logo">🍻</div>
+                    <h1 className="join-title">APÉRO QUIZ</h1>
 
-                    <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        {/* Avatar Generator */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                            <div style={{
-                                width: 100, height: 100, borderRadius: '50%', overflow: 'hidden',
-                                background: '#fff', border: '4px solid #fff', boxShadow: '0 0 20px rgba(255,255,255,0.3)',
-                                position: 'relative'
-                            }}>
-                                <img
-                                    src={getAvatarUrl(avatarSeed)}
-                                    alt="Avatar"
-                                    style={{ width: '100%', height: '100%' }}
-                                />
+                    <form onSubmit={handleJoin} className="join-form">
+                        {/* Avatar */}
+                        <div className="avatar-picker">
+                            <div className="avatar-preview">
+                                <img src={getAvatarUrl(avatarSeed)} alt="Avatar" />
                             </div>
                             <button
                                 type="button"
@@ -197,13 +202,9 @@ function AperoPlayerView() {
                                     if (navigator.vibrate) navigator.vibrate(20);
                                     setAvatarSeed(Math.random().toString(36).substring(7));
                                 }}
-                                style={{
-                                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-                                    color: '#fff', padding: '5px 15px', borderRadius: 20, cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', gap: 5, fontSize: 14
-                                }}
+                                className="avatar-shuffle"
                             >
-                                <span>🎲</span> Aléatoire
+                                🎲 Aléatoire
                             </button>
                         </div>
 
@@ -213,11 +214,7 @@ function AperoPlayerView() {
                             value={roomCode}
                             onChange={e => { setRoomCode(e.target.value.toUpperCase()); setError(''); }}
                             maxLength={6}
-                            style={{
-                                padding: 20, borderRadius: 15, border: 'none', background: '#fff',
-                                fontSize: 24, textAlign: 'center', fontWeight: 'bold', letterSpacing: 4,
-                                color: '#333', boxShadow: '0 5px 15px rgba(0,0,0,0.3)'
-                            }}
+                            className="join-input code-input"
                         />
                         <input
                             type="text"
@@ -225,23 +222,14 @@ function AperoPlayerView() {
                             value={teamName}
                             onChange={e => { setTeamName(e.target.value); setError(''); }}
                             maxLength={20}
-                            style={{
-                                padding: 20, borderRadius: 15, border: 'none', background: '#fff',
-                                fontSize: 20, textAlign: 'center',
-                                color: '#333', boxShadow: '0 5px 15px rgba(0,0,0,0.3)'
-                            }}
+                            className="join-input"
                         />
-                        {error && <div style={{ color: '#ff4b2b', background: 'rgba(255, 75, 43, 0.1)', padding: 10, borderRadius: 10 }}>{error}</div>}
+
+                        {error && <div className="join-error">{error}</div>}
 
                         <motion.button
                             whileTap={{ scale: 0.95 }}
-                            style={{
-                                padding: 20, borderRadius: 15, border: 'none',
-                                background: 'linear-gradient(45deg, #fbc2eb 0%, #a6c1ee 100%)',
-                                color: '#333', fontSize: 20, fontWeight: 900,
-                                boxShadow: '0 10px 20px rgba(166, 193, 238, 0.4)',
-                                cursor: 'pointer', textTransform: 'uppercase'
-                            }}
+                            className="join-button"
                         >
                             REJOINDRE
                         </motion.button>
@@ -251,206 +239,238 @@ function AperoPlayerView() {
         );
     }
 
-    // ========== WAITING SCREEN ==========
+    // ==================== RENDER: WAITING SCREEN ====================
     if (gameState === 'WAITING') {
         return (
-            <div style={pageStyle}>
-                <div style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.1)', padding: '5px 15px', borderRadius: 20 }}>
-                    {totalScore} pts
-                </div>
-                <div style={{ textAlign: 'center' }}>
+            <div className="apero-player-page">
+                <div className="score-badge">{totalScore} pts</div>
+                <div className="waiting-content">
                     <motion.div
-                        animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
+                        animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        style={{ marginBottom: 30, display: 'inline-block' }}
+                        className="waiting-avatar"
                     >
-                        <img
-                            src={getAvatarUrl(avatarSeed)}
-                            alt="Avatar"
-                            style={{ width: 120, height: 120, borderRadius: '50%', border: '4px solid #fff', boxShadow: '0 0 30px rgba(255,255,255,0.3)' }}
-                        />
+                        <img src={getAvatarUrl(avatarSeed)} alt="Avatar" />
                     </motion.div>
-                    <h2 style={{ fontSize: 32, marginBottom: 10 }}>{teamName}</h2>
-                    <p style={{ opacity: 0.6 }}>Regardez l'écran ! La question arrive...</p>
+                    <h2 className="waiting-name">{teamName}</h2>
+                    <p className="waiting-text">Regardez l'écran ! La question arrive...</p>
                 </div>
             </div>
         );
     }
 
-    // ========== QUESTION SCREEN (QCM) ==========
-    if (gameState === 'QUESTION' && questionType === 'qcm') {
+    // ==================== RENDER: QUESTION SCREEN ====================
+    if (gameState === 'QUESTION' && currentSlide) {
+        const questionType = currentSlide.questionType;
+        const options = currentSlide.options || [];
+
+        // Background Logic
+        const slideBackgroundStyle = {};
+        if (currentSlide.background?.type === 'image') {
+            slideBackgroundStyle.backgroundImage = `url("${currentSlide.background.value}")`;
+            slideBackgroundStyle.backgroundSize = 'cover';
+            slideBackgroundStyle.backgroundPosition = 'center';
+        } else if (currentSlide.background?.value) {
+            slideBackgroundStyle.background = currentSlide.background.value;
+        }
+
         return (
-            <div style={{ ...pageStyle, justifyContent: 'flex-start', padding: 10 }}>
-                {/* Header Timer */}
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
-                    <div style={{ fontWeight: 900, fontSize: 24, opacity: 0.5 }}>Q{questionNumber}</div>
-                    <div style={{
-                        width: 60, height: 60, borderRadius: '50%', background: '#333',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: '4px solid #fff', fontSize: 24, fontWeight: 'bold'
-                    }}>
+            <div className="apero-player-page question-page">
+
+                {/* Header: Floating Timer + Question Number */}
+                <div className="question-header">
+                    <div className="question-number">Q{questionNumber}</div>
+                    <div className={`question-timer ${timer <= 5 ? 'urgent' : ''}`}>
                         {timer}
                     </div>
                 </div>
 
-                {/* Grid */}
+                {/* 16:9 Slide Preview Scaled - Sticked to Top */}
                 <div style={{
-                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15,
-                    width: '100%', height: 'calc(100vh - 150px)'
+                    width: '100%',
+                    height: `${720 * scale}px`, // Maintains aspect ratio space
+                    position: 'relative',
+                    flexShrink: 0,
+                    background: '#000',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                    zIndex: 1 // Behind header
                 }}>
-                    {['A', 'B', 'C', 'D'].map(letter => (
+                    <div style={{
+                        width: '1280px',
+                        height: '720px',
+                        transform: `scale(${scale})`,
+                        transformOrigin: 'top left',
+                        position: 'absolute',
+                        top: 0, left: 0,
+                        overflow: 'hidden',
+                        ...slideBackgroundStyle
+                    }}>
+                        {/* WYSIWYG Elements */}
+                        {currentSlide.elements?.map(el => (
+                            <div
+                                key={el.id}
+                                style={{
+                                    position: 'absolute',
+                                    left: el.x, top: el.y,
+                                    width: el.width, height: el.height,
+                                    zIndex: el.style?.zIndex || 10,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    ...el.style
+                                }}
+                            >
+                                {el.type === 'text' && el.content}
+                                {el.type === 'shape' && el.content}
+                                {el.type === 'image' && el.url && (
+                                    <img src={el.url} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: el.style.borderRadius }} alt="" />
+                                )}
+                            </div>
+                        ))}
+
+                        {/* Fallback Text if no elements but text exists */}
+                        {(!currentSlide.elements || currentSlide.elements.length === 0) && currentSlide.questionText && (
+                            <div style={{
+                                position: 'absolute',
+                                left: 100, top: 100,
+                                width: 1080,
+                                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                height: 500
+                            }}>
+                                <h1 style={{
+                                    fontSize: '60px',
+                                    color: '#fff',
+                                    textAlign: 'center',
+                                    textShadow: '0 4px 10px rgba(0,0,0,0.8)'
+                                }}>
+                                    {currentSlide.questionText}
+                                </h1>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Answer Grid - Fills remaining space */}
+                <div className="answer-grid">
+                    {questionType === 'qcm' && options.map((opt, idx) => (
                         <motion.button
-                            key={letter}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleAnswer(letter)}
-                            style={{
-                                border: 'none', borderRadius: 20,
-                                background: QCM_COLORS[letter].bg,
-                                boxShadow: QCM_COLORS[letter].shadow,
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                color: '#fff', fontSize: 40, cursor: 'pointer', borderBottom: '6px solid rgba(0,0,0,0.2)'
-                            }}
+                            key={opt.label}
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: idx * 0.1, type: "spring", stiffness: 300, damping: 20 }}
+                            onClick={() => handleAnswer(opt.label)}
+                            className="answer-button"
+                            style={{ backgroundColor: ANSWER_COLORS[opt.label]?.bg }}
                         >
-                            <span style={{ fontSize: 60, filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.2))' }}>{ICONS[letter]}</span>
+                            <span className="answer-icon">{ANSWER_COLORS[opt.label]?.icon}</span>
+                            <span className="answer-text">{opt.text}</span>
                         </motion.button>
                     ))}
+
+                    {questionType === 'truefalse' && (
+                        <>
+                            <motion.button
+                                initial={{ x: -100, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                onClick={() => handleAnswer('Vrai')}
+                                className="answer-button tf-button"
+                                style={{ backgroundColor: '#26890c' }}
+                            >
+                                <span className="answer-icon">✓</span>
+                                <span className="answer-text">VRAI</span>
+                            </motion.button>
+                            <motion.button
+                                initial={{ x: 100, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                onClick={() => handleAnswer('Faux')}
+                                className="answer-button tf-button"
+                                style={{ backgroundColor: '#e21b3c' }}
+                            >
+                                <span className="answer-icon">✗</span>
+                                <span className="answer-text">FAUX</span>
+                            </motion.button>
+                        </>
+                    )}
+
+                    {(questionType === 'text' || questionType === 'estimation') && (
+                        <form onSubmit={handleSubmitInput} className="input-form">
+                            <input
+                                type={questionType === 'estimation' ? 'number' : 'text'}
+                                value={inputValue}
+                                onChange={e => setInputValue(e.target.value)}
+                                autoFocus
+                                placeholder={questionType === 'estimation' ? 'Entrez un nombre...' : 'Votre réponse...'}
+                                className="answer-input"
+                            />
+                            <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                type="submit"
+                                className="submit-button"
+                            >
+                                Envoyer
+                            </motion.button>
+                        </form>
+                    )}
                 </div>
             </div>
         );
     }
 
-    // ========== QUESTION SCREEN (True/False) ==========
-    if (gameState === 'QUESTION' && questionType === 'truefalse') {
-        return (
-            <div style={{ ...pageStyle, justifyContent: 'flex-start', padding: 10 }}>
-                {/* Header Timer */}
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
-                    <div style={{ fontWeight: 900, fontSize: 24, opacity: 0.5 }}>Q{questionNumber}</div>
-                    <div style={{
-                        width: 60, height: 60, borderRadius: '50%', background: '#333',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: '4px solid #fff', fontSize: 24, fontWeight: 'bold'
-                    }}>
-                        {timer}
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', height: 'calc(100vh - 150px)', justifyContent: 'center' }}>
-                    <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAnswer('Vrai')}
-                        style={{ flex: 1, border: 'none', borderRadius: 20, fontSize: 40, fontWeight: 'bold', color: '#fff', cursor: 'pointer', background: '#2ecc71', boxShadow: '0 5px 15px rgba(46, 204, 113, 0.4)' }}
-                    >
-                        VRAI
-                    </motion.button>
-                    <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAnswer('Faux')}
-                        style={{ flex: 1, border: 'none', borderRadius: 20, fontSize: 40, fontWeight: 'bold', color: '#fff', cursor: 'pointer', background: '#e74c3c', boxShadow: '0 5px 15px rgba(231, 76, 60, 0.4)' }}
-                    >
-                        FAUX
-                    </motion.button>
-                </div>
-            </div>
-        );
-    }
-
-    // ========== QUESTION SCREEN (Input) ==========
-    if (gameState === 'QUESTION') {
-        return (
-            <div style={pageStyle}>
-                <div style={{ width: '100%', maxWidth: 400 }}>
-                    <div style={{ textAlign: 'center', marginBottom: 40 }}>
-                        <div style={{ fontSize: 40, fontWeight: 'bold' }}>{timer}s</div>
-                        <h3 style={{ opacity: 0.8 }}>Entrez votre réponse</h3>
-                    </div>
-                    <form onSubmit={handleSubmitInput} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        <input
-                            type={questionType === 'estimation' ? 'number' : (questionType === 'date' ? 'date' : 'text')}
-                            value={inputValue}
-                            onChange={e => setInputValue(e.target.value)}
-                            autoFocus
-                            placeholder="Votre réponse..."
-                            style={{
-                                width: '100%', padding: 20, fontSize: 24, borderRadius: 15, border: 'none', textAlign: 'center'
-                            }}
-                        />
-                        <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            style={{
-                                padding: 20, background: '#333', color: '#fff', border: 'none', borderRadius: 15,
-                                fontSize: 20, fontWeight: 'bold', textTransform: 'uppercase'
-                            }}
-                        >
-                            Envoyer
-                        </motion.button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
-
-    // ========== ANSWERED SCREEN ==========
+    // ==================== RENDER: ANSWERED SCREEN ====================
     if (gameState === 'ANSWERED') {
         return (
-            <div style={pageStyle}>
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ fontSize: 100, marginBottom: 20 }}>
+            <div className="apero-player-page answered-page">
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="answered-icon">
                     👍
                 </motion.div>
                 <h2>Réponse envoyée !</h2>
-                <p style={{ opacity: 0.6 }}>On croise les doigts...</p>
+                <p className="answered-subtitle">On croise les doigts...</p>
             </div>
         );
     }
 
-    // ========== REVEAL SCREEN ==========
+    // ==================== RENDER: REVEAL SCREEN ====================
     if (gameState === 'REVEAL') {
         return (
-            <div style={{ ...pageStyle, background: isCorrect ? '#26aba3' : '#e24e42' }}>
+            <div className={`apero-player-page reveal-page ${isCorrect ? 'correct' : 'wrong'}`}>
                 <motion.div
-                    initial={{ scale: 0 }} animate={{ scale: 1, rotate: 360 }}
-                    style={{ fontSize: 120, marginBottom: 20, filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.2))' }}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1, rotate: 360 }}
+                    className="reveal-emoji"
                 >
                     {isCorrect ? '🏆' : '💩'}
                 </motion.div>
-                <h1 style={{ fontSize: 40, fontWeight: 900, textTransform: 'uppercase', marginBottom: 10 }}>
-                    {isCorrect ? 'BRAVO !' : 'RATE !'}
-                </h1>
-                {isCorrect && <div style={{ fontSize: 30, background: 'rgba(0,0,0,0.2)', padding: '5px 20px', borderRadius: 50 }}>+{points} pts</div>}
+                <h1 className="reveal-title">{isCorrect ? 'BRAVO !' : 'RATÉ !'}</h1>
+                {isCorrect && <div className="reveal-points">+{points} pts</div>}
 
-                <div style={{ marginTop: 40, background: 'rgba(0,0,0,0.1)', padding: 20, borderRadius: 20, width: '100%', maxWidth: 300 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div className="reveal-stats">
+                    <div className="stat-row">
                         <span>Score Total</span>
-                        <span style={{ fontWeight: 'bold' }}>{totalScore}</span>
+                        <span className="stat-value">{totalScore}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div className="stat-row">
                         <span>Classement</span>
-                        <span style={{ fontWeight: 'bold' }}>#{rank}</span>
+                        <span className="stat-value">#{rank}</span>
                     </div>
                 </div>
             </div>
         );
     }
 
-    // ========== ENDED SCREEN ==========
+    // ==================== RENDER: ENDED SCREEN ====================
     if (gameState === 'ENDED') {
         return (
-            <div style={pageStyle}>
-                <h1 style={{ fontSize: 40, fontWeight: 900, marginBottom: 20 }}>FIN DU JEU</h1>
-                <div style={{ background: '#fff', color: '#333', padding: 40, borderRadius: 30, width: '100%', maxWidth: 350, textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-                    <div style={{ fontSize: 18, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10 }}>Classement Final</div>
-                    <div style={{ fontSize: 80, fontWeight: 900, color: '#00c6ff', lineHeight: 1 }}>{rank}</div>
-                    <div style={{ fontSize: 24, marginTop: -10, marginBottom: 30 }}>ème</div>
+            <div className="apero-player-page ended-page">
+                <h1 className="ended-title">FIN DU JEU</h1>
+                <div className="ended-card">
+                    <div className="ended-label">Classement Final</div>
+                    <div className="ended-rank">{rank}</div>
+                    <div className="ended-suffix">ème</div>
 
-                    <div style={{ borderTop: '1px solid #eee', paddingTop: 20 }}>
-                        <div style={{ opacity: 0.6 }}>Score Final</div>
-                        <div style={{ fontSize: 32, fontWeight: 'bold' }}>{totalScore} pts</div>
+                    <div className="ended-score">
+                        <span className="score-label">Score Final</span>
+                        <span className="score-value">{totalScore} pts</span>
                     </div>
                 </div>
-                <button
-                    onClick={() => window.location.reload()}
-                    style={{ marginTop: 40, background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '10px 30px', borderRadius: 50 }}
-                >
+                <button onClick={() => window.location.reload()} className="quit-button">
                     Quitter
                 </button>
             </div>

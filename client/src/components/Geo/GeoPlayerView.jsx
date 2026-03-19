@@ -44,6 +44,12 @@ function GeoPlayerView() {
     const mapInstance = useRef(null);
     const markerInstance = useRef(null);
     const timerRef = useRef(null);
+    const roundStartTimeRef = useRef(null); // For smooth timer interpolation
+    const timerDurationRef = useRef(null); // For smooth timer interpolation
+    
+    // Global flags for reliable API loading
+    const googleMapsLoadingRef = useRef(false);
+    const googleMapsReadyRef = useRef(false);
 
     // Restore session and handle connections
     useEffect(() => {
@@ -145,11 +151,9 @@ function GeoPlayerView() {
                 setCurrentLocation(response.location);
                 if (response.myScore !== undefined) setMyScore(response.myScore);
 
-                // Re-sync timer
+                // Re-sync timer with smooth interpolation
                 if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
-                    const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
-                    const remaining = Math.max(0, response.timePerRound - elapsed);
-                    startTimer(remaining);
+                    startTimer(response.timePerRound, response.roundStartTime);
                 } else if (response.gameState === 'PLAYING') {
                     startTimer(60);
                 }
@@ -175,9 +179,7 @@ function GeoPlayerView() {
             // Calculate remaining time based on server's roundStartTime
             const duration = data.timePerRound || 60;
             if (data.roundStartTime) {
-                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
-                const remaining = Math.max(0, duration - elapsed);
-                startTimer(remaining);
+                startTimer(duration, data.roundStartTime);
             } else {
                 startTimer(duration);
             }
@@ -216,9 +218,7 @@ function GeoPlayerView() {
             // Calculate remaining time based on server's roundStartTime
             const duration = data.timePerRound || 60;
             if (data.roundStartTime) {
-                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
-                const remaining = Math.max(0, duration - elapsed);
-                startTimer(remaining);
+                startTimer(duration, data.roundStartTime);
             } else {
                 startTimer(duration);
             }
@@ -275,29 +275,82 @@ function GeoPlayerView() {
         };
     }, []);
 
-    // Init Street View when playing
+    // Load Google Maps API with guarantee that window.google.maps is available
+    useEffect(() => {
+        const loadGoogleMapsAPI = async () => {
+            // Already loaded or loading
+            if (googleMapsReadyRef.current) {
+                console.log('[Player] Google Maps API already ready');
+                return;
+            }
+            if (googleMapsLoadingRef.current) {
+                console.log('[Player] Google Maps API already loading');
+                return;
+            }
+
+            googleMapsLoadingRef.current = true;
+
+            // Check if already present
+            if (window.google?.maps?.StreetViewService) {
+                console.log('[Player] Google Maps API already available on window');
+                googleMapsReadyRef.current = true;
+                googleMapsLoadingRef.current = false;
+                return;
+            }
+
+            console.log('[Player] Starting Google Maps API load...');
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+            script.async = true;
+
+            return new Promise((resolve, reject) => {
+                script.onload = () => {
+                    console.log('[Player] Google Maps script loaded, waiting for window.google.maps...');
+                    
+                    // Poll for window.google.maps.StreetViewService
+                    let attempts = 0;
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+                        if (window.google?.maps?.StreetViewService) {
+                            clearInterval(checkInterval);
+                            console.log('[Player] ✓ window.google.maps.StreetViewService is ready after', attempts, 'checks');
+                            googleMapsReadyRef.current = true;
+                            googleMapsLoadingRef.current = false;
+                            resolve();
+                        } else if (attempts > 50) { // Timeout after 5 seconds (50 * 100ms)
+                            clearInterval(checkInterval);
+                            console.error('[Player] ✗ Timeout waiting for window.google.maps.StreetViewService');
+                            googleMapsLoadingRef.current = false;
+                            reject(new Error('Google Maps API timeout'));
+                        }
+                    }, 100);
+                };
+
+                script.onerror = () => {
+                    console.error('[Player] ✗ Failed to load Google Maps API script');
+                    googleMapsLoadingRef.current = false;
+                    reject(new Error('Failed to load Google Maps API'));
+                };
+
+                document.head.appendChild(script);
+            }).catch(error => {
+                console.error('[Player] Google Maps loading error:', error);
+                googleMapsLoadingRef.current = false;
+            });
+        };
+
+        loadGoogleMapsAPI();
+    }, []);
+
+    // Init Street View when playing (only when API is ready)
     useEffect(() => {
         let timeoutId;
 
-        if (step === 'PLAYING' && currentLocation) {
-            const startMap = () => {
-                // Délai de sécurité pour s'assurer que le DOM est prêt
-                timeoutId = setTimeout(() => {
-                    if (window.google) {
-                        initMaps();
-                    }
-                }, 100);
-            };
-
-            if (!window.google) {
-                const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGeoPlayer`;
-                script.async = true;
-                window.initGeoPlayer = () => startMap();
-                document.head.appendChild(script);
-            } else {
-                startMap();
-            }
+        if (step === 'PLAYING' && currentLocation && googleMapsReadyRef.current) {
+            // Delay to ensure DOM is ready
+            timeoutId = setTimeout(() => {
+                initMaps();
+            }, 100);
         }
 
         return () => {
@@ -305,14 +358,25 @@ function GeoPlayerView() {
         };
     }, [step, currentLocation, currentRound]);
 
-    // Init results map
+    // Init results map (only when API is ready)
     useEffect(() => {
-        if (step === 'ROUND_END' && window.google && resultsMapRef.current && correctLocation) {
+        if (step === 'ROUND_END' && googleMapsReadyRef.current && resultsMapRef.current && correctLocation) {
             initResultsMap();
         }
     }, [step, roundResults]);
 
     const initMaps = () => {
+        // Verify API is loaded
+        if (!window.google?.maps?.StreetViewService) {
+            console.warn('[Player] initMaps called but google.maps not ready, will retry');
+            setTimeout(() => {
+                if (step === 'PLAYING' && googleMapsReadyRef.current) {
+                    initMaps();
+                }
+            }, 500);
+            return;
+        }
+
         // Street View - use StreetViewService to find nearest coverage
         if (streetViewRef.current && currentLocation) {
             const streetViewService = new window.google.maps.StreetViewService();
@@ -322,7 +386,7 @@ function GeoPlayerView() {
             streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
                 if (status === 'OK') {
                     const verifiedPosition = data.location.latLng;
-                    console.log('[Player] Street View coverage found at:', verifiedPosition.lat(), verifiedPosition.lng());
+                    console.log('[Player] ✓ Street View coverage found at:', verifiedPosition.lat(), verifiedPosition.lng());
 
                     // Create or update panorama with verified position
                     if (panoramaInstance.current && streetViewRef.current.hasChildNodes()) {
@@ -333,6 +397,7 @@ function GeoPlayerView() {
                         });
                         panoramaInstance.current.setVisible(true);
                     } else {
+                        console.log('[Player] Creating new StreetViewPanorama instance with interactive controls');
                         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
                             streetViewRef.current,
                             {
@@ -341,17 +406,20 @@ function GeoPlayerView() {
                                 zoom: 1,
                                 addressControl: false,
                                 showRoadLabels: false,
-                                linksControl: true,
-                                panControl: true,
+                                linksControl: true,  // Enable navigation links
+                                panControl: true,     // Enable pan controls
+                                zoomControl: true,    // Enable zoom
                                 enableCloseButton: false,
                                 fullscreenControl: false,
-                                visible: true
+                                visible: true,
+                                motionTracking: false,
+                                motionTrackingControl: false
                             }
                         );
                     }
                     setIsLoading(false);
                 } else {
-                    console.warn('[Player] No Street View coverage, status:', status);
+                    console.warn('[Player] ✗ No Street View coverage, status:', status);
                     // Fallback: try with original position anyway
                     if (!panoramaInstance.current) {
                         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
@@ -362,7 +430,14 @@ function GeoPlayerView() {
                                 zoom: 1,
                                 addressControl: false,
                                 showRoadLabels: false,
-                                visible: true
+                                linksControl: true,
+                                panControl: true,
+                                zoomControl: true,
+                                enableCloseButton: false,
+                                fullscreenControl: false,
+                                visible: true,
+                                motionTracking: false,
+                                motionTrackingControl: false
                             }
                         );
                     }
@@ -480,20 +555,46 @@ function GeoPlayerView() {
         map.fitBounds(bounds, 50);
     };
 
-    const startTimer = (duration) => {
-        setTimeLeft(duration);
+    const startTimer = (duration, roundStartTime = null) => {
+        // Store refs for smooth interpolation
+        roundStartTimeRef.current = roundStartTime || Date.now();
+        timerDurationRef.current = duration;
+
+        // Set initial time
+        if (roundStartTime) {
+            const elapsed = Math.floor((Date.now() - roundStartTime) / 1000);
+            setTimeLeft(Math.max(0, duration - elapsed));
+        } else {
+            setTimeLeft(duration);
+        }
+
         if (timerRef.current) clearInterval(timerRef.current);
 
         timerRef.current = setInterval(() => {
             setTimeLeft(prev => {
-                if (prev <= 10 && prev > 0) {
-                    soundManager.playTick();
+                // Use server time for smooth interpolation to avoid jitter
+                const startTime = roundStartTimeRef.current || Date.now();
+                const dur = timerDurationRef.current || duration;
+                
+                if (startTime && dur) {
+                    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                    const remaining = Math.max(0, dur - elapsed);
+                    
+                    if (remaining <= 10 && remaining > 0) soundManager.playTick();
+                    if (remaining <= 0) {
+                        clearInterval(timerRef.current);
+                        return 0;
+                    }
+                    return remaining;
+                } else {
+                    // Fallback to simple decrement
+                    if (prev <= 10 && prev > 0) soundManager.playTick();
+                    if (prev <= 1) {
+                        clearInterval(timerRef.current);
+                        return 0;
+                    }
+                    return prev - 1;
                 }
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    return 0;
-                }
-                return prev - 1;
             });
         }, 1000);
     };

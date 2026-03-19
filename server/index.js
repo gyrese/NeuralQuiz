@@ -74,17 +74,22 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 
 io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
+    console.log('[SERVER] User connected:', socket.id);
 
-    // Delegate execution to game controllers
-    // Each controller will register its own event listeners on the socket
-    quizController.handleConnection(io, socket);
-    geoController.handleConnection(io, socket);
-    drawController.handleConnection(io, socket);
-    aperoController.handleConnection(io, socket);
+    try {
+        // Delegate execution to game controllers
+        // Each controller will register its own event listeners on the socket
+        quizController.handleConnection(io, socket);
+        geoController.handleConnection(io, socket);
+        drawController.handleConnection(io, socket);
+        aperoController.handleConnection(io, socket);
+        console.log('[SERVER] All controllers initialized for socket:', socket.id);
+    } catch (error) {
+        console.error('[SERVER] ERROR initializing controllers for socket', socket.id, ':', error);
+    }
 
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+        console.log('[SERVER] User disconnected:', socket.id);
     });
 });
 

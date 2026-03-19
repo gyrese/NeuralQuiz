@@ -20,6 +20,15 @@ module.exports = {
             console.log(`[GEO] Room created: ${roomCode} by ${socket.id}`);
         });
 
+        socket.on('geo-host-reconnect', ({ roomCode }) => {
+            const room = geoGameManager.getRoom(roomCode);
+            if (room) {
+                room.hostId = socket.id;
+                socket.join(`geo-${roomCode}`);
+                console.log(`[GEO] Host reconnected and rejoined room ${roomCode}`);
+            }
+        });
+
         socket.on('geo-join-room', ({ roomCode, playerName, avatar }, callback) => {
             try {
                 const result = geoGameManager.joinRoom(roomCode, socket.id, playerName, avatar);
@@ -85,14 +94,33 @@ module.exports = {
 
                 socket.join(`geo-${roomCode}`);
 
+                const players = geoGameManager.getPlayersInRoom(roomCode);
+                
+                let results = null;
+                if (room.gameState === 'ROUND_END' || room.gameState === 'GAME_END') {
+                    results = players.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        avatar: p.avatar,
+                        distance: p.lastDistance || null,
+                        roundScore: p.roundScores[p.roundScores.length - 1] || 0,
+                        totalScore: p.totalScore
+                    })).sort((a, b) => {
+                        if (room.gameState === 'GAME_END') return b.totalScore - a.totalScore;
+                        return b.roundScore - a.roundScore;
+                    });
+                }
+
                 callback({
                     success: true,
                     gameState: room.gameState,
-                    players: geoGameManager.getPlayersInRoom(roomCode),
+                    players: players,
                     currentRound: room.currentRound,
                     totalRounds: room.totalRounds,
                     timePerRound: room.timePerRound,
-                    roundStartTime: room.roundStartTime
+                    roundStartTime: room.roundStartTime,
+                    currentLocation: room.currentLocation,
+                    results: results
                 });
 
                 console.log(`[GEO] Remote control connected to room ${roomCode}`);
@@ -353,10 +381,8 @@ module.exports = {
 
                     // If game was playing and this player disconnected, maybe everyone else has answered now?
                     if (geoResult.type === 'disconnected') {
-                        const allGuessed = geoGameManager.allPlayersGuessed(geoResult.roomCode);
-                        if (allGuessed) {
-                            io.to(geoResult.roomCode).emit('geo-all-guessed');
-                        }
+                        // FIX: We don't auto end round on disconnect to allow them time to reconnect.
+                        // Wait for timer or remote control.
                     }
                 }
             }

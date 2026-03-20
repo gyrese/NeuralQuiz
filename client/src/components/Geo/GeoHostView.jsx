@@ -195,18 +195,16 @@ function GeoHostView() {
                         if (shouldEnd) {
                             clearInterval(timerRef.current);
                             timerRef.current = null;
-                            setTimeout(() => {
-                                if (gameStateRef.current === 'PLAYING') {
-                                    endRound();
-                                }
-                            }, 100);
+                            if (gameStateRef.current === 'PLAYING') {
+                                endRound();
+                            }
                             return 0;
                         }
                         return remaining;
                     } else {
                         // Fallback to simple decrement
                         if (prev <= 10 && prev > 0) soundManager.playTick();
-                        
+
                         // Check if we should end the round
                         let shouldEnd = false;
                         if (prev <= 1) {
@@ -219,15 +217,13 @@ function GeoHostView() {
                                 console.log('[Host] Fallback: All answered 3+ seconds ago, ending round');
                             }
                         }
-                        
+
                         if (shouldEnd) {
                             clearInterval(timerRef.current);
                             timerRef.current = null;
-                            setTimeout(() => {
-                                if (gameStateRef.current === 'PLAYING') {
-                                    endRound();
-                                }
-                            }, 100);
+                            if (gameStateRef.current === 'PLAYING') {
+                                endRound();
+                            }
                             return 0;
                         }
                         return prev - 1;
@@ -284,15 +280,11 @@ function GeoHostView() {
             }, 1000);
         });
 
-        // When remote triggers next round
+        // Handles next round (from host callback broadcast OR remote trigger)
         socket.on('geo-next-round', (data) => {
             console.log('[Host] Next round event received:', data);
-            // Skip if we triggered this ourselves (to avoid double processing)
-            if (isNextRoundPendingRef.current) {
-                console.log('[Host] Skipping geo-next-round - we triggered this ourselves');
-                isNextRoundPendingRef.current = false;
-                return;
-            }
+            // Reset pending flag (the callback doesn't handle state/timer anymore)
+            isNextRoundPendingRef.current = false;
             // Clear all timers
             if (autoNextRef.current) {
                 clearInterval(autoNextRef.current);
@@ -355,11 +347,9 @@ function GeoHostView() {
                             if (remaining <= 0) {
                                 clearInterval(timerRef.current);
                                 timerRef.current = null;
-                                setTimeout(() => {
-                                    if (gameStateRef.current === 'PLAYING') {
-                                        endRound();
-                                    }
-                                }, 100);
+                                if (gameStateRef.current === 'PLAYING') {
+                                    endRound();
+                                }
                                 return 0;
                             }
                             return remaining;
@@ -369,11 +359,9 @@ function GeoHostView() {
                             if (prev <= 1) {
                                 clearInterval(timerRef.current);
                                 timerRef.current = null;
-                                setTimeout(() => {
-                                    if (gameStateRef.current === 'PLAYING') {
-                                        endRound();
-                                    }
-                                }, 100);
+                                if (gameStateRef.current === 'PLAYING') {
+                                    endRound();
+                                }
                                 return 0;
                             }
                             return prev - 1;
@@ -984,61 +972,10 @@ function GeoHostView() {
 
         socket.emit('geo-start-game', { roomCode, settings }, (response) => {
             if (response.success) {
-                // Reset panorama for fresh start (like nextRound does)
-                if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
-                rotationRef.current = null;
-                panoramaInstance.current = null;
-
-                setGameState('PLAYING');
-                setCurrentRound(response.round);
-                setTotalRounds(response.total);
-                setCorrectLocation(response.location);
-                correctLocationRef.current = response.location; // Sync ref for initStreetView
-                setGuessedPlayers(new Set());
-                setIsEndingRound(false);
-                soundManager.play('start');
-
-                // Start timer synchronized with server's roundStartTime
-                const duration = response.timePerRound || settings.timePerRound || 60;
-                setTimeout(() => {
-                    let initialTimeLeft = duration;
-
-                    // Calculate elapsed time based on server's roundStartTime
-                    if (response.roundStartTime) {
-                        const elapsed = Math.floor((Date.now() - response.roundStartTime) / 1000);
-                        initialTimeLeft = Math.max(0, duration - elapsed);
-                        console.log(`[Host] Start game timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
-                    }
-
-                    setTimeLeft(initialTimeLeft);
-                    if (timerRef.current) clearInterval(timerRef.current);
-                    timerRef.current = setInterval(() => {
-                        setTimeLeft(prev => {
-                            if (prev <= 10 && prev > 0) soundManager.playTick();
-                            if (prev <= 1) {
-                                clearInterval(timerRef.current);
-                                timerRef.current = null;
-                                setTimeout(() => {
-                                    if (gameStateRef.current === 'PLAYING') {
-                                        endRound();
-                                    }
-                                }, 100);
-                                return 0;
-                            }
-                            return prev - 1;
-                        });
-                    }, 1000);
-                }, 200);
-
-                // Force init Street View after DOM is ready (like nextRound does)
-                setTimeout(() => {
-                    console.log('[HOST] Force initializing Street View for Game Start');
-                    if (window.google) {
-                        initStreetView();
-                    } else {
-                        console.warn('[HOST] Google Maps not available yet in startGame, will retry via useEffect');
-                    }
-                }, 500);
+                // Le timer et l'état sont gérés par l'événement 'geo-game-started'
+                // qui est broadcasté par le serveur à toute la room (y compris le host).
+                // On ne crée PAS de timer ici pour éviter les doublons et sauts.
+                console.log('[Host] startGame callback OK, timer sera géré par geo-game-started');
             } else {
                 console.error('Erreur démarrage:', response.error);
             }
@@ -1064,15 +1001,11 @@ function GeoHostView() {
                 if (prev <= 1) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
-                    // Utiliser setTimeout pour éviter les problèmes de state
-                    // Vérifier qu'on est toujours en PLAYING avant d'appeler endRound
-                    setTimeout(() => {
-                        if (gameStateRef.current === 'PLAYING') {
-                            endRound();
-                        } else {
-                            console.log('[GEO] Timer expired but not in PLAYING state, skipping endRound');
-                        }
-                    }, 100);
+                    if (gameStateRef.current === 'PLAYING') {
+                        endRound();
+                    } else {
+                        console.log('[GEO] Timer expired but not in PLAYING state, skipping endRound');
+                    }
                     return 0;
                 }
                 return prev - 1;
@@ -1171,13 +1104,9 @@ function GeoHostView() {
         }
         setAutoNextCountdown(null);
 
-        // Use roomCodeRef.current to avoid stale closure issues
         const currentRoomCode = roomCodeRef.current || roomCode;
-
-        // Mark that we're triggering this ourselves so the socket listener ignores the broadcast
         isNextRoundPendingRef.current = true;
 
-        // Safety timeout: unlock after 10s if no response
         const safetyTimeout = setTimeout(() => {
             if (isNextRoundPendingRef.current) {
                 console.warn('[GEO] nextRound timed out, resetting locks');
@@ -1189,43 +1118,19 @@ function GeoHostView() {
             clearTimeout(safetyTimeout);
             console.log('[GEO] nextRound response:', response);
             if (response.gameOver) {
+                isNextRoundPendingRef.current = false;
                 setGameState('GAME_END');
                 setFinalResults(response.results);
                 soundManager.play('win');
                 triggerConfetti();
             } else if (response.success) {
-                setIsEndingRound(false);
-                isEndingRoundRef.current = false; // Reset ref for next round
-
-                // Reset graphic/animation refs
-                if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
-                rotationRef.current = null;
-                panoramaInstance.current = null; // Force new instance creation
-
-                setGameState('PLAYING');
-                setCurrentRound(response.round);
-                setCorrectLocation(response.location);
-                correctLocationRef.current = response.location; // Sync ref for initStreetView
-                setRoundResults(null);
-                setGuessedPlayers(new Set());
-                soundManager.play('start');
-
-                // Délai pour s'assurer que le state est mis à jour et que le DOM est prêt
-                setTimeout(() => startTimer(), 200);
-                // Force re-init Street View with a slightly longer delay to ensure DOM mount
-                setTimeout(() => {
-                    console.log('[HOST] Force initializing Street View for Next Round');
-                    if (window.google) {
-                        initStreetView();
-                    } else {
-                        console.warn('[HOST] Google Maps not available yet in nextRound, will retry via useEffect');
-                    }
-                }, 500);
+                // Le timer et l'état sont gérés par l'événement 'geo-next-round'
+                // broadcasté par le serveur à toute la room (y compris le host).
+                console.log('[Host] nextRound callback OK, timer sera géré par geo-next-round event');
             } else {
+                isNextRoundPendingRef.current = false;
                 console.error('[GEO] nextRound error:', response.error);
             }
-            // Reset pending flag
-            isNextRoundPendingRef.current = false;
         });
     };
 

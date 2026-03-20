@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const quizManager = require('./quizManager');
@@ -52,7 +54,38 @@ app.delete('/api/quizzes/:id', (req, res) => {
     else res.status(404).json({ error: 'Quiz not found' });
 });
 
-const server = http.createServer(app);
+// --- HTTPS / HTTP SERVER SETUP ---
+const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+const PORT = process.env.PORT || 3001;
+
+// Try to load SSL certificates
+let sslOptions = null;
+const certDir = path.join(__dirname, 'certs');
+const keyPath = path.join(certDir, 'key.pem');
+const certPath = path.join(certDir, 'cert.pem');
+
+if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    try {
+        sslOptions = {
+            key: fs.readFileSync(keyPath),
+            cert: fs.readFileSync(certPath)
+        };
+        console.log('[SERVER] SSL certificates loaded from server/certs/');
+    } catch (err) {
+        console.warn('[SERVER] Failed to load SSL certificates:', err.message);
+    }
+}
+
+// Create main server: HTTPS if certs available, HTTP otherwise
+let server;
+if (sslOptions) {
+    server = https.createServer(sslOptions, app);
+    console.log('[SERVER] HTTPS mode enabled');
+} else {
+    server = http.createServer(app);
+    console.log('[SERVER] HTTP mode (no SSL certificates)');
+}
+
 const io = new Server(server, {
     maxHttpBufferSize: 1e8,
     cors: {
@@ -68,10 +101,16 @@ const io = new Server(server, {
     upgradeTimeout: 30000
 });
 
-// Setup Apéro Quiz Controller (uses its own namespace /apero)
-// setupAperoController(io, app); // Deprecated
-
-const PORT = process.env.PORT || 3001;
+// HTTP → HTTPS redirect server (when HTTPS is enabled)
+let httpRedirectServer = null;
+if (sslOptions) {
+    const redirectApp = express();
+    redirectApp.use((req, res) => {
+        const httpsUrl = `https://${req.hostname}:${HTTPS_PORT}${req.url}`;
+        res.redirect(301, httpsUrl);
+    });
+    httpRedirectServer = http.createServer(redirectApp);
+}
 
 io.on('connection', (socket) => {
     console.log('[SERVER] User connected:', socket.id);
@@ -101,13 +140,30 @@ app.use(express.static(path.join(__dirname, '../client/dist')));
 // Note: Commenté en dev car Vite gère le routing. Décommenter pour la production.
 app.get(/(.*)/, (req, res) => {
     const indexPath = path.join(__dirname, '../client/dist/index.html');
-    if (require('fs').existsSync(indexPath)) {
+    if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
     } else {
         res.status(404).send("Frontend build not found. Did you run 'npm run build' in the client folder?");
     }
 });
 
-server.listen(PORT, () => {
-    console.log(`Serveur en écoute sur le port ${PORT}`);
-});
+if (sslOptions) {
+    // HTTPS mode: main server on HTTPS_PORT, redirect HTTP on PORT
+    server.listen(HTTPS_PORT, () => {
+        console.log(`[SERVER] HTTPS en écoute sur le port ${HTTPS_PORT}`);
+        console.log(`[SERVER] Accès sécurisé: https://localhost:${HTTPS_PORT}`);
+    });
+    if (httpRedirectServer) {
+        httpRedirectServer.listen(PORT, () => {
+            console.log(`[SERVER] HTTP→HTTPS redirect sur le port ${PORT}`);
+        });
+    }
+} else {
+    // HTTP mode: main server on PORT
+    server.listen(PORT, () => {
+        console.log(`[SERVER] HTTP en écoute sur le port ${PORT}`);
+    });
+    console.log('[SERVER] Pour activer HTTPS, placez key.pem et cert.pem dans server/certs/');
+    console.log('[SERVER] Générer un certificat auto-signé:');
+    console.log('  openssl req -x509 -newkey rsa:2048 -keyout server/certs/key.pem -out server/certs/cert.pem -days 365 -nodes -subj "/CN=LTNhout"');
+}

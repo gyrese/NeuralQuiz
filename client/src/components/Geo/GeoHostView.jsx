@@ -49,6 +49,8 @@ function GeoHostView() {
     const gameStateRef = useRef(gameState); // Ref pour accéder à gameState dans les callbacks
     const streetViewWatchdogRef = useRef(null); // Watchdog pour vérifier que Street View est visible
     const streetViewLoadedRef = useRef(false); // Flag pour savoir si Street View est chargée
+    const tilesLoadedRef = useRef(false); // True quand les tuiles image sont effectivement chargées
+    const tilesLoadTimeoutRef = useRef(null); // Timeout si les tuiles ne chargent pas
     const isRequestingLocationRef = useRef(false); // Flag to prevent multiple parallel new location requests
     const roundStartTimeRef = useRef(null); // For smooth timer interpolation
     const timerDurationRef = useRef(null); // For smooth timer interpolation
@@ -68,7 +70,12 @@ function GeoHostView() {
                 clearInterval(streetViewWatchdogRef.current);
                 streetViewWatchdogRef.current = null;
             }
+            if (tilesLoadTimeoutRef.current) {
+                clearTimeout(tilesLoadTimeoutRef.current);
+                tilesLoadTimeoutRef.current = null;
+            }
             streetViewLoadedRef.current = false;
+            tilesLoadedRef.current = false;
         }
     }, [gameState]);
 
@@ -97,17 +104,27 @@ function GeoHostView() {
 
         socket.on('geo-all-guessed', () => {
             // Accélérer la fin du round (3 secondes restantes)
+            // Ajuster roundStartTimeRef pour que l'interpolation affiche bien 3s
+            if (timerDurationRef.current) {
+                const naturalRemaining = roundStartTimeRef.current
+                    ? Math.max(0, timerDurationRef.current - Math.floor((Date.now() - roundStartTimeRef.current) / 1000))
+                    : 3;
+                if (naturalRemaining > 3) {
+                    roundStartTimeRef.current = Date.now() - (timerDurationRef.current - 3) * 1000;
+                }
+            }
             setTimeLeft(prev => Math.min(prev, 3));
         });
 
         // Listen for emoji reactions from players
         socket.on('geo-reaction', ({ emoji, playerName, playerId }) => {
             const reactionId = Date.now() + Math.random();
-            setReactions(prev => [...prev, { id: reactionId, emoji, playerName }]);
-            // Remove after animation (3s)
+            const xPos = 10 + Math.random() * 80; // Random x position 10%-90%
+            setReactions(prev => [...prev, { id: reactionId, emoji, playerName, xPos }]);
+            // Remove after animation (3.5s)
             setTimeout(() => {
                 setReactions(prev => prev.filter(r => r.id !== reactionId));
-            }, 3000);
+            }, 3500);
         });
 
         // === SYNC EVENTS FROM REMOTE ===
@@ -395,6 +412,7 @@ function GeoHostView() {
             setFinalResults(data.results);
             setAwards(data.awards || []);
             soundManager.play('win');
+            triggerConfetti();
         });
 
         // When game is restarted (from remote)
@@ -453,19 +471,33 @@ function GeoHostView() {
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             if (autoNextRef.current) clearInterval(autoNextRef.current);
+            if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+            if (streetViewWatchdogRef.current) clearInterval(streetViewWatchdogRef.current);
+            if (panoramaInstance.current && window.google?.maps?.event) {
+                window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
+            }
+            panoramaInstance.current = null;
+            mapInstance.current = null;
         };
     }, []);
 
     // Détection automatique "Tous ont répondu" - ensure 3-second minimum countdown
     useEffect(() => {
         if (gameState === 'PLAYING' && players.length > 0 && guessedPlayers.size === players.length) {
-            // First time all players answered
             if (!allPlayersAnsweredRef.current) {
                 console.log('[Host] All players answered! Ensuring 3-second countdown...');
                 allPlayersAnsweredRef.current = true;
                 allPlayersAnsweredTimeRef.current = Date.now();
+                // Ajuster roundStartTimeRef pour que l'interpolation affiche bien 3s
+                if (timerDurationRef.current) {
+                    const naturalRemaining = roundStartTimeRef.current
+                        ? Math.max(0, timerDurationRef.current - Math.floor((Date.now() - roundStartTimeRef.current) / 1000))
+                        : 3;
+                    if (naturalRemaining > 3) {
+                        roundStartTimeRef.current = Date.now() - (timerDurationRef.current - 3) * 1000;
+                    }
+                }
             }
-            // Ensure timer doesn't drop below 3 seconds
             setTimeLeft(prev => Math.min(prev, 3));
         }
     }, [guessedPlayers, players.length, gameState]);
@@ -473,6 +505,7 @@ function GeoHostView() {
     // Global flag to prevent multiple API loading attempts
     const googleMapsLoadingRef = useRef(false);
     const googleMapsReadyRef = useRef(false);
+    const [googleMapsReady, setGoogleMapsReady] = useState(false); // State to trigger useEffect re-run
     const streetViewInitAttemptRef = useRef(null); // Track current init attempt
 
     // Charger Google Maps API avec garantie que window.google.maps est disponible
@@ -495,6 +528,7 @@ function GeoHostView() {
                 console.log('[Host] Google Maps API already available on window');
                 googleMapsReadyRef.current = true;
                 googleMapsLoadingRef.current = false;
+                setGoogleMapsReady(true);
                 return;
             }
 
@@ -516,6 +550,7 @@ function GeoHostView() {
                             console.log('[Host] ✓ window.google.maps.StreetViewService is ready after', attempts, 'checks');
                             googleMapsReadyRef.current = true;
                             googleMapsLoadingRef.current = false;
+                            setGoogleMapsReady(true);
                             resolve();
                         } else if (attempts > 50) { // Timeout after 5 seconds (50 * 100ms)
                             clearInterval(checkInterval);
@@ -564,7 +599,7 @@ function GeoHostView() {
                 clearTimeout(timeoutId);
             };
         }
-    }, [gameState, currentRound, correctLocation]);
+    }, [gameState, currentRound, correctLocation, googleMapsReady]);
 
     const initStreetView = (retryCount = 0) => {
         // Verify API is ready before attempting initialization
@@ -628,7 +663,10 @@ function GeoHostView() {
         }
         
         isRequestingLocationRef.current = true;
-        
+        // Réinitialiser le flag tuiles pour le nouveau lieu
+        tilesLoadedRef.current = false;
+        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+
         const currentRoomCode = roomCodeRef.current || roomCode;
         console.log('[Host] Requesting new location from server');
         socket.emit('geo-request-new-location', { roomCode: currentRoomCode }, (response) => {
@@ -651,7 +689,10 @@ function GeoHostView() {
 
         console.log('[Host] Initializing Street View for location:', location.city, verifiedPosition.lat(), verifiedPosition.lng());
 
-        // Nettoyer l'ancienne animation
+        // Nettoyer l'ancienne instance (animation + listeners)
+        if (panoramaInstance.current && window.google?.maps?.event) {
+            window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
+        }
         if (rotationRef.current) {
             cancelAnimationFrame(rotationRef.current);
             rotationRef.current = null;
@@ -685,7 +726,7 @@ function GeoHostView() {
         let heading = initialHeading;
         const rotateCamera = () => {
             if (panoramaInstance.current) {
-                heading = (heading + 0.15) % 360; // Rotation slightly faster
+                heading = (heading + 0.15) % 360;
                 panoramaInstance.current.setPov({
                     heading: heading,
                     pitch: 5
@@ -695,7 +736,28 @@ function GeoHostView() {
         };
         rotationRef.current = requestAnimationFrame(rotateCamera);
 
-        // Mark Street View as loaded
+        // Réinitialiser le flag de chargement des tuiles
+        tilesLoadedRef.current = false;
+        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+
+        // Écouter l'événement tiles_loaded : les vraies images sont chargées
+        panoramaInstance.current.addListener('tiles_loaded', () => {
+            if (!tilesLoadedRef.current) {
+                console.log('[Host] ✓ Street View tiles loaded successfully');
+                tilesLoadedRef.current = true;
+                if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+            }
+        });
+
+        // Timeout de sécurité : si les tuiles ne chargent pas en 5s → écran noir → nouveau lieu
+        tilesLoadTimeoutRef.current = setTimeout(() => {
+            if (!tilesLoadedRef.current && gameStateRef.current === 'PLAYING') {
+                console.warn('[Host] ✗ Tiles never loaded after 5s (black screen detected) → requesting new location');
+                requestNewLocation();
+            }
+        }, 5000);
+
+        // Mark Street View as loaded (panorama instance créée, tuiles en cours)
         streetViewLoadedRef.current = true;
 
         // Start watchdog to verify Street View stays visible
@@ -710,7 +772,7 @@ function GeoHostView() {
         }
 
         let failCount = 0;
-        const MAX_FAILS = 4; // Tolerance of ~12 seconds
+        const MAX_FAILS = 2; // Tolerance of ~6 seconds
 
         streetViewWatchdogRef.current = setInterval(() => {
             // Only check during PLAYING state
@@ -720,7 +782,7 @@ function GeoHostView() {
                 return;
             }
 
-            // Check if panorama exists and has valid position
+            // Check if panorama exists and tiles actually loaded
             if (!panoramaInstance.current) {
                 failCount++;
                 console.warn(`[Host Watchdog] No panorama instance (fail ${failCount}/${MAX_FAILS})`);
@@ -731,8 +793,11 @@ function GeoHostView() {
                     if (!pos || !visible) {
                         failCount++;
                         console.warn(`[Host Watchdog] Panorama not visible or no position (fail ${failCount}/${MAX_FAILS})`);
+                    } else if (!tilesLoadedRef.current) {
+                        // Panorama exists but tiles never confirmed loaded → potential black screen
+                        failCount++;
+                        console.warn(`[Host Watchdog] Panorama exists but tiles not loaded (fail ${failCount}/${MAX_FAILS})`);
                     } else {
-                        // Reset fail count on success
                         failCount = 0;
                     }
                 } catch (e) {
@@ -756,7 +821,7 @@ function GeoHostView() {
         if (gameState === 'ROUND_END' && window.google && mapRef.current && correctLocation) {
             initResultsMap();
         }
-    }, [gameState, roundResults]);
+    }, [gameState, roundResults, googleMapsReady]);
 
     const initResultsMap = () => {
         if (!mapRef.current || !correctLocation) return;
@@ -1127,6 +1192,7 @@ function GeoHostView() {
                 setGameState('GAME_END');
                 setFinalResults(response.results);
                 soundManager.play('win');
+                triggerConfetti();
             } else if (response.success) {
                 setIsEndingRound(false);
                 isEndingRoundRef.current = false; // Reset ref for next round
@@ -1271,7 +1337,7 @@ function GeoHostView() {
         if (gameState === 'INIT' || gameState === 'LOBBY') return null;
 
         const joinUrl = window.location.origin;
-        const qrUrl = `${joinUrl}?code=${roomCode}`;
+        const qrUrl = `${joinUrl}/geo/play/${roomCode}`;
 
         return (
             <div className="geo-persistent-qr">
@@ -1325,7 +1391,7 @@ function GeoHostView() {
                     </div>
                     <div className="d-flex gap-3">
                         <div className="kahoot-qr">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode)}`} alt="QR Code Joueur" />
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '/geo/play/' + roomCode)}`} alt="QR Code Joueur" />
                         </div>
                     </div>
                 </div>
@@ -1471,7 +1537,7 @@ function GeoHostView() {
                                     <div className="settings-label">📱 Télécommande Admin</div>
                                     <div className="text-center">
                                         <img
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '?code=' + roomCode + '&mode=remote')}`}
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '/geo/remote/' + roomCode)}`}
                                             alt="QR Code Télécommande"
                                             style={{ borderRadius: '8px', border: '2px solid var(--neon-blue)' }}
                                         />
@@ -1536,6 +1602,20 @@ function GeoHostView() {
                                 ></div>
                             </div>
 
+                            {/* Emoji réactions flottantes au-dessus de la Street View */}
+                            <div className="geo-floating-reactions" aria-hidden="true">
+                                {reactions.map(reaction => (
+                                    <div
+                                        key={reaction.id}
+                                        className="geo-floating-emoji"
+                                        style={{ left: `${reaction.xPos}%` }}
+                                    >
+                                        <span className="geo-floating-emoji-icon">{reaction.emoji}</span>
+                                        <span className="geo-floating-emoji-name">{reaction.playerName}</span>
+                                    </div>
+                                ))}
+                            </div>
+
                             {/* Message si tous ont répondu */}
                             {guessedPlayers.size === players.length && players.length > 0 && (
                                 <div className="geo-all-answered-banner">
@@ -1575,16 +1655,6 @@ function GeoHostView() {
                                         );
                                     })}
                                 </div>
-                            </div>
-
-                            {/* Réactions flottantes */}
-                            <div className="sidebar-reactions">
-                                {reactions.slice(-5).map(reaction => (
-                                    <div key={reaction.id} className="reaction-bubble">
-                                        <span className="reaction-emoji">{reaction.emoji}</span>
-                                        <span className="reaction-player">{reaction.playerName}</span>
-                                    </div>
-                                ))}
                             </div>
                         </div>
                     </div>

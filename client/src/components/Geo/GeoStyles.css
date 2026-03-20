@@ -147,21 +147,17 @@
     flex-direction: column;
     gap: 0.5rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: calc(100vw - 2rem);
 }
 
 /* Agrandissement au hover - style GeoGuessr */
-.geo-minimap-container:hover {
-    bottom: 1rem;
-    right: 1rem;
-}
-
 .geo-minimap-container:hover .geo-minimap {
-    width: 450px;
+    width: min(450px, calc(100vw - 2rem));
     height: 350px;
 }
 
 .geo-minimap {
-    width: 280px;
+    width: min(280px, calc(100vw - 2rem));
     height: 180px;
     border: 3px solid var(--neon-green);
     border-radius: 12px;
@@ -1703,30 +1699,47 @@
     flex-shrink: 0;
 }
 
-.sidebar-reactions {
-    padding: 1rem;
-    border-top: 1px solid #333;
-    min-height: 100px;
+/* Floating emoji reactions over Street View */
+.geo-floating-reactions {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 50;
 }
 
-.reaction-bubble {
-    display: inline-flex;
+.geo-floating-emoji {
+    position: absolute;
+    bottom: 10%;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    margin: 0.25rem;
-    animation: fadeInScale 0.3s ease-out;
+    gap: 4px;
+    animation: floatUp 3.5s ease-out forwards;
+    transform: translateX(-50%);
 }
 
-.reaction-bubble .reaction-emoji {
-    font-size: 1.5rem;
+.geo-floating-emoji-icon {
+    font-size: 3.5rem;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+    line-height: 1;
 }
 
-.reaction-bubble .reaction-player {
-    font-size: 0.8rem;
-    color: #aaa;
+.geo-floating-emoji-name {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    white-space: nowrap;
+    background: rgba(0,0,0,0.45);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+@keyframes floatUp {
+    0%   { transform: translateX(-50%) translateY(0);    opacity: 1;   }
+    70%  { transform: translateX(-50%) translateY(-60vh); opacity: 1;   }
+    100% { transform: translateX(-50%) translateY(-80vh); opacity: 0;   }
 }
 
 @keyframes fadeInScale {

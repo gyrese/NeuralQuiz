@@ -55,6 +55,8 @@ function GeoPlayerView() {
     const tilesLoadTimeoutRef = useRef(null); // Timeout si les tuiles ne chargent pas
     const tilesRetryCountRef = useRef(0); // Compteur de retry pour éviter boucle infinie
     const stepRef = useRef(step); // Ref pour accéder au step dans les callbacks async
+    const isPanoRequestPendingRef = useRef(false); // Guard contre getPanorama simultanés
+    const initMapsRef = useRef(null); // Ref vers la dernière version de initMaps (évite stale closures)
 
     // Synchroniser stepRef
     useEffect(() => { stepRef.current = step; }, [step]);
@@ -365,24 +367,33 @@ function GeoPlayerView() {
         let timeoutId;
 
         if (step === 'PLAYING' && currentLocation && googleMapsReadyRef.current) {
-            // Delay to ensure DOM is ready
+            // Reset tous les états pour un init propre
+            tilesRetryCountRef.current = 0;
+            isPanoRequestPendingRef.current = false; // Annuler tout request en cours
+            if (tilesLoadTimeoutRef.current) {
+                clearTimeout(tilesLoadTimeoutRef.current);
+                tilesLoadTimeoutRef.current = null;
+            }
+            // Delay pour que le DOM soit prêt
             timeoutId = setTimeout(() => {
                 tilesLoadedRef.current = false;
                 initMaps();
             }, 100);
         } else if (step !== 'PLAYING') {
             // Nettoyage quand on quitte PLAYING
+            isPanoRequestPendingRef.current = false;
             if (tilesLoadTimeoutRef.current) {
                 clearTimeout(tilesLoadTimeoutRef.current);
                 tilesLoadTimeoutRef.current = null;
             }
             tilesLoadedRef.current = false;
+            tilesRetryCountRef.current = 0;
         }
 
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [step, currentLocation, currentRound, googleMapsReady]);
+    }, [step, currentLocation, googleMapsReady]);
 
     // Init results map (only when API is ready)
     useEffect(() => {
@@ -392,12 +403,21 @@ function GeoPlayerView() {
     }, [step, roundResults, googleMapsReady]);
 
     const initMaps = () => {
+        // Mettre à jour la ref vers la version courante (évite stale closures dans les retries)
+        initMapsRef.current = initMaps;
+
+        // Guard : si une requête getPanorama est déjà en cours, ignorer
+        if (isPanoRequestPendingRef.current) {
+            console.log('[Player] getPanorama already pending, skipping duplicate initMaps');
+            return;
+        }
+
         // Verify API is loaded — utilise stepRef pour éviter closure périmée
         if (!window.google?.maps?.StreetViewService) {
             console.warn('[Player] initMaps called but google.maps not ready, will retry');
             setTimeout(() => {
                 if (stepRef.current === 'PLAYING' && googleMapsReadyRef.current) {
-                    initMaps();
+                    initMapsRef.current?.();
                 }
             }, 500);
             return;
@@ -414,26 +434,51 @@ function GeoPlayerView() {
                 if (!tilesLoadedRef.current) {
                     console.log('[Player] ✓ Street View tiles loaded');
                     tilesLoadedRef.current = true;
-                    tilesRetryCountRef.current = 0; // Reset retry counter
+                    tilesRetryCountRef.current = 0;
                     if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
                     setIsLoading(false);
                 }
             });
 
+            // Vérification de secours après 500ms : si le panorama a déjà un panoId
+            // (tiles chargées depuis cache mais event manqué)
+            setTimeout(() => {
+                if (!tilesLoadedRef.current && stepRef.current === 'PLAYING') {
+                    try {
+                        const panoId = pano.getPano();
+                        if (panoId) {
+                            console.log('[Player] ✓ Panorama pano ID found after 500ms (cached)');
+                            tilesLoadedRef.current = true;
+                            tilesRetryCountRef.current = 0;
+                            if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+                            setIsLoading(false);
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            }, 500);
+
+            // Timeout : si rien ne charge en 10s → re-init (délai augmenté pour mobiles lents)
             tilesLoadTimeoutRef.current = setTimeout(() => {
                 if (!tilesLoadedRef.current && stepRef.current === 'PLAYING') {
                     tilesRetryCountRef.current++;
                     if (tilesRetryCountRef.current <= 3) {
                         console.warn(`[Player] ✗ Tiles never loaded (retry ${tilesRetryCountRef.current}/3) → re-init`);
+                        // Détruire proprement l'instance courante
+                        if (panoramaInstance.current && window.google?.maps?.event) {
+                            try { panoramaInstance.current.setVisible(false); } catch (e) {}
+                            window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
+                        }
                         panoramaInstance.current = null;
+                        isPanoRequestPendingRef.current = false; // Libérer le guard
                         setIsLoading(true);
-                        setTimeout(() => initMaps(), 300);
+                        // Utiliser initMapsRef pour toujours appeler la version courante
+                        setTimeout(() => initMapsRef.current?.(), 300);
                     } else {
                         console.error('[Player] ✗ Max tile retries reached, giving up');
                         setIsLoading(false);
                     }
                 }
-            }, 5000);
+            }, 10000);
         };
 
         // Street View - use StreetViewService to find nearest coverage
@@ -441,7 +486,9 @@ function GeoPlayerView() {
             const streetViewService = new window.google.maps.StreetViewService();
             const position = { lat: currentLocation.lat, lng: currentLocation.lng };
 
+            isPanoRequestPendingRef.current = true;
             streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
+                isPanoRequestPendingRef.current = false;
                 // Vérifier qu'on est toujours en PLAYING (éviter callback périmé)
                 if (stepRef.current !== 'PLAYING') return;
 
@@ -449,37 +496,46 @@ function GeoPlayerView() {
                     const verifiedPosition = data.location.latLng;
                     console.log('[Player] ✓ Street View coverage found at:', verifiedPosition.lat(), verifiedPosition.lng());
 
-                    if (panoramaInstance.current && streetViewRef.current?.hasChildNodes()) {
-                        // Nettoyer les anciens listeners avant réutilisation
-                        window.google.maps.event.clearListeners(panoramaInstance.current, 'tiles_loaded');
-                        panoramaInstance.current.setPosition(verifiedPosition);
-                        panoramaInstance.current.setPov({ heading: Math.random() * 360, pitch: 0 });
-                        panoramaInstance.current.setVisible(true);
-                    } else {
-                        console.log('[Player] Creating new StreetViewPanorama instance');
-                        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
-                            streetViewRef.current,
-                            {
-                                position: verifiedPosition,
-                                pov: { heading: Math.random() * 360, pitch: 0 },
-                                zoom: 1,
-                                addressControl: false,
-                                showRoadLabels: false,
-                                linksControl: true,
-                                panControl: true,
-                                zoomControl: true,
-                                enableCloseButton: false,
-                                fullscreenControl: false,
-                                visible: true,
-                                motionTracking: false,
-                                motionTrackingControl: false
-                            }
-                        );
+                    // Toujours détruire l'ancienne instance avant d'en créer une nouvelle.
+                    // NE PAS réutiliser via setPosition : tiles_loaded peut firer AVANT watchTilesLoaded.
+                    if (panoramaInstance.current && window.google?.maps?.event) {
+                        try { panoramaInstance.current.setVisible(false); } catch (e) {}
+                        window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
+                        panoramaInstance.current = null;
                     }
+                    // Vider le conteneur DOM pour forcer un rendu propre
+                    if (streetViewRef.current) streetViewRef.current.innerHTML = '';
+
+                    console.log('[Player] Creating new StreetViewPanorama instance');
+                    panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+                        streetViewRef.current,
+                        {
+                            position: verifiedPosition,
+                            pov: { heading: Math.random() * 360, pitch: 0 },
+                            zoom: 1,
+                            addressControl: false,
+                            showRoadLabels: false,
+                            linksControl: true,
+                            panControl: true,
+                            zoomControl: true,
+                            enableCloseButton: false,
+                            fullscreenControl: false,
+                            visible: true,
+                            motionTracking: false,
+                            motionTrackingControl: false
+                        }
+                    );
                     watchTilesLoaded(panoramaInstance.current);
                 } else {
                     console.warn('[Player] ✗ No Street View coverage, status:', status);
-                    if (!panoramaInstance.current) {
+                    // Détruire l'ancienne instance également
+                    if (panoramaInstance.current && window.google?.maps?.event) {
+                        try { panoramaInstance.current.setVisible(false); } catch (e) {}
+                        window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
+                        panoramaInstance.current = null;
+                    }
+                    if (streetViewRef.current) streetViewRef.current.innerHTML = '';
+                    {
                         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
                             streetViewRef.current,
                             {
@@ -499,8 +555,6 @@ function GeoPlayerView() {
                             }
                         );
                         watchTilesLoaded(panoramaInstance.current);
-                    } else {
-                        setIsLoading(false);
                     }
                 }
             });
@@ -1038,7 +1092,7 @@ function GeoPlayerView() {
                             <div className="mt-3 text-white fw-bold">Chargement Street View...</div>
                         </div>
                     )}
-                    <div ref={streetViewRef} className="geo-player-streetview" style={{ height: '100%' }}></div>
+                    <div ref={streetViewRef} className="geo-player-streetview"></div>
                     {pointsAnimation && (
                         <div className="points-anim">
                             <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>+{pointsAnimation.score} PTS</div>

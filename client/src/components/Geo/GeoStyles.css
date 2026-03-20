@@ -124,8 +124,13 @@
 }
 
 .geo-player-streetview {
-    flex: 1;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     width: 100%;
+    height: 100%;
 }
 
 /* Controls */
@@ -1552,6 +1557,7 @@
 
 .streetview-frame {
     flex: 1;
+    position: relative;
     border-radius: 20px;
     overflow: hidden;
     border: 4px solid var(--neon-blue);
@@ -1559,6 +1565,11 @@
 }
 
 .geo-playing-streetview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     width: 100%;
     height: 100%;
 }
@@ -1873,6 +1884,7 @@
 
 .geo-round-streetview {
     flex: 1;
+    min-height: 200px;
 }
 
 .geo-round-map {

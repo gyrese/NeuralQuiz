@@ -52,6 +52,7 @@ function GeoHostView() {
     const tilesLoadedRef = useRef(false); // True quand les tuiles image sont effectivement chargées
     const tilesLoadTimeoutRef = useRef(null); // Timeout si les tuiles ne chargent pas
     const isRequestingLocationRef = useRef(false); // Flag to prevent multiple parallel new location requests
+    const isPanoRequestPendingRef = useRef(false); // Guard contre getPanorama simultanés
     const roundStartTimeRef = useRef(null); // For smooth timer interpolation
     const timerDurationRef = useRef(null); // For smooth timer interpolation
     const allPlayersAnsweredRef = useRef(false); // Track if all players have answered
@@ -614,18 +615,24 @@ function GeoHostView() {
         console.log(`[Host] ✓ Initializing Street View for ${location.city} (retry ${retryCount})`);
         streetViewLoadedRef.current = false; // Reset flag
 
+        // Guard : si une requête getPanorama est déjà en cours, ignorer
+        if (isPanoRequestPendingRef.current) {
+            console.log('[Host] getPanorama already pending, skipping duplicate initStreetView');
+            return;
+        }
+
         try {
             const streetViewService = new window.google.maps.StreetViewService();
             const position = { lat: location.lat, lng: location.lng };
 
-            // Use 500m radius for better coverage
+            isPanoRequestPendingRef.current = true;
             streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
+                isPanoRequestPendingRef.current = false;
                 if (status === 'OK') {
                     console.log('[Host] ✓ Street View coverage found, initializing panorama');
                     initPanorama(location, data.location.latLng);
                 } else {
                     console.warn('[Host] ✗ No Street View coverage for this location, status:', status);
-                    // Only request new location during PLAYING state
                     if (gameStateRef.current === 'PLAYING') {
                         requestNewLocation();
                     }
@@ -651,6 +658,7 @@ function GeoHostView() {
         }
         
         isRequestingLocationRef.current = true;
+        isPanoRequestPendingRef.current = false; // Libérer le guard pour la prochaine requête
         // Réinitialiser le flag tuiles pour le nouveau lieu
         tilesLoadedRef.current = false;
         if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
@@ -679,18 +687,21 @@ function GeoHostView() {
 
         // Nettoyer l'ancienne instance (animation + listeners)
         if (panoramaInstance.current && window.google?.maps?.event) {
+            try { panoramaInstance.current.setVisible(false); } catch (e) {}
             window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
+            panoramaInstance.current = null;
         }
         if (rotationRef.current) {
             cancelAnimationFrame(rotationRef.current);
             rotationRef.current = null;
         }
 
+        // Vider le conteneur DOM pour un rendu propre (évite artefacts de l'ancienne instance)
+        if (streetViewRef.current) streetViewRef.current.innerHTML = '';
+
         const initialHeading = Math.random() * 360;
 
-        // ALWAYS create a new instance because the DOM element (streetViewRef.current) 
-        // might have been destroyed/recreated by React between rounds/states.
-        console.log('[Host] Creating new panorama instance with interactive controls');
+        console.log('[Host] Creating new panorama instance');
         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
             streetViewRef.current,
             {
@@ -710,7 +721,44 @@ function GeoHostView() {
             }
         );
 
-        // Animation de rotation lente automatique
+        // Réinitialiser le flag de chargement des tuiles
+        tilesLoadedRef.current = false;
+        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+
+        // Écouter tiles_loaded AVANT de démarrer l'animation pour éviter la race condition
+        // (si les tuiles chargent très vite depuis le cache, le listener doit être en place)
+        panoramaInstance.current.addListener('tiles_loaded', () => {
+            if (!tilesLoadedRef.current) {
+                console.log('[Host] ✓ Street View tiles loaded successfully');
+                tilesLoadedRef.current = true;
+                if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+            }
+        });
+
+        // Vérification de secours : après 500ms, si le panorama a déjà une position valide
+        // (tiles chargées depuis le cache mais event manqué), marquer comme chargé
+        setTimeout(() => {
+            if (!tilesLoadedRef.current && panoramaInstance.current) {
+                try {
+                    const panoId = panoramaInstance.current.getPano();
+                    if (panoId) {
+                        console.log('[Host] ✓ Panorama pano ID found after 500ms, tiles likely cached');
+                        tilesLoadedRef.current = true;
+                        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+        }, 500);
+
+        // Timeout de sécurité : si les tuiles ne chargent pas en 10s → écran noir → nouveau lieu
+        tilesLoadTimeoutRef.current = setTimeout(() => {
+            if (!tilesLoadedRef.current && gameStateRef.current === 'PLAYING') {
+                console.warn('[Host] ✗ Tiles never loaded after 10s (black screen detected) → requesting new location');
+                requestNewLocation();
+            }
+        }, 10000);
+
+        // Animation de rotation lente automatique (après les listeners)
         let heading = initialHeading;
         const rotateCamera = () => {
             if (panoramaInstance.current) {
@@ -723,27 +771,6 @@ function GeoHostView() {
             }
         };
         rotationRef.current = requestAnimationFrame(rotateCamera);
-
-        // Réinitialiser le flag de chargement des tuiles
-        tilesLoadedRef.current = false;
-        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-
-        // Écouter l'événement tiles_loaded : les vraies images sont chargées
-        panoramaInstance.current.addListener('tiles_loaded', () => {
-            if (!tilesLoadedRef.current) {
-                console.log('[Host] ✓ Street View tiles loaded successfully');
-                tilesLoadedRef.current = true;
-                if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-            }
-        });
-
-        // Timeout de sécurité : si les tuiles ne chargent pas en 5s → écran noir → nouveau lieu
-        tilesLoadTimeoutRef.current = setTimeout(() => {
-            if (!tilesLoadedRef.current && gameStateRef.current === 'PLAYING') {
-                console.warn('[Host] ✗ Tiles never loaded after 5s (black screen detected) → requesting new location');
-                requestNewLocation();
-            }
-        }, 5000);
 
         // Mark Street View as loaded (panorama instance créée, tuiles en cours)
         streetViewLoadedRef.current = true;
@@ -760,7 +787,7 @@ function GeoHostView() {
         }
 
         let failCount = 0;
-        const MAX_FAILS = 2; // Tolerance of ~6 seconds
+        const MAX_FAILS = 3; // Tolerance of ~15 seconds
 
         streetViewWatchdogRef.current = setInterval(() => {
             // Only check during PLAYING state
@@ -801,7 +828,7 @@ function GeoHostView() {
                 streetViewLoadedRef.current = false;
                 requestNewLocation();
             }
-        }, 3000); // Check every 3 seconds for mobile network tolerance
+        }, 5000); // Check every 5 seconds
     };
 
     // Init map pour les résultats

@@ -34,8 +34,7 @@ function GeoPlayerView() {
     const [isRestoring, setIsRestoring] = useState(false); // Restoring session from localStorage
     const [pointsAnimation, setPointsAnimation] = useState(null); // { score: 1000 }
     const [reactionCooldown, setReactionCooldown] = useState(false); // Cooldown for emoji reactions
-    const [isLateJoin, setIsLateJoin] = useState(false); // Player joined mid-game
-    const [missedRounds, setMissedRounds] = useState(0); // Number of rounds missed
+    const [showMap, setShowMap] = useState(false); // Toggle Street View / Map plein écran
 
     const streetViewRef = useRef(null);
     const mapRef = useRef(null);
@@ -50,16 +49,6 @@ function GeoPlayerView() {
     // Global flags for reliable API loading
     const googleMapsLoadingRef = useRef(false);
     const googleMapsReadyRef = useRef(false);
-    const [googleMapsReady, setGoogleMapsReady] = useState(false); // State to trigger useEffect re-run
-    const tilesLoadedRef = useRef(false); // True quand les tuiles Street View sont chargées
-    const tilesLoadTimeoutRef = useRef(null); // Timeout si les tuiles ne chargent pas
-    const tilesRetryCountRef = useRef(0); // Compteur de retry pour éviter boucle infinie
-    const stepRef = useRef(step); // Ref pour accéder au step dans les callbacks async
-    const isPanoRequestPendingRef = useRef(false); // Guard contre getPanorama simultanés
-    const initMapsRef = useRef(null); // Ref vers la dernière version de initMaps (évite stale closures)
-
-    // Synchroniser stepRef
-    useEffect(() => { stepRef.current = step; }, [step]);
 
     // Restore session and handle connections
     useEffect(() => {
@@ -165,7 +154,7 @@ function GeoPlayerView() {
                 if (response.gameState === 'PLAYING' && response.roundStartTime && response.timePerRound) {
                     startTimer(response.timePerRound, response.roundStartTime);
                 } else if (response.gameState === 'PLAYING') {
-                    startTimer(response.timePerRound || 60);
+                    startTimer(60);
                 }
             } else {
                 if (!silent) setStep('WAITING');
@@ -182,8 +171,9 @@ function GeoPlayerView() {
             setCurrentLocation(data.location);
             setGuessMarker(null);
             markerInstance.current = null;
-            setIsLoading(true); // Start loading new street view
+            setIsLoading(true);
             setSelectedRegions(data.mapType || ['world']);
+            setShowMap(false);
             soundManager.play('start');
 
             // Calculate remaining time based on server's roundStartTime
@@ -222,7 +212,8 @@ function GeoPlayerView() {
             setCurrentLocation(data.location);
             setGuessMarker(null);
             markerInstance.current = null;
-            setIsLoading(true); // Start loading
+            setIsLoading(true);
+            setShowMap(false);
             soundManager.play('start');
 
             // Calculate remaining time based on server's roundStartTime
@@ -282,14 +273,6 @@ function GeoPlayerView() {
             socket.off('geo-kicked');
             socket.off('geo-game-restarted');
             if (timerRef.current) clearInterval(timerRef.current);
-            if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-            // Cleanup Google Maps instances
-            if (panoramaInstance.current && window.google?.maps?.event) {
-                window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
-            }
-            panoramaInstance.current = null;
-            mapInstance.current = null;
-            markerInstance.current = null;
         };
     }, []);
 
@@ -313,7 +296,6 @@ function GeoPlayerView() {
                 console.log('[Player] Google Maps API already available on window');
                 googleMapsReadyRef.current = true;
                 googleMapsLoadingRef.current = false;
-                setGoogleMapsReady(true);
                 return;
             }
 
@@ -335,7 +317,6 @@ function GeoPlayerView() {
                             console.log('[Player] ✓ window.google.maps.StreetViewService is ready after', attempts, 'checks');
                             googleMapsReadyRef.current = true;
                             googleMapsLoadingRef.current = false;
-                            setGoogleMapsReady(true);
                             resolve();
                         } else if (attempts > 50) { // Timeout after 5 seconds (50 * 100ms)
                             clearInterval(checkInterval);
@@ -367,175 +348,82 @@ function GeoPlayerView() {
         let timeoutId;
 
         if (step === 'PLAYING' && currentLocation && googleMapsReadyRef.current) {
-            // Reset tous les états pour un init propre
-            tilesRetryCountRef.current = 0;
-            isPanoRequestPendingRef.current = false; // Annuler tout request en cours
-            if (tilesLoadTimeoutRef.current) {
-                clearTimeout(tilesLoadTimeoutRef.current);
-                tilesLoadTimeoutRef.current = null;
-            }
-            // Delay pour que le DOM soit prêt
+            // Delay to ensure DOM is ready
             timeoutId = setTimeout(() => {
-                tilesLoadedRef.current = false;
                 initMaps();
             }, 100);
-        } else if (step !== 'PLAYING') {
-            // Nettoyage quand on quitte PLAYING
-            isPanoRequestPendingRef.current = false;
-            if (tilesLoadTimeoutRef.current) {
-                clearTimeout(tilesLoadTimeoutRef.current);
-                tilesLoadTimeoutRef.current = null;
-            }
-            tilesLoadedRef.current = false;
-            tilesRetryCountRef.current = 0;
         }
 
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [step, currentLocation, googleMapsReady]);
+    }, [step, currentLocation, currentRound]);
 
     // Init results map (only when API is ready)
     useEffect(() => {
         if (step === 'ROUND_END' && googleMapsReadyRef.current && resultsMapRef.current && correctLocation) {
             initResultsMap();
         }
-    }, [step, roundResults, googleMapsReady]);
+    }, [step, roundResults]);
 
     const initMaps = () => {
-        // Mettre à jour la ref vers la version courante (évite stale closures dans les retries)
-        initMapsRef.current = initMaps;
-
-        // Guard : si une requête getPanorama est déjà en cours, ignorer
-        if (isPanoRequestPendingRef.current) {
-            console.log('[Player] getPanorama already pending, skipping duplicate initMaps');
-            return;
-        }
-
-        // Verify API is loaded — utilise stepRef pour éviter closure périmée
+        // Verify API is loaded
         if (!window.google?.maps?.StreetViewService) {
             console.warn('[Player] initMaps called but google.maps not ready, will retry');
             setTimeout(() => {
-                if (stepRef.current === 'PLAYING' && googleMapsReadyRef.current) {
-                    initMapsRef.current?.();
+                if (step === 'PLAYING' && googleMapsReadyRef.current) {
+                    initMaps();
                 }
             }, 500);
             return;
         }
-
-        // Helper : surveiller tiles_loaded + timeout écran noir (max 3 retries)
-        const watchTilesLoaded = (pano) => {
-            // Nettoyer les anciens listeners pour éviter accumulation
-            window.google.maps.event.clearListeners(pano, 'tiles_loaded');
-            tilesLoadedRef.current = false;
-            if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-
-            pano.addListener('tiles_loaded', () => {
-                if (!tilesLoadedRef.current) {
-                    console.log('[Player] ✓ Street View tiles loaded');
-                    tilesLoadedRef.current = true;
-                    tilesRetryCountRef.current = 0;
-                    if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-                    setIsLoading(false);
-                }
-            });
-
-            // Vérification de secours après 500ms : si le panorama a déjà un panoId
-            // (tiles chargées depuis cache mais event manqué)
-            setTimeout(() => {
-                if (!tilesLoadedRef.current && stepRef.current === 'PLAYING') {
-                    try {
-                        const panoId = pano.getPano();
-                        if (panoId) {
-                            console.log('[Player] ✓ Panorama pano ID found after 500ms (cached)');
-                            tilesLoadedRef.current = true;
-                            tilesRetryCountRef.current = 0;
-                            if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-                            setIsLoading(false);
-                        }
-                    } catch (e) { /* ignore */ }
-                }
-            }, 500);
-
-            // Timeout : si rien ne charge en 10s → re-init (délai augmenté pour mobiles lents)
-            tilesLoadTimeoutRef.current = setTimeout(() => {
-                if (!tilesLoadedRef.current && stepRef.current === 'PLAYING') {
-                    tilesRetryCountRef.current++;
-                    if (tilesRetryCountRef.current <= 3) {
-                        console.warn(`[Player] ✗ Tiles never loaded (retry ${tilesRetryCountRef.current}/3) → re-init`);
-                        // Détruire proprement l'instance courante
-                        if (panoramaInstance.current && window.google?.maps?.event) {
-                            try { panoramaInstance.current.setVisible(false); } catch (e) {}
-                            window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
-                        }
-                        panoramaInstance.current = null;
-                        isPanoRequestPendingRef.current = false; // Libérer le guard
-                        setIsLoading(true);
-                        // Utiliser initMapsRef pour toujours appeler la version courante
-                        setTimeout(() => initMapsRef.current?.(), 300);
-                    } else {
-                        console.error('[Player] ✗ Max tile retries reached, giving up');
-                        setIsLoading(false);
-                    }
-                }
-            }, 10000);
-        };
 
         // Street View - use StreetViewService to find nearest coverage
         if (streetViewRef.current && currentLocation) {
             const streetViewService = new window.google.maps.StreetViewService();
             const position = { lat: currentLocation.lat, lng: currentLocation.lng };
 
-            isPanoRequestPendingRef.current = true;
+            // Check for Street View coverage within 500m radius
             streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
-                isPanoRequestPendingRef.current = false;
-                // Vérifier qu'on est toujours en PLAYING (éviter callback périmé)
-                if (stepRef.current !== 'PLAYING') return;
-
                 if (status === 'OK') {
                     const verifiedPosition = data.location.latLng;
                     console.log('[Player] ✓ Street View coverage found at:', verifiedPosition.lat(), verifiedPosition.lng());
 
-                    // Toujours détruire l'ancienne instance avant d'en créer une nouvelle.
-                    // NE PAS réutiliser via setPosition : tiles_loaded peut firer AVANT watchTilesLoaded.
-                    if (panoramaInstance.current && window.google?.maps?.event) {
-                        try { panoramaInstance.current.setVisible(false); } catch (e) {}
-                        window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
-                        panoramaInstance.current = null;
+                    // Create or update panorama with verified position
+                    if (panoramaInstance.current && streetViewRef.current.hasChildNodes()) {
+                        panoramaInstance.current.setPosition(verifiedPosition);
+                        panoramaInstance.current.setPov({
+                            heading: Math.random() * 360,
+                            pitch: 0
+                        });
+                        panoramaInstance.current.setVisible(true);
+                    } else {
+                        console.log('[Player] Creating new StreetViewPanorama instance with interactive controls');
+                        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+                            streetViewRef.current,
+                            {
+                                position: verifiedPosition,
+                                pov: { heading: Math.random() * 360, pitch: 0 },
+                                zoom: 1,
+                                addressControl: false,
+                                showRoadLabels: false,
+                                linksControl: true,  // Enable navigation links
+                                panControl: true,     // Enable pan controls
+                                zoomControl: false,    // Disable zoom buttons
+                                enableCloseButton: false,
+                                fullscreenControl: false,
+                                visible: true,
+                                motionTracking: false,
+                                motionTrackingControl: false,
+                                disableDefaultUI: true // Hide default street view boxes/links
+                            }
+                        );
                     }
-                    // Vider le conteneur DOM pour forcer un rendu propre
-                    if (streetViewRef.current) streetViewRef.current.innerHTML = '';
-
-                    console.log('[Player] Creating new StreetViewPanorama instance');
-                    panoramaInstance.current = new window.google.maps.StreetViewPanorama(
-                        streetViewRef.current,
-                        {
-                            position: verifiedPosition,
-                            pov: { heading: Math.random() * 360, pitch: 0 },
-                            zoom: 1,
-                            addressControl: false,
-                            showRoadLabels: false,
-                            linksControl: true,
-                            panControl: true,
-                            zoomControl: true,
-                            enableCloseButton: false,
-                            fullscreenControl: false,
-                            visible: true,
-                            motionTracking: false,
-                            motionTrackingControl: false
-                        }
-                    );
-                    watchTilesLoaded(panoramaInstance.current);
+                    setIsLoading(false);
                 } else {
                     console.warn('[Player] ✗ No Street View coverage, status:', status);
-                    // Détruire l'ancienne instance également
-                    if (panoramaInstance.current && window.google?.maps?.event) {
-                        try { panoramaInstance.current.setVisible(false); } catch (e) {}
-                        window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
-                        panoramaInstance.current = null;
-                    }
-                    if (streetViewRef.current) streetViewRef.current.innerHTML = '';
-                    {
+                    // Fallback: try with original position anyway
+                    if (!panoramaInstance.current) {
                         panoramaInstance.current = new window.google.maps.StreetViewPanorama(
                             streetViewRef.current,
                             {
@@ -546,16 +434,17 @@ function GeoPlayerView() {
                                 showRoadLabels: false,
                                 linksControl: true,
                                 panControl: true,
-                                zoomControl: true,
+                                zoomControl: false,
                                 enableCloseButton: false,
                                 fullscreenControl: false,
                                 visible: true,
                                 motionTracking: false,
-                                motionTrackingControl: false
+                                motionTrackingControl: false,
+                                disableDefaultUI: true
                             }
                         );
-                        watchTilesLoaded(panoramaInstance.current);
                     }
+                    setIsLoading(false);
                 }
             });
         }
@@ -584,7 +473,7 @@ function GeoPlayerView() {
                 zoom: bounds.zoom,
                 mapTypeId: 'hybrid', // Vue satellite avec labels
                 disableDefaultUI: true,
-                zoomControl: true,
+                zoomControl: false, // Disable zoom buttons to fix mini map overlap
                 gestureHandling: 'greedy'
             });
 
@@ -752,13 +641,10 @@ function GeoPlayerView() {
                     const remaining = Math.max(0, response.timePerRound - elapsed);
                     startTimer(remaining);
                 } else if (response.gameState === 'PLAYING') {
-                    startTimer(response.timePerRound || 60);
+                    startTimer(60);
                 }
             } else if (response.lateJoin) {
-                // NOUVEAU: Joueur retardataire qui rejoint en cours de partie
                 console.log('[Player] Late join - joining game in progress');
-                setIsLateJoin(true);
-                setMissedRounds(response.missedRounds || 0);
                 setStep(response.gameState);
                 setCurrentRound(response.currentRound);
                 setTotalRounds(response.totalRounds);
@@ -824,6 +710,7 @@ function GeoPlayerView() {
                 setStep('GUESSED');
                 setMyDistance(response.distance);
                 setMyScore(prev => prev + response.score);
+                setShowMap(false); // Revenir sur Street View pour voir l'animation
 
                 // Show points animation
                 setPointsAnimation({
@@ -1062,58 +949,68 @@ function GeoPlayerView() {
     if (step === 'PLAYING') {
         return (
             <div className="geo-player-container">
-                {/* Header */}
+                {/* Header compact */}
                 <div className="geo-player-header">
                     <div className="geo-round">
                         <div>Manche {currentRound}/{totalRounds}</div>
-                        <div style={{ fontSize: '0.8em', color: 'var(--neon-purple)', marginTop: '4px' }}>CODE: {roomCode}</div>
                     </div>
                     <div className={`geo-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
                         {formatTime(timeLeft)}
                     </div>
                     <div className="geo-score d-flex align-items-center gap-2">
-                        <span>Score: {myScore.toLocaleString()}</span>
+                        <span>{myScore.toLocaleString()} pts</span>
                         <button
                             className="btn btn-sm btn-danger rounded-circle p-0 d-flex align-items-center justify-content-center"
-                            style={{ width: '24px', height: '24px', minWidth: '24px' }}
+                            style={{ width: '26px', height: '26px', minWidth: '26px' }}
                             onClick={leaveGame}
-                            title="Quitter la partie"
+                            title="Quitter"
                         >
                             <span style={{ fontSize: '14px', lineHeight: 1 }}>×</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Street View */}
-                <div style={{ position: 'relative', flex: 1, width: '100%' }}>
-                    {isLoading && (
-                        <div className="street-view-loader">
-                            <div className="globe-spinner">🌍</div>
-                            <div className="mt-3 text-white fw-bold">Chargement Street View...</div>
-                        </div>
-                    )}
-                    <div ref={streetViewRef} className="geo-player-streetview"></div>
-                    {pointsAnimation && (
-                        <div className="points-anim">
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>+{pointsAnimation.score} PTS</div>
-                            {pointsAnimation.bonus > 0 && (
-                                <div style={{ fontSize: '1rem', color: '#ffd700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                                    dont {pointsAnimation.bonus} bonus vitesse ⚡
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+                {/* Zone de jeu : les deux vues (SV + Carte) se swappent */}
+                <div className="geo-player-game-area">
+                    {/* Street View */}
+                    <div className={`geo-player-sv-layer ${showMap ? 'mini' : 'main'}`}
+                         onClick={showMap ? () => setShowMap(false) : undefined}
+                    >
+                        {isLoading && !showMap && (
+                            <div className="street-view-loader">
+                                <div className="globe-spinner">🌍</div>
+                                <div className="mt-3 text-white fw-bold">Chargement...</div>
+                            </div>
+                        )}
+                        <div ref={streetViewRef} className="geo-player-streetview"></div>
+                        {showMap && <div className="geo-mini-label">👁️ Street View</div>}
+                        {pointsAnimation && !showMap && (
+                            <div className="points-anim">
+                                <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>+{pointsAnimation.score} PTS</div>
+                                {pointsAnimation.bonus > 0 && (
+                                    <div style={{ fontSize: '1rem', color: '#ffd700' }}>
+                                        dont {pointsAnimation.bonus} bonus vitesse ⚡
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
-                {/* Mini Map */}
-                <div className="geo-minimap-container">
-                    <div ref={mapRef} className="geo-minimap"></div>
+                    {/* Carte */}
+                    <div className={`geo-player-map-layer ${showMap ? 'main' : 'mini'}`}
+                         onClick={!showMap ? () => setShowMap(true) : undefined}
+                    >
+                        <div ref={mapRef} className="geo-player-map"></div>
+                        {!showMap && <div className="geo-mini-label">🗺️ Carte</div>}
+                    </div>
+
+                    {/* Bouton valider — toujours par-dessus, en bas */}
                     <button
-                        className={`btn geo-guess-btn ${guessMarker ? 'btn-primary' : 'btn-secondary'}`}
+                        className={`geo-player-validate-btn ${guessMarker ? 'active' : ''}`}
                         onClick={submitGuess}
                         disabled={!guessMarker}
                     >
-                        {guessMarker ? '✓ VALIDER' : 'CLIQUEZ POUR DEVINER'}
+                        {guessMarker ? '✓ VALIDER' : '📍 Placez votre réponse sur la carte'}
                     </button>
                 </div>
             </div>
@@ -1189,19 +1086,45 @@ function GeoPlayerView() {
 
                 <div className="row justify-content-center">
                     <div className="col-md-6">
-                        <div className="card p-5 text-center">
-                            <div className="mb-4">
-                                <div className="fs-1">
-                                    {myFinalRank === 1 ? '🥇' : myFinalRank === 2 ? '🥈' : myFinalRank === 3 ? '🥉' : `#${myFinalRank}`}
-                                </div>
-                                <h3 className="text-primary mt-2">{pseudo}</h3>
+                        <div className="card p-4 text-center" style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid var(--neon-blue)', backdropFilter: 'blur(10px)' }}>
+                            <div className="mb-2">
+                                <h3 className="text-primary">{pseudo}</h3>
                             </div>
 
-                            <div className="fs-2 text-info mb-4">
-                                {myFinalResult?.totalScore?.toLocaleString() || 0} points
+                            <div className="fs-3 text-info mb-2">
+                                Vous terminez #{myFinalRank} avec {myFinalResult?.totalScore?.toLocaleString() || 0} points
                             </div>
 
-                            <hr />
+                            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }}/>
+
+                            {/* Magnificent Podium */}
+                            <div className="geo-magnificent-podium mb-4 mt-2">
+                                {[1, 0, 2].map((rankIndex) => {
+                                    const result = finalResults?.[rankIndex];
+                                    if (!result) return <div key={`empty-${rankIndex}`} className="geo-podium-item empty" />;
+                                    
+                                    const rank = rankIndex + 1;
+                                    
+                                    return (
+                                        <div key={result.id} className={`geo-podium-item rank-${rank}`}>
+                                            <div className="geo-podium-info">
+                                                <div className="geo-podium-avatar-wrapper">
+                                                    {result.avatar ? (
+                                                        <img src={result.avatar} alt={result.name} />
+                                                    ) : (
+                                                        <div className="fallback-avatar">👤</div>
+                                                    )}
+                                                </div>
+                                                <div className="geo-podium-player-name">{result.name}</div>
+                                                <div className="geo-podium-player-score">{result.totalScore?.toLocaleString()} pts</div>
+                                            </div>
+                                            <div className="geo-podium-block">
+                                                <div className="geo-podium-block-number">{rank}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
 
                             <h5 className="text-muted mb-3">Classement final</h5>
                             {finalResults?.map((result, index) => (

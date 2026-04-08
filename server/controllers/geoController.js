@@ -20,12 +20,33 @@ module.exports = {
             console.log(`[GEO] Room created: ${roomCode} by ${socket.id}`);
         });
 
-        socket.on('geo-host-reconnect', ({ roomCode }) => {
+        socket.on('geo-host-reconnect', ({ roomCode }, callback) => {
             const room = geoGameManager.getRoom(roomCode);
             if (room) {
                 room.hostId = socket.id;
                 socket.join(`geo-${roomCode}`);
                 console.log(`[GEO] Host reconnected and rejoined room ${roomCode}`);
+
+                // Renvoyer l'état actuel de la room au host
+                if (callback) {
+                    callback({
+                        success: true,
+                        roomCode,
+                        gameState: room.gameState,
+                        currentRound: room.currentRound,
+                        totalRounds: room.settings?.roundsCount || 5,
+                        players: room.players.map(p => ({
+                            id: p.id,
+                            name: p.name,
+                            avatar: p.avatar,
+                            totalScore: p.totalScore || 0
+                        })),
+                        timePerRound: room.settings?.timePerRound || 60,
+                        mapType: room.settings?.mapType || ['world']
+                    });
+                }
+            } else if (callback) {
+                callback({ error: 'Room not found' });
             }
         });
 
@@ -315,7 +336,8 @@ module.exports = {
             if (result.gameOver) {
                 callback(result);
                 io.to(`geo-${roomCode}`).emit('geo-game-over', {
-                    results: result.results
+                    results: result.results,
+                    awards: result.awards
                 });
                 console.log(`[GEO] Game over in room ${roomCode}`);
             } else if (result.success) {

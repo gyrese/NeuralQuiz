@@ -133,58 +133,110 @@
     height: 100%;
 }
 
-/* Controls */
-.geo-controls {
+/* ===== LAYOUT JOUEUR PLAYING — SWAP MINI/MAIN ===== */
+
+/* Zone de jeu : prend tout l'espace sous le header */
+.geo-player-game-area {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* === Couches main / mini communes === */
+.geo-player-sv-layer,
+.geo-player-map-layer {
     position: absolute;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
 }
 
-/* Mini Map (Player) - Style GeoGuessr */
-.geo-minimap-container {
+/* Plein écran */
+.geo-player-sv-layer.main,
+.geo-player-map-layer.main {
+    inset: 0;
+    z-index: 1;
+    border-radius: 0;
+}
+
+/* Miniature bas-gauche — cliquable pour swapper, au-dessus du bouton VALIDER */
+.geo-player-sv-layer.mini,
+.geo-player-map-layer.mini {
+    bottom: 4.5rem;
+    left: 0.75rem;
+    width: 140px;
+    height: 100px;
+    z-index: 15;
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+}
+
+.geo-player-sv-layer.mini:hover,
+.geo-player-map-layer.mini:hover {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 16px rgba(0, 219, 222, 0.4);
+    transform: scale(1.08);
+}
+
+/* Label sur la miniature */
+.geo-mini-label {
     position: absolute;
-    bottom: 1rem;
-    right: 1rem;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    max-width: calc(100vw - 2rem);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.65rem;
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 2px 0;
+    pointer-events: none;
+    z-index: 5;
 }
 
-/* Agrandissement au hover - style GeoGuessr */
-.geo-minimap-container:hover .geo-minimap {
-    width: min(450px, calc(100vw - 2rem));
-    height: 350px;
-}
-
-.geo-minimap {
-    width: min(280px, calc(100vw - 2rem));
-    height: 180px;
-    border: 3px solid var(--neon-green);
-    border-radius: 12px;
-    box-shadow: 0 0 20px rgba(0, 255, 65, 0.3), 0 8px 32px rgba(0, 0, 0, 0.4);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* La div Google Map */
+.geo-player-map {
+    width: 100%;
+    height: 100%;
     cursor: crosshair;
 }
 
-.geo-minimap:hover {
-    box-shadow: 0 0 30px rgba(0, 255, 65, 0.5), 0 12px 48px rgba(0, 0, 0, 0.5);
-}
-
-.geo-guess-btn {
+/* Bouton valider — flottant en bas au centre */
+.geo-player-validate-btn {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
     font-family: var(--font-display);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     letter-spacing: 1px;
-    padding: 0.75rem;
+    padding: 0.6rem 1.5rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 25px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #aaa;
+    cursor: default;
     transition: all 0.2s ease;
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+    max-width: calc(100vw - 160px);
 }
 
-.geo-guess-btn:not(:disabled):hover {
-    transform: scale(1.02);
+.geo-player-validate-btn.active {
+    background: var(--neon-green);
+    color: #000;
+    border-color: var(--neon-green);
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+    font-weight: bold;
+}
+
+.geo-player-validate-btn.active:hover {
+    transform: translateX(-50%) scale(1.05);
 }
 
 .geo-guessed-message {
@@ -284,11 +336,9 @@
 /* Results Map */
 .geo-results-map {
     width: 100%;
-    height: 400px;
+    height: 300px;
     border-radius: 10px;
     border: 2px solid var(--neon-blue);
-    display: none;
-    /* Hidden for players as requested */
 }
 
 /* Result Rows */
@@ -352,83 +402,177 @@
     border: 1px solid var(--neon-green);
 }
 
-/* Podium */
-.geo-podium {
+/* Magnificent Podium */
+.geo-magnificent-podium {
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    gap: 1rem;
-    padding: 2rem 0;
+    gap: 20px;
+    height: 400px;
+    margin: 40px auto;
+    max-width: 800px;
 }
 
-.geo-podium-place {
-    text-align: center;
-    padding: 1.5rem;
-    border-radius: 10px;
-    background: var(--glass-bg);
-    border: 2px solid transparent;
-    transition: all 0.3s ease;
-}
-
-.geo-podium-place.place-1 {
-    border-color: gold;
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-    order: 2;
-    transform: scale(1.1);
-}
-
-.geo-podium-place.place-2 {
-    border-color: silver;
-    box-shadow: 0 0 20px rgba(192, 192, 192, 0.2);
-    order: 1;
-}
-
-.geo-podium-place.place-3 {
-    border-color: #cd7f32;
-    box-shadow: 0 0 20px rgba(205, 127, 50, 0.2);
-    order: 3;
-}
-
-.geo-podium-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    /* Make it round */
-    margin: 0 auto 0.5rem;
-    overflow: hidden;
+.geo-podium-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-    background: rgba(255, 255, 255, 0.1);
+    width: 30%;
+    max-width: 180px;
 }
 
-.geo-podium-avatar img {
+/* Animations */
+@keyframes dropIn {
+    0% { transform: translateY(-50px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes growUp {
+    0% { height: 0; opacity: 0; }
+    100% { opacity: 1; }
+}
+
+.geo-podium-info {
+    text-align: center;
+    margin-bottom: 10px;
+    animation: dropIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.rank-1 .geo-podium-info { animation-delay: 1.5s; }
+.rank-2 .geo-podium-info { animation-delay: 0.5s; }
+.rank-3 .geo-podium-info { animation-delay: 1.0s; }
+
+.geo-podium-avatar-wrapper {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    position: relative;
+    padding: 6px;
+}
+
+.rank-1 .geo-podium-avatar-wrapper { 
+    width: 120px; height: 120px;
+    background: linear-gradient(135deg, #FFDF00, #DAA520, #FFF8DC, #FFDF00);
+    box-shadow: 0 0 30px rgba(255, 223, 0, 0.6), inset 0 0 15px rgba(255,255,255,0.8);
+}
+.rank-2 .geo-podium-avatar-wrapper {
+    background: linear-gradient(135deg, #E0E0E0, #9E9E9E, #F5F5F5, #E0E0E0);
+    box-shadow: 0 0 20px rgba(224, 224, 224, 0.4), inset 0 0 10px rgba(255,255,255,0.8);
+}
+.rank-3 .geo-podium-avatar-wrapper {
+    background: linear-gradient(135deg, #CD7F32, #A0522D, #D2B48C, #CD7F32);
+    box-shadow: 0 0 20px rgba(205, 127, 50, 0.4), inset 0 0 10px rgba(255,255,255,0.4);
+}
+
+.geo-podium-avatar-wrapper img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
+    border: 4px solid #1a1a2e;
 }
 
-.geo-podium-medal {
-    font-size: 2rem;
-    margin: 0.5rem 0;
+.geo-podium-avatar-wrapper .fallback-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    border: 4px solid #1a1a2e;
 }
 
-.geo-podium-name {
-    font-weight: bold;
-    color: #fff;
-    margin-bottom: 0.25rem;
-    max-width: 180px;
+.geo-podium-player-name {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: white;
+    text-shadow: 0 2px 5px rgba(0,0,0,0.9);
+    margin-bottom: 5px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    margin: 0 auto 0.25rem;
+    max-width: 160px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.rank-1 .geo-podium-player-name { font-size: 1.6rem; color: #FFDF00; text-shadow: 0 0 10px rgba(255, 223, 0, 0.5); }
+
+.geo-podium-player-score {
+    font-size: 1.1rem;
+    color: var(--neon-green);
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
 }
 
-.geo-podium-score {
-    color: var(--neon-green);
+.rank-1 .geo-podium-player-score { font-size: 1.3rem; }
+
+/* The blocks */
+.geo-podium-block {
+    width: 100%;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 15px;
+    box-shadow: inset 0 5px 20px rgba(255,255,255,0.3), 0 -10px 30px rgba(0,0,0,0.6);
+    position: relative;
+    overflow: hidden;
+    animation: growUp 0.8s cubic-bezier(0.1, 0.8, 0.2, 1) both;
+}
+
+/* Glass reflection effect inside blocks */
+.geo-podium-block::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%; width: 50%; height: 100%;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+    transform: skewX(-20deg);
+    animation: glassSweep 3s infinite 2s;
+}
+
+@keyframes glassSweep {
+    0% { left: -100%; }
+    100% { left: 200%; }
+}
+
+.rank-1 .geo-podium-block {
+    height: 180px;
+    background: linear-gradient(to bottom, #cfb53b, #8a7310);
+    border: 2px solid #FFDF00;
+    border-bottom: none;
+    z-index: 3;
+    animation-delay: 1.5s;
+}
+.rank-1 .geo-podium-block-number { color: rgba(255, 223, 0, 0.6); text-shadow: 0 0 25px rgba(255, 223, 0, 0.8); }
+
+.rank-2 .geo-podium-block {
+    height: 130px;
+    background: linear-gradient(to bottom, #a0a0a0, #5c5c5c);
+    border: 2px solid #E0E0E0;
+    border-bottom: none;
+    z-index: 2;
+    animation-delay: 0.5s;
+}
+.rank-2 .geo-podium-block-number { color: rgba(224, 224, 224, 0.6); text-shadow: 0 0 20px rgba(224, 224, 224, 0.6); }
+
+.rank-3 .geo-podium-block {
+    height: 90px;
+    background: linear-gradient(to bottom, #cd7f32, #7a4615);
+    border: 2px solid #CD7F32;
+    border-bottom: none;
+    z-index: 1;
+    animation-delay: 1.0s;
+}
+.rank-3 .geo-podium-block-number { color: rgba(205, 127, 50, 0.6); text-shadow: 0 0 20px rgba(205, 127, 50, 0.6); }
+
+.geo-podium-block-number {
     font-family: var(--font-display);
+    font-size: 5rem;
+    font-weight: 900;
+    margin: 0;
+    line-height: 1;
 }
 
 /* Final Row */
@@ -559,48 +703,7 @@
     box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
 }
 
-/* Podium Rise Animation */
-@keyframes podiumRise {
-    0% {
-        opacity: 0;
-        transform: translateY(80px) scale(0.8);
-    }
-
-    60% {
-        opacity: 1;
-        transform: translateY(-10px) scale(1.02);
-    }
-
-    80% {
-        transform: translateY(5px) scale(0.98);
-    }
-
-    100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.geo-podium-place.podium-animated {
-    animation: podiumRise 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    opacity: 0;
-}
-
-.geo-podium-place.podium-animated.place-2 {
-    animation-delay: 0.1s;
-}
-
-.geo-podium-place.podium-animated.place-1 {
-    animation-delay: 0.4s;
-}
-
-.geo-podium-place.podium-animated.place-3 {
-    animation-delay: 0.2s;
-}
-
-.geo-podium-place:hover {
-    transform: scale(1.05) translateY(-5px);
-}
+/* Removing old podium animations because we made new ones */
 
 /* Bouncing Emoji Animation */
 @keyframes emojiBounce {
@@ -708,15 +811,26 @@
         box-shadow: 0 0 30px rgba(0, 255, 65, 0.6), 0 12px 48px rgba(0, 0, 0, 0.6);
     }
 
-    .geo-podium {
-        flex-direction: column;
-        align-items: center;
+    .geo-magnificent-podium {
+        height: auto;
+        min-height: 250px;
+        gap: 5px;
+        margin-top: 20px;
+    }
+    
+    .geo-podium-item {
+        width: 32%;
     }
 
-    .geo-podium-place {
-        order: unset !important;
-        transform: none !important;
-    }
+    .geo-podium-block-number { font-size: 3rem; }
+    .geo-podium-player-name { font-size: 0.9rem; margin-bottom: 2px; }
+    .rank-1 .geo-podium-player-name { font-size: 1.1rem; }
+    .geo-podium-player-score { font-size: 0.9rem; }
+    
+    .geo-podium-avatar-wrapper { width: 60px; height: 60px; padding: 3px; }
+    .rank-1 .geo-podium-avatar-wrapper { width: 80px; height: 80px; padding: 4px; }
+    
+    .geo-podium-avatar-wrapper .fallback-avatar { font-size: 1.5rem; }
 
     .geo-results-map {
         height: 300px;

@@ -35,7 +35,20 @@ function GeoHostView() {
         mapType: ['world'] // Tableau pour multi-sélection
     });
 
-    const streetViewRef = useRef(null);
+    const updateSettings = (newSettings) => {
+        setSettings(newSettings);
+        const activeRoomCode = roomCodeRef.current || roomCode;
+        if (activeRoomCode) {
+            socket.emit('geo-update-settings', {
+                roomCode: activeRoomCode,
+                settings: newSettings
+            });
+        }
+    };
+
+    const streetViewRef = useRef(null); // Div persistant du panorama
+    const streetViewPlayingSlotRef = useRef(null); // Slot dans le layout PLAYING
+    const streetViewRoundEndSlotRef = useRef(null); // Slot dans le layout ROUND_END
     const mapRef = useRef(null);
     const panoramaInstance = useRef(null);
     const mapInstance = useRef(null);
@@ -47,48 +60,93 @@ function GeoHostView() {
     const isEndingRoundRef = useRef(false); // Ref mirror of isEndingRound for socket listener
     const correctLocationRef = useRef(null); // Ref for correctLocation to avoid stale closures
     const gameStateRef = useRef(gameState); // Ref pour accéder à gameState dans les callbacks
-    const streetViewWatchdogRef = useRef(null); // Watchdog pour vérifier que Street View est visible
-    const streetViewLoadedRef = useRef(false); // Flag pour savoir si Street View est chargée
-    const tilesLoadedRef = useRef(false); // True quand les tuiles image sont effectivement chargées
-    const tilesLoadTimeoutRef = useRef(null); // Timeout si les tuiles ne chargent pas
+
     const isRequestingLocationRef = useRef(false); // Flag to prevent multiple parallel new location requests
-    const isPanoRequestPendingRef = useRef(false); // Guard contre getPanorama simultanés
     const roundStartTimeRef = useRef(null); // For smooth timer interpolation
     const timerDurationRef = useRef(null); // For smooth timer interpolation
     const allPlayersAnsweredRef = useRef(false); // Track if all players have answered
     const allPlayersAnsweredTimeRef = useRef(null); // When all players answered (timestamp)
 
-    // Synchroniser gameStateRef et nettoyer les timers quand on sort de PLAYING
+    // Synchroniser gameStateRef et nettoyer quand on sort de PLAYING
     useEffect(() => {
         gameStateRef.current = gameState;
-        // Si on sort de PLAYING, nettoyer le timer et le watchdog
         if (gameState !== 'PLAYING') {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
             }
-            if (streetViewWatchdogRef.current) {
-                clearInterval(streetViewWatchdogRef.current);
-                streetViewWatchdogRef.current = null;
+            // Stopper la rotation mais GARDER l'instance panorama vivante
+            if (rotationRef.current) {
+                cancelAnimationFrame(rotationRef.current);
+                rotationRef.current = null;
             }
-            if (tilesLoadTimeoutRef.current) {
-                clearTimeout(tilesLoadTimeoutRef.current);
-                tilesLoadTimeoutRef.current = null;
-            }
-            streetViewLoadedRef.current = false;
-            tilesLoadedRef.current = false;
+        }
+    }, [gameState]);
+
+    // Déplacer le div Street View persistant dans le bon slot selon l'état
+    useEffect(() => {
+        const svDiv = streetViewRef.current;
+        if (!svDiv) return;
+        if (gameState === 'PLAYING' && streetViewPlayingSlotRef.current) {
+            streetViewPlayingSlotRef.current.appendChild(svDiv);
+        } else if (gameState === 'ROUND_END' && streetViewRoundEndSlotRef.current) {
+            streetViewRoundEndSlotRef.current.appendChild(svDiv);
         }
     }, [gameState]);
 
     useEffect(() => {
-        // Créer la room au montage
-        socket.emit('geo-create-room', { settings }, (response) => {
-            if (response.roomCode) {
-                setRoomCode(response.roomCode);
-                roomCodeRef.current = response.roomCode; // Keep ref in sync
-                setGameState('LOBBY');
+        // Au montage : vérifier si on revient d'un rafraîchissement
+        const savedHostSession = localStorage.getItem('geoHostSession');
+        if (savedHostSession) {
+            try {
+                const session = JSON.parse(savedHostSession);
+                console.log('[Host] Session retrouvée, reconnexion à la room:', session.roomCode);
+                setRoomCode(session.roomCode);
+                roomCodeRef.current = session.roomCode;
+                // Reconnect à la room existante
+                socket.emit('geo-host-reconnect', { roomCode: session.roomCode }, (response) => {
+                    if (response.error) {
+                        console.error('[Host] Reconnect error:', response.error);
+                        localStorage.removeItem('geoHostSession');
+                        createNewRoomEmit();
+                    } else {
+                        // Restaurer l'état de la room
+                        setGameState(response.gameState);
+                        setCurrentRound(response.currentRound);
+                        setTotalRounds(response.totalRounds);
+                        setPlayers(response.players);
+                        setSettings({
+                            roundsCount: response.totalRounds,
+                            timePerRound: response.timePerRound,
+                            mapType: response.mapType
+                        });
+                        console.log('[Host] État restauré:', response.gameState);
+                    }
+                });
+            } catch (e) {
+                console.error('[Host] Session parse error, créant une nouvelle room');
+                localStorage.removeItem('geoHostSession');
+                createNewRoomEmit();
             }
-        });
+        } else {
+            createNewRoomEmit();
+        }
+
+        // Créer une room au montage
+        function createNewRoomEmit() {
+            socket.emit('geo-create-room', { settings }, (response) => {
+                if (response.roomCode) {
+                    setRoomCode(response.roomCode);
+                    roomCodeRef.current = response.roomCode;
+                    // Sauvegarder la session
+                    localStorage.setItem('geoHostSession', JSON.stringify({
+                        roomCode: response.roomCode,
+                        createdAt: Date.now()
+                    }));
+                    setGameState('LOBBY');
+                }
+            });
+        }
 
         // Listeners - Player sync
         socket.on('geo-player-joined', (playerList) => {
@@ -101,6 +159,17 @@ function GeoHostView() {
 
         socket.on('geo-player-guessed', ({ playerId }) => {
             setGuessedPlayers(prev => new Set([...prev, playerId]));
+        });
+
+        // When settings are updated from remote
+        socket.on('geo-settings-updated', (newSettings) => {
+            console.log('[Host] Settings updated event received:', newSettings);
+            setSettings(prev => ({
+                ...prev,
+                roundsCount: newSettings.roundsCount || prev.roundsCount,
+                timePerRound: newSettings.timePerRound || prev.timePerRound,
+                mapType: newSettings.mapType || prev.mapType
+            }));
         });
 
         socket.on('geo-all-guessed', () => {
@@ -132,11 +201,6 @@ function GeoHostView() {
         // When remote triggers game start
         socket.on('geo-game-started', (data) => {
             console.log('[Host] Game started event received from remote:', data);
-            // Reset panorama for fresh start
-            if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
-            rotationRef.current = null;
-            panoramaInstance.current = null;
-            
             // Reset "all players answered" flags for new round
             allPlayersAnsweredRef.current = false;
             allPlayersAnsweredTimeRef.current = null;
@@ -150,87 +214,7 @@ function GeoHostView() {
             setIsEndingRound(false);
             soundManager.play('start');
 
-            // Start timer synchronized with server's roundStartTime
-            const duration = data.timePerRound || 60;
-            let initialTimeLeft = duration;
-
-            // Calculate elapsed time based on server's roundStartTime
-            if (data.roundStartTime) {
-                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
-                initialTimeLeft = Math.max(0, duration - elapsed);
-                console.log(`[Host] Timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
-            }
-
-            // Store refs for smooth interpolation
-            roundStartTimeRef.current = data.roundStartTime || Date.now();
-            timerDurationRef.current = duration;
-
-            setTimeLeft(initialTimeLeft);
-            if (timerRef.current) clearInterval(timerRef.current);
-            timerRef.current = setInterval(() => {
-                setTimeLeft(prev => {
-                    // Use server time for smooth interpolation to avoid jitter
-                    const startTime = roundStartTimeRef.current;
-                    const dur = timerDurationRef.current;
-                    
-                    if (startTime && dur) {
-                        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                        const remaining = Math.max(0, dur - elapsed);
-                        
-                        if (remaining <= 10 && remaining > 0) soundManager.playTick();
-                        
-                        // Check if we should end the round
-                        let shouldEnd = false;
-                        if (remaining <= 0) {
-                            shouldEnd = true;
-                            console.log('[Host] Timer reached 0');
-                        } else if (allPlayersAnsweredRef.current && allPlayersAnsweredTimeRef.current) {
-                            // All players answered - check if 3+ seconds have passed
-                            const timePassedSinceAllAnswered = Math.floor((Date.now() - allPlayersAnsweredTimeRef.current) / 1000);
-                            if (timePassedSinceAllAnswered >= 3) {
-                                shouldEnd = true;
-                                console.log('[Host] All answered 3+ seconds ago, ending round');
-                            }
-                        }
-                        
-                        if (shouldEnd) {
-                            clearInterval(timerRef.current);
-                            timerRef.current = null;
-                            if (gameStateRef.current === 'PLAYING') {
-                                endRound();
-                            }
-                            return 0;
-                        }
-                        return remaining;
-                    } else {
-                        // Fallback to simple decrement
-                        if (prev <= 10 && prev > 0) soundManager.playTick();
-
-                        // Check if we should end the round
-                        let shouldEnd = false;
-                        if (prev <= 1) {
-                            shouldEnd = true;
-                            console.log('[Host] Fallback timer reached 0');
-                        } else if (allPlayersAnsweredRef.current && allPlayersAnsweredTimeRef.current) {
-                            const timePassedSinceAllAnswered = Math.floor((Date.now() - allPlayersAnsweredTimeRef.current) / 1000);
-                            if (timePassedSinceAllAnswered >= 3) {
-                                shouldEnd = true;
-                                console.log('[Host] Fallback: All answered 3+ seconds ago, ending round');
-                            }
-                        }
-
-                        if (shouldEnd) {
-                            clearInterval(timerRef.current);
-                            timerRef.current = null;
-                            if (gameStateRef.current === 'PLAYING') {
-                                endRound();
-                            }
-                            return 0;
-                        }
-                        return prev - 1;
-                    }
-                });
-            }, 1000);
+            setupHostTimer(data.timePerRound || 60, data.roundStartTime);
         });
 
         // When remote ends a round (broadcast from server)
@@ -295,11 +279,6 @@ function GeoHostView() {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
             }
-            // Reset panorama for fresh round
-            if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
-            rotationRef.current = null;
-            panoramaInstance.current = null;
-
             setAutoNextCountdown(null);
             setIsEndingRound(false);
             isEndingRoundRef.current = false;
@@ -315,74 +294,8 @@ function GeoHostView() {
             allPlayersAnsweredTimeRef.current = null;
             
             soundManager.play('start');
-
-            // Start timer synchronized with server's roundStartTime
-            const duration = data.timePerRound || 60;
-            setTimeout(() => {
-                let initialTimeLeft = duration;
-
-                // Calculate elapsed time based on server's roundStartTime
-                if (data.roundStartTime) {
-                    const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
-                    initialTimeLeft = Math.max(0, duration - elapsed);
-                    console.log(`[Host] Next round timer sync: duration=${duration}, elapsed=${elapsed}, starting at ${initialTimeLeft}s`);
-                }
-
-                // Store refs for smooth interpolation
-                roundStartTimeRef.current = data.roundStartTime || Date.now();
-                timerDurationRef.current = duration;
-
-                setTimeLeft(initialTimeLeft);
-                if (timerRef.current) clearInterval(timerRef.current);
-                timerRef.current = setInterval(() => {
-                    setTimeLeft(prev => {
-                        // Use server time for smooth interpolation
-                        const startTime = roundStartTimeRef.current;
-                        const dur = timerDurationRef.current;
-                        
-                        if (startTime && dur) {
-                            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                            const remaining = Math.max(0, dur - elapsed);
-                            
-                            if (remaining <= 10 && remaining > 0) soundManager.playTick();
-                            if (remaining <= 0) {
-                                clearInterval(timerRef.current);
-                                timerRef.current = null;
-                                if (gameStateRef.current === 'PLAYING') {
-                                    endRound();
-                                }
-                                return 0;
-                            }
-                            return remaining;
-                        } else {
-                            // Fallback to simple decrement
-                            if (prev <= 10 && prev > 0) soundManager.playTick();
-                            if (prev <= 1) {
-                                clearInterval(timerRef.current);
-                                timerRef.current = null;
-                                if (gameStateRef.current === 'PLAYING') {
-                                    endRound();
-                                }
-                                return 0;
-                            }
-                            return prev - 1;
-                        }
-                    });
-                }, 1000);
-            }, 200);
-
-            // Force init Street View after DOM is ready
-            setTimeout(() => {
-                if (window.google) {
-                    console.log('[HOST] Force initializing Street View from geo-next-round');
-                    initStreetView();
-                } else {
-                    console.warn('[HOST] Google Maps not available yet, retrying...');
-                    setTimeout(() => {
-                        if (window.google) initStreetView();
-                    }, 500);
-                }
-            }, 500);
+            setupHostTimer(data.timePerRound || 60, data.roundStartTime);
+            // Street View init is handled by useEffect([gameState, currentRound, correctLocation])
         });
 
         // When game is over (from remote)
@@ -460,8 +373,6 @@ function GeoHostView() {
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             if (autoNextRef.current) clearInterval(autoNextRef.current);
-            if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-            if (streetViewWatchdogRef.current) clearInterval(streetViewWatchdogRef.current);
             if (panoramaInstance.current && window.google?.maps?.event) {
                 window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
             }
@@ -495,8 +406,6 @@ function GeoHostView() {
     const googleMapsLoadingRef = useRef(false);
     const googleMapsReadyRef = useRef(false);
     const [googleMapsReady, setGoogleMapsReady] = useState(false); // State to trigger useEffect re-run
-    const streetViewInitAttemptRef = useRef(null); // Track current init attempt
-
     // Charger Google Maps API avec garantie que window.google.maps est disponible
     useEffect(() => {
         const loadGoogleMapsAPI = async () => {
@@ -566,269 +475,123 @@ function GeoHostView() {
         loadGoogleMapsAPI();
     }, []);
 
-    // Initialiser Street View quand la partie commence
+    // Initialiser Street View quand la partie commence ou change de manche
     useEffect(() => {
-        if ((gameState === 'PLAYING' || gameState === 'ROUND_END') && correctLocation && googleMapsReadyRef.current) {
-            const attemptId = Math.random();
-            streetViewInitAttemptRef.current = attemptId;
-            
-            console.log(`[Host] useEffect trigger for init (attempt ${attemptId})`);
-            
-            // Delay to ensure DOM is rendered and API is ready
+        console.log(`[Host] useEffect SV: gameState=${gameState}, location=${correctLocation?.city || 'null'}, mapsReady=${googleMapsReadyRef.current}, round=${currentRound}`);
+        if (gameState === 'PLAYING' && correctLocation && googleMapsReadyRef.current) {
+            console.log(`[Host] → Condition OK, setTimeout 300ms pour initStreetView`);
             const timeoutId = setTimeout(() => {
-                // Only proceed if this is still the current attempt
-                if (streetViewInitAttemptRef.current === attemptId) {
+                if (gameStateRef.current === 'PLAYING') {
+                    console.log(`[Host] → setTimeout fired, streetViewRef=${!!streetViewRef.current}, calling initStreetView`);
                     initStreetView();
                 } else {
-                    console.log(`[Host] Skipping old init attempt ${attemptId}`);
+                    console.log(`[Host] → setTimeout fired mais gameState=${gameStateRef.current}, skip`);
                 }
             }, 300);
-
-            return () => {
-                clearTimeout(timeoutId);
-            };
+            return () => clearTimeout(timeoutId);
         }
     }, [gameState, currentRound, correctLocation, googleMapsReady]);
 
-    const initStreetView = (retryCount = 0) => {
-        // Verify API is ready before attempting initialization
+    const initStreetView = () => {
         if (!window.google?.maps?.StreetViewService) {
-            console.warn(`[Host] initStreetView called but google.maps not ready (retry ${retryCount})`);
-            if (retryCount < 5) {
-                setTimeout(() => initStreetView(retryCount + 1), 200);
-            } else {
-                console.error('[Host] ✗ Gave up on initStreetView after 5 retries - API not available');
-            }
+            console.error('[Host] initStreetView: google.maps not available');
             return;
         }
-
-        // Use ref to get the latest correctLocation value
         const location = correctLocationRef.current;
         if (!location || !streetViewRef.current) {
-            console.log('[Host] initStreetView: missing location or ref', { location: !!location, ref: !!streetViewRef.current, retry: retryCount });
-            if (retryCount < 3) {
-                setTimeout(() => initStreetView(retryCount + 1), 300);
-            }
+            console.warn('[Host] initStreetView: missing location or DOM ref');
             return;
         }
 
-        console.log(`[Host] ✓ Initializing Street View for ${location.city} (retry ${retryCount})`);
-        streetViewLoadedRef.current = false; // Reset flag
-
-        // Guard : si une requête getPanorama est déjà en cours, ignorer
-        if (isPanoRequestPendingRef.current) {
-            console.log('[Host] getPanorama already pending, skipping duplicate initStreetView');
-            return;
-        }
-
-        try {
-            const streetViewService = new window.google.maps.StreetViewService();
-            const position = { lat: location.lat, lng: location.lng };
-
-            isPanoRequestPendingRef.current = true;
-            streetViewService.getPanorama({ location: position, radius: 500 }, (data, status) => {
-                isPanoRequestPendingRef.current = false;
+        console.log(`[Host] initStreetView for ${location.city}`);
+        const streetViewService = new window.google.maps.StreetViewService();
+        streetViewService.getPanorama(
+            { location: { lat: location.lat, lng: location.lng }, radius: 500 },
+            (data, status) => {
+                if (gameStateRef.current !== 'PLAYING') return;
                 if (status === 'OK') {
-                    console.log('[Host] ✓ Street View coverage found, initializing panorama');
-                    initPanorama(location, data.location.latLng);
+                    console.log('[Host] Coverage OK');
+                    initPanorama(data.location.latLng);
                 } else {
-                    console.warn('[Host] ✗ No Street View coverage for this location, status:', status);
-                    if (gameStateRef.current === 'PLAYING') {
-                        requestNewLocation();
-                    }
+                    console.warn('[Host] No coverage, status:', status);
+                    requestNewLocation();
                 }
-            });
-        } catch (error) {
-            console.error('[Host] Error in initStreetView:', error);
-            if (retryCount < 3) {
-                setTimeout(() => initStreetView(retryCount + 1), 300);
             }
-        }
+        );
     };
 
-    // Request a new location from the server when current one has no Street View
     const requestNewLocation = () => {
-        if (isRequestingLocationRef.current) {
-            console.log('[Host] Already requesting new location, skipping duplicate');
-            return;
-        }
-        if (!googleMapsReadyRef.current) {
-            console.warn('[Host] Google Maps not ready, cannot request new location');
-            return;
-        }
-        
+        if (isRequestingLocationRef.current) return;
         isRequestingLocationRef.current = true;
-        isPanoRequestPendingRef.current = false; // Libérer le guard pour la prochaine requête
-        // Réinitialiser le flag tuiles pour le nouveau lieu
-        tilesLoadedRef.current = false;
-        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
 
         const currentRoomCode = roomCodeRef.current || roomCode;
-        console.log('[Host] Requesting new location from server');
+        console.log('[Host] Requesting new location');
         socket.emit('geo-request-new-location', { roomCode: currentRoomCode }, (response) => {
             isRequestingLocationRef.current = false;
             if (response.success && response.location) {
-                console.log('[Host] Received new location:', response.location.city);
+                console.log('[Host] New location:', response.location.city);
                 setCorrectLocation(response.location);
                 correctLocationRef.current = response.location;
-                // Re-verify with the new location
-                setTimeout(() => initStreetView(), 200);
+                // useEffect [correctLocation] re-trigger initStreetView automatiquement
             } else {
                 console.error('[Host] Failed to get new location:', response.error);
             }
         });
     };
 
-    // Actually initialize the panorama after coverage is verified
-    const initPanorama = (location, verifiedPosition) => {
+    // Initialiser ou repositionner le panorama après vérification de coverage
+    const initPanorama = (verifiedPosition) => {
         if (!streetViewRef.current) return;
 
-        console.log('[Host] Initializing Street View for location:', location.city, verifiedPosition.lat(), verifiedPosition.lng());
-
-        // Nettoyer l'ancienne instance (animation + listeners)
-        if (panoramaInstance.current && window.google?.maps?.event) {
-            try { panoramaInstance.current.setVisible(false); } catch (e) {}
-            window.google.maps.event.clearInstanceListeners(panoramaInstance.current);
-            panoramaInstance.current = null;
-        }
+        // Cancel rotation existante
         if (rotationRef.current) {
             cancelAnimationFrame(rotationRef.current);
             rotationRef.current = null;
         }
 
-        // Vider le conteneur DOM pour un rendu propre (évite artefacts de l'ancienne instance)
-        if (streetViewRef.current) streetViewRef.current.innerHTML = '';
-
         const initialHeading = Math.random() * 360;
 
-        console.log('[Host] Creating new panorama instance');
-        panoramaInstance.current = new window.google.maps.StreetViewPanorama(
-            streetViewRef.current,
-            {
-                position: verifiedPosition, // Use the SNAPPED position from StreetViewService
-                pov: { heading: initialHeading, pitch: 5 },
-                zoom: 0,
-                addressControl: false,
-                showRoadLabels: false,
-                linksControl: true,   // Enable navigation links for interactivity
-                panControl: true,     // Enable panning
-                zoomControl: true,    // Enable zooming
-                enableCloseButton: false,
-                fullscreenControl: false,
-                motionTracking: false,
-                motionTrackingControl: false,
-                visible: true // Explicitly set visible
-            }
-        );
+        if (panoramaInstance.current) {
+            // Round 2+ : réutiliser le panorama existant
+            console.log('[Host] setPosition sur panorama existant');
+            panoramaInstance.current.setPosition(verifiedPosition);
+            panoramaInstance.current.setPov({ heading: initialHeading, pitch: 5 });
+            panoramaInstance.current.setVisible(true);
+        } else {
+            // Round 1 : créer le panorama
+            console.log('[Host] Création du panorama');
+            panoramaInstance.current = new window.google.maps.StreetViewPanorama(
+                streetViewRef.current,
+                {
+                    position: verifiedPosition,
+                    pov: { heading: initialHeading, pitch: 5 },
+                    zoom: 0,
+                    addressControl: false,
+                    showRoadLabels: false,
+                    linksControl: false,
+                    panControl: false,
+                    clickToGo: false,
+                    draggable: false,
+                    zoomControl: false,
+                    enableCloseButton: false,
+                    fullscreenControl: false,
+                    motionTracking: false,
+                    motionTrackingControl: false,
+                    visible: true
+                }
+            );
+        }
 
-        // Réinitialiser le flag de chargement des tuiles
-        tilesLoadedRef.current = false;
-        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-
-        // Écouter tiles_loaded AVANT de démarrer l'animation pour éviter la race condition
-        // (si les tuiles chargent très vite depuis le cache, le listener doit être en place)
-        panoramaInstance.current.addListener('tiles_loaded', () => {
-            if (!tilesLoadedRef.current) {
-                console.log('[Host] ✓ Street View tiles loaded successfully');
-                tilesLoadedRef.current = true;
-                if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-            }
-        });
-
-        // Vérification de secours : après 500ms, si le panorama a déjà une position valide
-        // (tiles chargées depuis le cache mais event manqué), marquer comme chargé
-        setTimeout(() => {
-            if (!tilesLoadedRef.current && panoramaInstance.current) {
-                try {
-                    const panoId = panoramaInstance.current.getPano();
-                    if (panoId) {
-                        console.log('[Host] ✓ Panorama pano ID found after 500ms, tiles likely cached');
-                        tilesLoadedRef.current = true;
-                        if (tilesLoadTimeoutRef.current) clearTimeout(tilesLoadTimeoutRef.current);
-                    }
-                } catch (e) { /* ignore */ }
-            }
-        }, 500);
-
-        // Timeout de sécurité : si les tuiles ne chargent pas en 10s → écran noir → nouveau lieu
-        tilesLoadTimeoutRef.current = setTimeout(() => {
-            if (!tilesLoadedRef.current && gameStateRef.current === 'PLAYING') {
-                console.warn('[Host] ✗ Tiles never loaded after 10s (black screen detected) → requesting new location');
-                requestNewLocation();
-            }
-        }, 10000);
-
-        // Animation de rotation lente automatique (après les listeners)
+        // Rotation automatique lente
         let heading = initialHeading;
         const rotateCamera = () => {
-            if (panoramaInstance.current) {
+            if (panoramaInstance.current && gameStateRef.current === 'PLAYING') {
                 heading = (heading + 0.15) % 360;
-                panoramaInstance.current.setPov({
-                    heading: heading,
-                    pitch: 5
-                });
+                panoramaInstance.current.setPov({ heading, pitch: 5 });
                 rotationRef.current = requestAnimationFrame(rotateCamera);
             }
         };
         rotationRef.current = requestAnimationFrame(rotateCamera);
-
-        // Mark Street View as loaded (panorama instance créée, tuiles en cours)
-        streetViewLoadedRef.current = true;
-
-        // Start watchdog to verify Street View stays visible
-        startStreetViewWatchdog();
-    };
-
-    // Watchdog: Vérifie périodiquement que la Street View est bien visible et la recharge sinon
-    const startStreetViewWatchdog = () => {
-        // Clear any existing watchdog
-        if (streetViewWatchdogRef.current) {
-            clearInterval(streetViewWatchdogRef.current);
-        }
-
-        let failCount = 0;
-        const MAX_FAILS = 3; // Tolerance of ~15 seconds
-
-        streetViewWatchdogRef.current = setInterval(() => {
-            // Only check during PLAYING state
-            if (gameStateRef.current !== 'PLAYING') {
-                clearInterval(streetViewWatchdogRef.current);
-                streetViewWatchdogRef.current = null;
-                return;
-            }
-
-            // Check if panorama exists and tiles actually loaded
-            if (!panoramaInstance.current) {
-                failCount++;
-                console.warn(`[Host Watchdog] No panorama instance (fail ${failCount}/${MAX_FAILS})`);
-            } else {
-                try {
-                    const pos = panoramaInstance.current.getPosition();
-                    const visible = panoramaInstance.current.getVisible();
-                    if (!pos || !visible) {
-                        failCount++;
-                        console.warn(`[Host Watchdog] Panorama not visible or no position (fail ${failCount}/${MAX_FAILS})`);
-                    } else if (!tilesLoadedRef.current) {
-                        // Panorama exists but tiles never confirmed loaded → potential black screen
-                        failCount++;
-                        console.warn(`[Host Watchdog] Panorama exists but tiles not loaded (fail ${failCount}/${MAX_FAILS})`);
-                    } else {
-                        failCount = 0;
-                    }
-                } catch (e) {
-                    failCount++;
-                    console.warn(`[Host Watchdog] Error checking panorama: ${e.message} (fail ${failCount}/${MAX_FAILS})`);
-                }
-            }
-
-            // If too many fails, try to get a new location because panorama is broken
-            if (failCount >= MAX_FAILS) {
-                console.log('[Host Watchdog] Too many fails, panorama is likely black/empty. Requesting new location...');
-                failCount = 0;
-                streetViewLoadedRef.current = false;
-                requestNewLocation();
-            }
-        }, 5000); // Check every 5 seconds
     };
 
     // Init map pour les résultats
@@ -895,6 +658,8 @@ function GeoHostView() {
             zoom: 3,
             mapTypeId: 'hybrid', // Satellite avec libellés
             disableDefaultUI: true, // Cacher tous les boutons
+            zoomControl: true, // Réactiver le zoom uniquement
+            gestureHandling: 'greedy' // Pinch-to-zoom sur mobile
         });
 
         // Marqueur de la bonne réponse (étoile verte)
@@ -1009,33 +774,41 @@ function GeoHostView() {
         });
     };
 
-    const startTimer = () => {
-        const duration = settings.timePerRound || 60;
-        console.log('[GEO] startTimer called, duration:', duration);
-        setTimeLeft(duration);
-        setIsEndingRound(false);
-
+    // Unique fonction timer — utilisée par geo-game-started ET geo-next-round
+    const setupHostTimer = (duration, roundStartTime) => {
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
         }
 
+        roundStartTimeRef.current = roundStartTime || Date.now();
+        timerDurationRef.current = duration;
+
+        const elapsed = roundStartTime ? Math.floor((Date.now() - roundStartTime) / 1000) : 0;
+        setTimeLeft(Math.max(0, duration - elapsed));
+
         timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 10 && prev > 0) {
-                    soundManager.playTick();
+            setTimeLeft(() => {
+                const startTime = roundStartTimeRef.current;
+                const dur = timerDurationRef.current;
+                const elapsedNow = Math.floor((Date.now() - startTime) / 1000);
+                const remaining = Math.max(0, dur - elapsedNow);
+
+                if (remaining <= 10 && remaining > 0) soundManager.playTick();
+
+                let shouldEnd = remaining <= 0;
+                if (!shouldEnd && allPlayersAnsweredRef.current && allPlayersAnsweredTimeRef.current) {
+                    const sinceAllAnswered = Math.floor((Date.now() - allPlayersAnsweredTimeRef.current) / 1000);
+                    if (sinceAllAnswered >= 3) shouldEnd = true;
                 }
-                if (prev <= 1) {
+
+                if (shouldEnd) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
-                    if (gameStateRef.current === 'PLAYING') {
-                        endRound();
-                    } else {
-                        console.log('[GEO] Timer expired but not in PLAYING state, skipping endRound');
-                    }
+                    if (gameStateRef.current === 'PLAYING') endRound();
                     return 0;
                 }
-                return prev - 1;
+                return remaining;
             });
         }, 1000);
     };
@@ -1148,6 +921,7 @@ function GeoHostView() {
                 isNextRoundPendingRef.current = false;
                 setGameState('GAME_END');
                 setFinalResults(response.results);
+                if (response.awards) setAwards(response.awards);
                 soundManager.play('win');
                 triggerConfetti();
             } else if (response.success) {
@@ -1393,7 +1167,7 @@ function GeoHostView() {
                                             className="geo-range"
                                             min="1" max="20"
                                             value={settings.roundsCount}
-                                            onChange={(e) => setSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
+                                            onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
                                         />
                                         <div className="range-value">{settings.roundsCount}</div>
                                     </div>
@@ -1407,7 +1181,7 @@ function GeoHostView() {
                                             className="geo-range"
                                             min="10" max="300" step="10"
                                             value={settings.timePerRound}
-                                            onChange={(e) => setSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
+                                            onChange={(e) => updateSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
                                         />
                                         <div className="range-value">{settings.timePerRound}s</div>
                                     </div>
@@ -1453,7 +1227,7 @@ function GeoHostView() {
                                                             // Si plus rien, on remet World par défaut
                                                             if (newTypes.length === 0) newTypes = ['world'];
                                                         }
-                                                        setSettings({ ...settings, mapType: newTypes });
+                                                        updateSettings({ ...settings, mapType: newTypes });
                                                     }}
                                                 >
                                                     <div className="region-icon">{region.icon}</div>
@@ -1502,11 +1276,22 @@ function GeoHostView() {
         );
     }
 
-    // RENDER PLAYING - Vue avec Street View dans une fenêtre + infos latérales
-    if (gameState === 'PLAYING') {
+    // RENDER PLAYING + ROUND_END : div Street View PERSISTANT (jamais démonté)
+    if (gameState === 'PLAYING' || gameState === 'ROUND_END') {
+        const isPlaying = gameState === 'PLAYING';
+        const isRoundEnd = gameState === 'ROUND_END';
+
         return (
             <div className="geo-lobby-background">
-                <div className="geo-playing-layout">
+                {/* Div Street View persistant — créé une seule fois, déplacé entre les slots par useEffect */}
+                <div
+                    ref={streetViewRef}
+                    className="geo-host-sv-persistent"
+                    style={{ width: '100%', height: '100%' }}
+                ></div>
+
+                {/* ===== VUE PLAYING ===== */}
+                <div className="geo-playing-layout" style={{ display: isPlaying ? 'flex' : 'none' }}>
                     {/* Header avec timer et infos */}
                     <div className="geo-playing-header">
                         <div className="geo-playing-badge">
@@ -1525,16 +1310,13 @@ function GeoHostView() {
 
                     {/* Contenu principal */}
                     <div className="geo-playing-content">
-                        {/* Street View dans une fenêtre stylisée */}
+                        {/* Panel Street View (le div persistant est positionné ici via CSS) */}
                         <div className="geo-playing-streetview-panel">
-                            <div className="streetview-frame">
-                                <div
-                                    ref={streetViewRef}
-                                    className="geo-playing-streetview"
-                                ></div>
+                            <div className="streetview-frame" ref={streetViewPlayingSlotRef}>
+                                {/* Le div persistant sera injecté ici par useEffect */}
                             </div>
 
-                            {/* Emoji réactions flottantes au-dessus de la Street View */}
+                            {/* Emoji réactions flottantes */}
                             <div className="geo-floating-reactions" aria-hidden="true">
                                 {reactions.map(reaction => (
                                     <div
@@ -1591,17 +1373,10 @@ function GeoHostView() {
                         </div>
                     </div>
                 </div>
-                <PersistentQRCode />
-            </div>
-        );
-    }
 
-    // RENDER ROUND END - Vue améliorée avec Street View + Map + Classement
-    if (gameState === 'ROUND_END') {
-        return (
-            <div className="geo-lobby-background">
-                <div className="geo-round-end-layout">
-                    {/* Header avec infos principales */}
+                {/* ===== VUE ROUND END ===== */}
+                <div className="geo-round-end-layout" style={{ display: isRoundEnd ? 'flex' : 'none' }}>
+                    {/* Header */}
                     <div className="geo-round-end-header">
                         <div className="geo-round-badge">
                             <span className="badge-icon">🎯</span>
@@ -1618,17 +1393,19 @@ function GeoHostView() {
                         </div>
                     </div>
 
-                    {/* Contenu principal en 3 colonnes */}
+                    {/* Contenu en 2 colonnes (Map + Classement) — Street View visible via le div persistant */}
                     <div className="geo-round-end-content">
-                        {/* Colonne gauche: Street View */}
+                        {/* Colonne gauche: le div persistant .mode-roundend se place ici via CSS */}
                         <div className="geo-round-streetview-panel">
                             <div className="panel-header">
                                 <span>📍 Vue Street View</span>
                             </div>
-                            <div ref={streetViewRef} className="geo-round-streetview"></div>
+                            <div ref={streetViewRoundEndSlotRef} className="geo-round-streetview">
+                                {/* Le div persistant sera déplacé ici par useEffect */}
+                            </div>
                         </div>
 
-                        {/* Colonne centrale: Map avec marqueurs */}
+                        {/* Colonne centrale: Map */}
                         <div className="geo-round-map-panel">
                             <div className="panel-header">
                                 <span>🗺️ Carte des réponses</span>
@@ -1643,12 +1420,9 @@ function GeoHostView() {
                             </div>
                             <div className="geo-ranking-list">
                                 {roundResults?.map((result, index) => {
-                                    // Calculate max score for bar width percentage
                                     const maxScore = roundResults[0]?.roundScore || 1;
                                     const barWidth = Math.max(10, (result.roundScore / maxScore) * 100);
-                                    // Assign emojis based on position
                                     const positionEmoji = index === 0 ? '🔥' : index === 1 ? '💪' : index === 2 ? '⭐' : '✨';
-
                                     return (
                                         <div
                                             key={result.id}
@@ -1702,6 +1476,7 @@ function GeoHostView() {
                         </div>
                     </div>
                 </div>
+
                 <PersistentQRCode />
             </div>
         );
@@ -1720,25 +1495,31 @@ function GeoHostView() {
 
                     <div className="row justify-content-center">
                         <div className="col-md-8">
-                            {/* Podium */}
-                            <div className="geo-podium mb-5">
-                                {finalResults?.slice(0, 3).map((result, index) => {
-                                    const emoji = index === 0 ? '🏆' : index === 1 ? '🥈' : '🥉';
+                            {/* Magnificent Podium */}
+                            <div className="geo-magnificent-podium">
+                                {[1, 0, 2].map((rankIndex) => {
+                                    const result = finalResults?.[rankIndex];
+                                    if (!result) return <div key={`empty-${rankIndex}`} className="geo-podium-item empty" />;
+                                    
+                                    const rank = rankIndex + 1;
+                                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+                                    
                                     return (
-                                        <div key={result.id} className={`geo-podium-place place-${index + 1} podium-animated`}>
-                                            <div className="geo-podium-avatar">
-                                                {result.avatar ? (
-                                                    <img src={result.avatar} alt="" />
-                                                ) : '🌐'}
+                                        <div key={result.id} className={`geo-podium-item rank-${rank}`}>
+                                            <div className="geo-podium-info">
+                                                <div className="geo-podium-avatar-wrapper">
+                                                    {result.avatar ? (
+                                                        <img src={result.avatar} alt={result.name} />
+                                                    ) : (
+                                                        <div className="fallback-avatar">👤</div>
+                                                    )}
+                                                </div>
+                                                <div className="geo-podium-player-name">{result.name}</div>
+                                                <div className="geo-podium-player-score">{result.totalScore?.toLocaleString()} pts</div>
                                             </div>
-                                            <div className="geo-podium-medal">
-                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                                            <div className="geo-podium-block">
+                                                <div className="geo-podium-block-number">{rank}</div>
                                             </div>
-                                            <div className="geo-podium-name">
-                                                {result.name}
-                                                <span className={`ranking-emoji delay-${index + 1}`}>{emoji}</span>
-                                            </div>
-                                            <div className="geo-podium-score">{result.totalScore?.toLocaleString()} pts</div>
                                         </div>
                                     );
                                 })}
@@ -1784,7 +1565,10 @@ function GeoHostView() {
                                 <button className="btn btn-success btn-lg me-3" onClick={restartGame}>
                                     🔄 Rejouer
                                 </button>
-                                <button className="btn btn-outline-secondary btn-lg" onClick={() => navigate('/')}>
+                                <button className="btn btn-outline-secondary btn-lg" onClick={() => {
+                                    localStorage.removeItem('geoHostSession');
+                                    navigate('/');
+                                }}>
                                     🏠 Retour au menu
                                 </button>
                             </div>

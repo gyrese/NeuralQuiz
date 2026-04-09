@@ -1484,97 +1484,103 @@ function GeoHostView() {
 
     // RENDER GAME END
     if (gameState === 'GAME_END') {
-        return (
-            <div className="geo-lobby-background">
-                <div className="container py-4">
-                    <div className="text-center mb-5">
-                        <h1 className="display-3 text-primary glitch-text" data-text="PARTIE TERMINÉE">
-                            🏆 PARTIE TERMINÉE
-                        </h1>
-                    </div>
+        const podiumOrder = [1, 0, 2]; // Affichage : 2ème, 1er, 3ème
+        const medalColors = ['#C0C0C0', '#FFD700', '#CD7F32'];
+        const podiumHeights = ['140px', '200px', '110px']; // 2e, 1er, 3e
 
-                    <div className="row justify-content-center">
-                        <div className="col-md-8">
-                            {/* Magnificent Podium */}
-                            <div className="geo-magnificent-podium">
-                                {[1, 0, 2].map((rankIndex) => {
-                                    const result = finalResults?.[rankIndex];
-                                    if (!result) return <div key={`empty-${rankIndex}`} className="geo-podium-item empty" />;
-                                    
-                                    const rank = rankIndex + 1;
-                                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
-                                    
-                                    return (
-                                        <div key={result.id} className={`geo-podium-item rank-${rank}`}>
-                                            <div className="geo-podium-info">
-                                                <div className="geo-podium-avatar-wrapper">
-                                                    {result.avatar ? (
-                                                        <img src={result.avatar} alt={result.name} />
-                                                    ) : (
-                                                        <div className="fallback-avatar">👤</div>
-                                                    )}
+        return (
+            <div className="geo-game-end-screen">
+                {/* ===== HEADER ===== */}
+                <div className="geo-game-end-header">
+                    <div className="geo-game-end-title">🏆 PARTIE TERMINÉE</div>
+                    <div className="geo-game-end-pin">PIN: {roomCode}</div>
+                </div>
+
+                {/* ===== BODY : Podium + Classement ===== */}
+                <div className="geo-game-end-body">
+
+                    {/* --- PODIUM --- */}
+                    <div className="geo-game-end-podium-section">
+                        <div className="geo-game-end-podium">
+                            {podiumOrder.map((rankIndex, displayIndex) => {
+                                const result = finalResults?.[rankIndex];
+                                const rank = rankIndex + 1;
+                                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+                                const color = medalColors[displayIndex];
+                                const height = podiumHeights[displayIndex];
+
+                                return (
+                                    <div key={rankIndex} className="geo-game-end-podium-slot">
+                                        {result ? (
+                                            <>
+                                                <div className="geo-game-end-player-info">
+                                                    <div className="geo-game-end-avatar" style={{ borderColor: color }}>
+                                                        {result.avatar
+                                                            ? <img src={result.avatar} alt={result.name} />
+                                                            : <span>👤</span>}
+                                                    </div>
+                                                    <div className="geo-game-end-player-name" style={{ color }}>{result.name}</div>
+                                                    <div className="geo-game-end-player-score">{result.totalScore?.toLocaleString()} pts</div>
+                                                    <div className="geo-game-end-medal">{medal}</div>
                                                 </div>
-                                                <div className="geo-podium-player-name">{result.name}</div>
-                                                <div className="geo-podium-player-score">{result.totalScore?.toLocaleString()} pts</div>
-                                            </div>
-                                            <div className="geo-podium-block">
-                                                <div className="geo-podium-block-number">{rank}</div>
+                                                <div className="geo-game-end-podium-block" style={{ height, background: `linear-gradient(180deg, ${color}33, ${color}11)`, borderTop: `3px solid ${color}` }}>
+                                                    <span style={{ color, fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 'bold', opacity: 0.5 }}>{rank}</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="geo-game-end-podium-block" style={{ height, background: 'rgba(255,255,255,0.03)', borderTop: '3px solid #333' }} />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Awards */}
+                        {awards && awards.length > 0 && (
+                            <div className="geo-game-end-awards">
+                                <div className="geo-game-end-awards-title">🌟 Hall of Fame</div>
+                                <div className="geo-game-end-awards-list">
+                                    {awards.map((award, index) => (
+                                        <div key={index} className="geo-game-end-award-item">
+                                            <span className="geo-game-end-award-icon">{award.icon}</span>
+                                            <div>
+                                                <div className="geo-game-end-award-name">{award.playerName}</div>
+                                                <div className="geo-game-end-award-title-text">{award.title}</div>
+                                                <div className="geo-game-end-award-value">{award.value}</div>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Awards */}
-                            {awards && awards.length > 0 && (
-                                <div className="geo-awards mb-5">
-                                    <h3 className="text-center mb-3 text-warning" style={{ fontFamily: 'var(--font-display)' }}>🌟 Hall of Fame</h3>
-                                    <div className="row justify-content-center g-3">
-                                        {awards.map((award, index) => (
-                                            <div key={index} className="col-md-4">
-                                                <div className="card p-3 h-100 text-center" style={{ border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.4)' }}>
-                                                    <div className="display-4 mb-2">{award.icon}</div>
-                                                    <h5 className="mb-1" style={{ color: award.type === 'fastest' ? '#ffc107' : award.type === 'astronaut' ? '#bd00ff' : '#aaa' }}>{award.title}</h5>
-                                                    <div className="my-2">
-                                                        {award.avatar ? (
-                                                            <img src={award.avatar} alt="" className="rounded-circle" style={{ width: 50, height: 50, objectFit: 'cover', border: '2px solid white' }} />
-                                                        ) : <span className="fs-2">👤</span>}
-                                                    </div>
-                                                    <div className="fw-bold">{award.playerName}</div>
-                                                    <div className="small text-muted">{award.value}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    ))}
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {/* Full Leaderboard */}
-                            <div className="card p-4 geo-final-ranking-container">
-                                <h5 className="text-info mb-3">Classement complet</h5>
-                                {finalResults?.map((result, index) => (
-                                    <div key={result.id} className="geo-final-row">
-                                        <span className="geo-final-rank">#{index + 1}</span>
-                                        <span className="geo-final-name">{result.name}</span>
-                                        <span className="geo-final-score">{result.totalScore?.toLocaleString()} pts</span>
+                        {/* Boutons */}
+                        <div className="geo-game-end-actions">
+                            <button className="geo-game-end-btn-restart" onClick={restartGame}>🔄 Rejouer</button>
+                            <button className="geo-game-end-btn-home" onClick={() => { localStorage.removeItem('geoHostSession'); navigate('/'); }}>🏠 Menu</button>
+                        </div>
+                    </div>
+
+                    {/* --- CLASSEMENT COMPLET --- */}
+                    <div className="geo-game-end-leaderboard">
+                        <div className="geo-game-end-leaderboard-title">📋 Classement final</div>
+                        <div className="geo-game-end-leaderboard-list">
+                            {finalResults?.map((result, index) => (
+                                <div key={result.id} className={`geo-game-end-lb-row ${index === 0 ? 'winner' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
+                                    <span className="geo-game-end-lb-rank">
+                                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                                    </span>
+                                    <div className="geo-game-end-lb-avatar">
+                                        {result.avatar ? <img src={result.avatar} alt="" /> : <span>👤</span>}
                                     </div>
-                                ))}
-                            </div>
-
-                            <div className="text-center mt-4">
-                                <button className="btn btn-success btn-lg me-3" onClick={restartGame}>
-                                    🔄 Rejouer
-                                </button>
-                                <button className="btn btn-outline-secondary btn-lg" onClick={() => {
-                                    localStorage.removeItem('geoHostSession');
-                                    navigate('/');
-                                }}>
-                                    🏠 Retour au menu
-                                </button>
-                            </div>
+                                    <span className="geo-game-end-lb-name">{result.name}</span>
+                                    <span className="geo-game-end-lb-score">{result.totalScore?.toLocaleString()} pts</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
+
                 <PersistentQRCode />
             </div>
         );

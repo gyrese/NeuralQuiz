@@ -407,15 +407,15 @@ function GeoPlayerView() {
                                 zoom: 1,
                                 addressControl: false,
                                 showRoadLabels: false,
-                                linksControl: true,  // Enable navigation links
-                                panControl: true,     // Enable pan controls
-                                zoomControl: false,    // Disable zoom buttons
+                                linksControl: false,
+                                panControl: true,
+                                zoomControl: false,
                                 enableCloseButton: false,
                                 fullscreenControl: false,
                                 visible: true,
                                 motionTracking: false,
                                 motionTrackingControl: false,
-                                disableDefaultUI: true // Hide default street view boxes/links
+                                disableDefaultUI: true
                             }
                         );
                     }
@@ -432,7 +432,7 @@ function GeoPlayerView() {
                                 zoom: 1,
                                 addressControl: false,
                                 showRoadLabels: false,
-                                linksControl: true,
+                                linksControl: false,
                                 panControl: true,
                                 zoomControl: false,
                                 enableCloseButton: false,
@@ -803,7 +803,9 @@ function GeoPlayerView() {
                                         placeholder="ABC123"
                                         maxLength={6}
                                         value={roomCode}
-                                        onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                                        onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
+                                        readOnly={!!urlRoomCode}
+                                        style={urlRoomCode ? { background: 'rgba(255,255,255,0.05)', color: '#888', cursor: 'not-allowed', borderColor: 'rgba(255,255,255,0.1)' } : {}}
                                     />
                                 </div>
 
@@ -1023,44 +1025,46 @@ function GeoPlayerView() {
         const myRank = roundResults?.findIndex(r => r.id === socket.id) + 1;
 
         return (
-            <div className="container py-4">
-                <div className="d-flex justify-content-end mb-2">
-                    <button className="btn btn-sm btn-outline-danger" onClick={leaveGame}>Quitter la partie</button>
-                </div>
-                <div className="text-center mb-4">
-                    <h2 className="text-primary">📍 Résultats - Manche {currentRound}</h2>
-                    <p className="text-info fs-4">
-                        C'était <strong>{correctLocation?.city}, {correctLocation?.country}</strong>
-                    </p>
-                </div>
-
-                <div className="row">
-                    <div className="col-md-7">
-                        <div ref={resultsMapRef} className="geo-results-map"></div>
+            <div className="geo-player-background">
+                <div className="container py-4">
+                    <div className="d-flex justify-content-end mb-2">
+                        <button className="btn btn-sm btn-outline-danger" onClick={leaveGame}>Quitter la partie</button>
                     </div>
-                    <div className="col-md-5">
-                        <div className="card p-4">
-                            <div className="text-center mb-4">
-                                <div className="fs-1 mb-2">
-                                    {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : `#${myRank}`}
+                    <div className="text-center mb-4">
+                        <h2 className="text-primary">📍 Résultats - Manche {currentRound}</h2>
+                        <p className="text-info fs-4">
+                            C'était <strong>{correctLocation?.city}, {correctLocation?.country}</strong>
+                        </p>
+                    </div>
+
+                    <div className="row">
+                        <div className="col-md-7">
+                            <div ref={resultsMapRef} className="geo-results-map"></div>
+                        </div>
+                        <div className="col-md-5">
+                            <div className="p-4" style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(0,219,222,0.4)', borderRadius: '12px', color: 'white' }}>
+                                <div className="text-center mb-4">
+                                    <div className="fs-1 mb-2">
+                                        {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : `#${myRank}`}
+                                    </div>
+                                    <div className="fs-4" style={{ color: 'var(--neon-green)' }}>+{myResult?.roundScore?.toLocaleString() || 0} pts</div>
+                                    <div style={{ color: '#aaa' }}>{formatDistance(myResult?.distance)}</div>
                                 </div>
-                                <div className="fs-4 text-primary">+{myResult?.roundScore?.toLocaleString() || 0} pts</div>
-                                <div className="text-muted">{formatDistance(myResult?.distance)}</div>
+
+                                <hr style={{ borderColor: 'rgba(255,255,255,0.15)' }} />
+
+                                <h6 style={{ color: 'var(--neon-blue)', marginBottom: '0.75rem' }}>Classement du round</h6>
+                                {roundResults?.slice(0, 5).map((result, index) => (
+                                    <div key={result.id} className={`geo-result-mini ${result.id === socket.id ? 'me' : ''}`}>
+                                        <span>#{index + 1} {result.name}</span>
+                                        <span>+{result.roundScore?.toLocaleString()}</span>
+                                    </div>
+                                ))}
                             </div>
 
-                            <hr />
-
-                            <h6 className="text-info mb-3">Classement du round</h6>
-                            {roundResults?.slice(0, 5).map((result, index) => (
-                                <div key={result.id} className={`geo-result-mini ${result.id === socket.id ? 'me' : ''}`}>
-                                    <span>#{index + 1} {result.name}</span>
-                                    <span>+{result.roundScore?.toLocaleString()}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="text-center mt-4">
-                            <p className="text-muted">En attente de la manche suivante...</p>
+                            <div className="text-center mt-4">
+                                <p style={{ color: '#aaa' }}>En attente de la manche suivante...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1074,74 +1078,76 @@ function GeoPlayerView() {
         const myFinalRank = finalResults?.findIndex(r => r.id === socket.id) + 1;
 
         return (
-            <div className="container py-4">
-                <div className="d-flex justify-content-end mb-2">
-                    <button className="btn btn-sm btn-outline-danger" onClick={leaveGame}>Quitter la partie</button>
-                </div>
-                <div className="text-center mb-5">
-                    <h1 className="display-3 text-primary glitch-text" data-text="PARTIE TERMINÉE">
-                        🏆 PARTIE TERMINÉE
-                    </h1>
-                </div>
+            <div className="geo-player-background">
+                <div className="container py-4">
+                    <div className="d-flex justify-content-end mb-2">
+                        <button className="btn btn-sm btn-outline-danger" onClick={leaveGame}>Quitter la partie</button>
+                    </div>
+                    <div className="text-center mb-5">
+                        <h1 className="display-3 text-primary glitch-text" data-text="PARTIE TERMINÉE">
+                            🏆 PARTIE TERMINÉE
+                        </h1>
+                    </div>
 
-                <div className="row justify-content-center">
-                    <div className="col-md-6">
-                        <div className="card p-4 text-center" style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid var(--neon-blue)', backdropFilter: 'blur(10px)' }}>
-                            <div className="mb-2">
-                                <h3 className="text-primary">{pseudo}</h3>
-                            </div>
-
-                            <div className="fs-3 text-info mb-2">
-                                Vous terminez #{myFinalRank} avec {myFinalResult?.totalScore?.toLocaleString() || 0} points
-                            </div>
-
-                            <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }}/>
-
-                            {/* Magnificent Podium */}
-                            <div className="geo-magnificent-podium mb-4 mt-2">
-                                {[1, 0, 2].map((rankIndex) => {
-                                    const result = finalResults?.[rankIndex];
-                                    if (!result) return <div key={`empty-${rankIndex}`} className="geo-podium-item empty" />;
-                                    
-                                    const rank = rankIndex + 1;
-                                    
-                                    return (
-                                        <div key={result.id} className={`geo-podium-item rank-${rank}`}>
-                                            <div className="geo-podium-info">
-                                                <div className="geo-podium-avatar-wrapper">
-                                                    {result.avatar ? (
-                                                        <img src={result.avatar} alt={result.name} />
-                                                    ) : (
-                                                        <div className="fallback-avatar">👤</div>
-                                                    )}
-                                                </div>
-                                                <div className="geo-podium-player-name">{result.name}</div>
-                                                <div className="geo-podium-player-score">{result.totalScore?.toLocaleString()} pts</div>
-                                            </div>
-                                            <div className="geo-podium-block">
-                                                <div className="geo-podium-block-number">{rank}</div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <h5 className="text-muted mb-3">Classement final</h5>
-                            {finalResults?.map((result, index) => (
-                                <div key={result.id} className={`geo-final-mini-row ${result.id === socket.id ? 'me' : ''}`}>
-                                    <span>
-                                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
-                                        {' '}{result.name}
-                                    </span>
-                                    <span>{result.totalScore?.toLocaleString()} pts</span>
+                    <div className="row justify-content-center">
+                        <div className="col-md-6">
+                            <div className="card p-4 text-center" style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid var(--neon-blue)', backdropFilter: 'blur(10px)' }}>
+                                <div className="mb-2">
+                                    <h3 className="text-primary">{pseudo}</h3>
                                 </div>
-                            ))}
-                        </div>
 
-                        <div className="text-center mt-4">
-                            <button className="btn btn-outline-secondary btn-lg" onClick={() => navigate('/')}>
-                                🏠 Retour au menu
-                            </button>
+                                <div className="fs-3 text-info mb-2">
+                                    Vous terminez #{myFinalRank} avec {myFinalResult?.totalScore?.toLocaleString() || 0} points
+                                </div>
+
+                                <hr style={{ borderColor: 'rgba(255,255,255,0.1)' }}/>
+
+                                {/* Magnificent Podium */}
+                                <div className="geo-magnificent-podium mb-4 mt-2">
+                                    {[1, 0, 2].map((rankIndex) => {
+                                        const result = finalResults?.[rankIndex];
+                                        if (!result) return <div key={`empty-${rankIndex}`} className="geo-podium-item empty" />;
+
+                                        const rank = rankIndex + 1;
+
+                                        return (
+                                            <div key={result.id} className={`geo-podium-item rank-${rank}`}>
+                                                <div className="geo-podium-info">
+                                                    <div className="geo-podium-avatar-wrapper">
+                                                        {result.avatar ? (
+                                                            <img src={result.avatar} alt={result.name} />
+                                                        ) : (
+                                                            <div className="fallback-avatar">👤</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="geo-podium-player-name">{result.name}</div>
+                                                    <div className="geo-podium-player-score">{result.totalScore?.toLocaleString()} pts</div>
+                                                </div>
+                                                <div className="geo-podium-block">
+                                                    <div className="geo-podium-block-number">{rank}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <h5 className="text-muted mb-3">Classement final</h5>
+                                {finalResults?.map((result, index) => (
+                                    <div key={result.id} className={`geo-final-mini-row ${result.id === socket.id ? 'me' : ''}`}>
+                                        <span>
+                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                                            {' '}{result.name}
+                                        </span>
+                                        <span>{result.totalScore?.toLocaleString()} pts</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="text-center mt-4">
+                                <button className="btn btn-outline-secondary btn-lg" onClick={() => navigate('/')}>
+                                    🏠 Retour au menu
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

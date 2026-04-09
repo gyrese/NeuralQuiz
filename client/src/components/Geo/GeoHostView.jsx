@@ -1051,7 +1051,7 @@ function GeoHostView() {
                     <div className="geo-qr-panel">
                         <img
                             src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`}
-                            alt="QR Code"
+                            alt={`QR Code pour rejoindre — code ${roomCode}`}
                         />
                         <div className="geo-qr-panel-info">
                             <div className="geo-qr-panel-code">{roomCode}</div>
@@ -1060,6 +1060,7 @@ function GeoHostView() {
                         <button
                             className="geo-qr-toggle-btn mt-2 w-100 justify-content-center"
                             onClick={() => setShowQRCode(false)}
+                            aria-label="Masquer le QR code"
                         >
                             ✕ Masquer
                         </button>
@@ -1068,9 +1069,13 @@ function GeoHostView() {
                     <div
                         className="geo-qr-compact"
                         onClick={() => setShowQRCode(true)}
+                        role="button"
+                        tabIndex={0}
                         title="Afficher le QR code pour rejoindre"
+                        aria-label={`Afficher le QR code — PIN: ${roomCode}`}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowQRCode(true); } }}
                     >
-                        <span className="geo-qr-compact-icon">📱</span>
+                        <span className="geo-qr-compact-icon" aria-hidden="true">📱</span>
                         <span className="geo-qr-compact-pin">PIN: {roomCode}</span>
                     </div>
                 )}
@@ -1097,7 +1102,7 @@ function GeoHostView() {
                     </div>
                     <div className="d-flex gap-3">
                         <div className="kahoot-qr">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '/geo/play/' + roomCode)}`} alt="QR Code Joueur" />
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '/geo/play/' + roomCode)}`} alt={`QR Code pour rejoindre — code ${roomCode}`} />
                         </div>
                     </div>
                 </div>
@@ -1124,9 +1129,10 @@ function GeoHostView() {
                                     <div className="geo-lobby-player-card position-relative">
                                         <button
                                             className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 shadow-sm border-0"
-                                            style={{ borderRadius: '50%', width: '28px', height: '28px', padding: 0, fontSize: '14px', lineHeight: '1', zIndex: 10 }}
+                                            style={{ borderRadius: '50%', width: '44px', height: '44px', padding: 0, fontSize: '16px', lineHeight: '1', zIndex: 10 }}
                                             onClick={(e) => { e.stopPropagation(); kickPlayer(player.id); }}
-                                            title="Exclure"
+                                            title="Exclure ce joueur"
+                                            aria-label={`Exclure ${player.name}`}
                                         >
                                             ✕
                                         </button>
@@ -1146,8 +1152,9 @@ function GeoHostView() {
                     <div className="position-fixed bottom-0 start-0 p-4">
                         <button className="btn btn-dark rounded-circle shadow-lg d-flex align-items-center justify-content-center"
                             style={{ width: '60px', height: '60px', border: '2px solid var(--neon-blue)' }}
+                            aria-label="Paramètres de la partie"
                             onClick={() => setShowSettings(true)}>
-                            <span style={{ fontSize: '1.8rem' }}>⚙️</span>
+                            <span style={{ fontSize: '1.8rem' }} aria-hidden="true">⚙️</span>
                         </button>
                     </div>
 
@@ -1160,30 +1167,34 @@ function GeoHostView() {
                                 </h3>
 
                                 <div className="settings-section">
-                                    <div className="settings-label">Nombre de manches</div>
+                                    <label className="settings-label" htmlFor="setting-rounds">Nombre de manches</label>
                                     <div className="geo-range-container">
                                         <input
+                                            id="setting-rounds"
                                             type="range"
                                             className="geo-range"
                                             min="1" max="20"
                                             value={settings.roundsCount}
+                                            aria-valuemin={1} aria-valuemax={20} aria-valuenow={settings.roundsCount}
                                             onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
                                         />
-                                        <div className="range-value">{settings.roundsCount}</div>
+                                        <div className="range-value" aria-hidden="true">{settings.roundsCount}</div>
                                     </div>
                                 </div>
 
                                 <div className="settings-section">
-                                    <div className="settings-label">Temps par manche (secondes)</div>
+                                    <label className="settings-label" htmlFor="setting-time">Temps par manche (secondes)</label>
                                     <div className="geo-range-container">
                                         <input
+                                            id="setting-time"
                                             type="range"
                                             className="geo-range"
                                             min="10" max="300" step="10"
                                             value={settings.timePerRound}
+                                            aria-valuemin={10} aria-valuemax={300} aria-valuenow={settings.timePerRound}
                                             onChange={(e) => updateSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
                                         />
-                                        <div className="range-value">{settings.timePerRound}s</div>
+                                        <div className="range-value" aria-hidden="true">{settings.timePerRound}s</div>
                                     </div>
                                 </div>
 
@@ -1209,6 +1220,10 @@ function GeoHostView() {
                                                 <div
                                                     key={region.id}
                                                     className={`region-option ${isSelected ? 'selected' : ''}`}
+                                                    role="checkbox"
+                                                    aria-checked={isSelected}
+                                                    tabIndex={0}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click(); }}
                                                     onClick={() => {
                                                         let newTypes;
                                                         if (region.id === 'world') {
@@ -1556,8 +1571,8 @@ function GeoHostView() {
 
                         {/* Boutons */}
                         <div className="geo-game-end-actions">
-                            <button className="geo-game-end-btn-restart" onClick={restartGame}>🔄 Rejouer</button>
-                            <button className="geo-game-end-btn-home" onClick={() => { localStorage.removeItem('geoHostSession'); navigate('/'); }}>🏠 Menu</button>
+                            <button className="geo-game-end-btn-restart" aria-label="Rejouer une partie" onClick={restartGame}>🔄 Rejouer</button>
+                            <button className="geo-game-end-btn-home" aria-label="Retourner au menu principal" onClick={() => { localStorage.removeItem('geoHostSession'); navigate('/'); }}>🏠 Menu</button>
                         </div>
                     </div>
 

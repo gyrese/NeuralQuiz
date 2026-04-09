@@ -782,7 +782,7 @@ function GeoPlayerView() {
         return (
             <div className="geo-player-background">
                 <div className="container py-4">
-                    <button className="btn btn-outline-secondary mb-4" onClick={() => navigate('/geo')}>
+                    <button className="btn btn-outline-secondary mb-4" aria-label="Retour au menu GeoTrackr" onClick={() => navigate('/geo')}>
                         ← RETOUR
                     </button>
 
@@ -792,29 +792,34 @@ function GeoPlayerView() {
                                 <h2 className="text-center mb-4 text-primary" style={{ fontFamily: 'var(--font-display)', letterSpacing: '4px' }}>🌍 GEO_TRACKR</h2>
 
                                 {error && (
-                                    <div className="alert alert-danger">{error}</div>
+                                    <div className="alert alert-danger" role="alert" aria-live="polite">{error}</div>
                                 )}
 
                                 <div className="mb-3">
-                                    <label className="form-label">Code du salon</label>
+                                    <label className="form-label" htmlFor="room-code-input">Code du salon</label>
                                     <input
+                                        id="room-code-input"
                                         type="text"
                                         className="form-control text-uppercase text-center fs-4"
                                         placeholder="ABC123"
                                         maxLength={6}
+                                        autoComplete="off"
                                         value={roomCode}
                                         onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
                                         readOnly={!!urlRoomCode}
+                                        aria-readonly={!!urlRoomCode}
                                         style={urlRoomCode ? { background: 'rgba(255,255,255,0.05)', color: '#888', cursor: 'not-allowed', borderColor: 'rgba(255,255,255,0.1)' } : {}}
                                     />
                                 </div>
 
                                 <div className="mb-3">
-                                    <label className="form-label">Pseudo</label>
+                                    <label className="form-label" htmlFor="pseudo-input">Pseudo</label>
                                     <input
+                                        id="pseudo-input"
                                         type="text"
                                         className="form-control"
                                         placeholder="Votre pseudo"
+                                        autoComplete="nickname"
                                         value={pseudo}
                                         onChange={(e) => setPseudo(e.target.value)}
                                     />

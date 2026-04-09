@@ -1249,6 +1249,12 @@
     outline: none;
 }
 
+.geo-range:focus-visible {
+    outline: 2px solid var(--neon-blue);
+    outline-offset: 4px;
+    border-radius: 5px;
+}
+
 .geo-range::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 20px;
@@ -3177,5 +3183,34 @@
     .geo-qr-panel img {
         width: 100px;
         height: 100px;
+    }
+}
+
+/* ===================================
+   ACCESSIBILITY — TOUCH & MOTION
+   =================================== */
+
+/* touch-action: manipulation on all interactive elements prevents
+   the 300ms double-tap delay on mobile browsers */
+button,
+[role="button"],
+.region-option,
+.geo-qr-compact,
+.geo-player-sv-layer.mini,
+.geo-player-map-layer.mini,
+.geo-player-validate-btn {
+    touch-action: manipulation;
+}
+
+/* prefers-reduced-motion: disable all CSS animations/transitions
+   for users who have requested reduced motion in their OS settings */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

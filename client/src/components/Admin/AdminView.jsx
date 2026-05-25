@@ -4,11 +4,13 @@ import QuizEditor from './QuizEditor';
 import DrawAdmin from './DrawAdmin';
 import GeoAdmin from './GeoAdmin';
 import AperoAdmin from '../Apero/AperoAdmin';
+import Login from './Login';
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api`;
 
 function AdminView() {
     const navigate = useNavigate();
+    const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
     const [activeTab, setActiveTab] = useState('quizzes'); // 'quizzes', 'geo', 'draw', 'apero'
 
     // Quiz State
@@ -16,16 +18,32 @@ function AdminView() {
     const [editingQuiz, setEditingQuiz] = useState(null); // null = list, 'new' = create, object = edit
 
     useEffect(() => {
-        if (activeTab === 'quizzes') {
+        if (token && activeTab === 'quizzes') {
             fetchQuizzes();
         }
-    }, [activeTab]);
+    }, [activeTab, token]);
+
+    useEffect(() => {
+        const handleLogoutEvent = () => {
+            setToken('');
+        };
+        window.addEventListener('admin-logout', handleLogoutEvent);
+        return () => window.removeEventListener('admin-logout', handleLogoutEvent);
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('admin_token');
+        setToken('');
+    };
 
     const fetchQuizzes = async () => {
         try {
             const response = await fetch(`${API_URL}/quizzes`);
             const data = await response.json();
-            setQuizzes(data);
+            // Si la requête a échoué car non autorisé (géré par l'intercepteur), fetch renverra une erreur ou de fausses données
+            if (response.ok) {
+                setQuizzes(data);
+            }
         } catch (error) {
             console.error("Erreur chargement quiz:", error);
         }
@@ -34,13 +52,20 @@ function AdminView() {
     const handleDeleteQuiz = async (id) => {
         if (window.confirm("Supprimer ce quiz ?")) {
             try {
-                await fetch(`${API_URL}/quizzes/${id}`, { method: 'DELETE' });
-                fetchQuizzes();
+                const response = await fetch(`${API_URL}/quizzes/${id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    fetchQuizzes();
+                }
             } catch (error) {
                 console.error("Erreur suppression:", error);
             }
         }
     };
+
+    // Si l'utilisateur n'est pas connecté, afficher le formulaire de connexion
+    if (!token) {
+        return <Login onLoginSuccess={(t) => setToken(t)} />;
+    }
 
     // Render Logic
     const renderContent = () => {
@@ -100,7 +125,10 @@ function AdminView() {
         <div className="container mt-4 text-light">
             {/* Header / Navigation */}
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>&lt; RETOUR</button>
+                <div className="d-flex gap-2">
+                    <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>&lt; RETOUR</button>
+                    <button className="btn btn-outline-danger" onClick={handleLogout}>DECONNEXION</button>
+                </div>
                 <div className="btn-group">
                     <button
                         className={`btn ${activeTab === 'quizzes' ? 'btn-primary' : 'btn-outline-primary'}`}
@@ -139,3 +167,4 @@ function AdminView() {
 }
 
 export default AdminView;
+

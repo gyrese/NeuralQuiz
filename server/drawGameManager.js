@@ -146,7 +146,7 @@ class DrawGameManager {
         return room.drawOrder[room.currentDrawerIndex % room.drawOrder.length];
     }
 
-    startGame(roomCode) {
+    async startGame(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: 'Salon introuvable' };
         if (room.players.size < 2) return { error: 'Minimum 2 joueurs requis' };
@@ -160,7 +160,7 @@ class DrawGameManager {
         room.currentDrawerIndex = 0;
 
         // Get first word
-        const wordData = getRandomWord(room.settings.categories);
+        const wordData = await getRandomWord(room.settings.categories);
         room.currentWord = wordData;
         room.roundStartTime = Date.now();
         room.canvasHistory = [];
@@ -366,7 +366,7 @@ class DrawGameManager {
         };
     }
 
-    nextRound(roomCode) {
+    async nextRound(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: 'Salon introuvable' };
 
@@ -400,7 +400,7 @@ class DrawGameManager {
 
         // Prepare next round
         room.gameState = 'PLAYING';
-        const wordData = getRandomWord(room.settings.categories);
+        const wordData = await getRandomWord(room.settings.categories);
         room.currentWord = wordData;
         room.roundStartTime = Date.now();
         room.canvasHistory = [];

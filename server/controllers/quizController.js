@@ -165,16 +165,16 @@ module.exports = {
             }
         });
 
-        socket.on('start-game', ({ roomCode, quizId }) => {
+        socket.on('start-game', async ({ roomCode, quizId }) => {
             const room = gameManager.getRoom(roomCode);
             if (room && room.hostId === socket.id) {
                 let selectedQuiz = null;
                 if (quizId) {
-                    selectedQuiz = quizManager.getQuiz(quizId);
+                    selectedQuiz = await quizManager.getQuiz(quizId);
                 }
 
                 if (!selectedQuiz) {
-                    const allQuizzes = quizManager.getAllQuizzes();
+                    const allQuizzes = await quizManager.getAllQuizzes();
                     if (allQuizzes.length > 0) selectedQuiz = allQuizzes[0];
                 }
 

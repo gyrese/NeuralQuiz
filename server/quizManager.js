@@ -1,73 +1,89 @@
-const fs = require('fs');
-const path = require('path');
-
-const DATA_FILE = path.join(__dirname, 'quizzes.json');
+const db = require('./db');
 
 class QuizManager {
-    constructor() {
-        this.quizzes = [];
-        this.loadQuizzes();
-    }
-
-    loadQuizzes() {
+    async getAllQuizzes() {
         try {
-            if (fs.existsSync(DATA_FILE)) {
-                const data = fs.readFileSync(DATA_FILE, 'utf8');
-                this.quizzes = JSON.parse(data);
-            } else {
-                this.quizzes = [];
-                this.saveQuizzes();
-            }
+            const rows = await db.all('SELECT id, title, description, questions FROM quizzes');
+            return rows.map(r => ({
+                id: r.id,
+                title: r.title,
+                description: r.description,
+                questions: JSON.parse(r.questions)
+            }));
         } catch (err) {
-            console.error("Erreur lors du chargement des quiz:", err);
-            this.quizzes = [];
+            console.error("Erreur lors de la récupération des quiz depuis SQLite:", err);
+            return [];
         }
     }
 
-    saveQuizzes() {
+    async getQuiz(id) {
         try {
-            fs.writeFileSync(DATA_FILE, JSON.stringify(this.quizzes, null, 4), 'utf8');
+            const row = await db.get('SELECT id, title, description, questions FROM quizzes WHERE id = ?', [id]);
+            if (!row) return null;
+            return {
+                id: row.id,
+                title: row.title,
+                description: row.description,
+                questions: JSON.parse(row.questions)
+            };
         } catch (err) {
-            console.error("Erreur lors de la sauvegarde des quiz:", err);
+            console.error("Erreur lors de la récupération du quiz depuis SQLite:", err);
+            return null;
         }
     }
 
-    getAllQuizzes() {
-        return this.quizzes;
-    }
+    async createQuiz(quizData) {
+        const id = Date.now().toString();
+        const title = quizData.title || '';
+        const description = quizData.description || '';
+        const questionsJson = JSON.stringify(quizData.questions || []);
 
-    getQuiz(id) {
-        return this.quizzes.find(q => q.id === id);
-    }
-
-    createQuiz(quizData) {
-        const newQuiz = {
-            id: Date.now().toString(),
-            ...quizData
-        };
-        this.quizzes.push(newQuiz);
-        this.saveQuizzes();
-        return newQuiz;
-    }
-
-    updateQuiz(id, quizData) {
-        const index = this.quizzes.findIndex(q => q.id === id);
-        if (index !== -1) {
-            this.quizzes[index] = { ...this.quizzes[index], ...quizData };
-            this.saveQuizzes();
-            return this.quizzes[index];
+        try {
+            await db.run(
+                'INSERT INTO quizzes (id, title, description, questions) VALUES (?, ?, ?, ?)',
+                [id, title, description, questionsJson]
+            );
+            return { id, title, description, questions: quizData.questions || [] };
+        } catch (err) {
+            console.error("Erreur lors de la création du quiz dans SQLite:", err);
+            return null;
         }
-        return null;
     }
 
-    deleteQuiz(id) {
-        const initialLength = this.quizzes.length;
-        this.quizzes = this.quizzes.filter(q => q.id !== id);
-        if (this.quizzes.length !== initialLength) {
-            this.saveQuizzes();
-            return true;
+    async updateQuiz(id, quizData) {
+        try {
+            const existing = await this.getQuiz(id);
+            if (!existing) return null;
+
+            const finalTitle = quizData.title !== undefined ? quizData.title : existing.title;
+            const finalDesc = quizData.description !== undefined ? quizData.description : existing.description;
+            const finalQuestionsJson = quizData.questions !== undefined ? JSON.stringify(quizData.questions) : JSON.stringify(existing.questions);
+
+            await db.run(
+                'UPDATE quizzes SET title = ?, description = ?, questions = ? WHERE id = ?',
+                [finalTitle, finalDesc, finalQuestionsJson, id]
+            );
+            
+            return {
+                id,
+                title: finalTitle,
+                description: finalDesc,
+                questions: quizData.questions !== undefined ? quizData.questions : existing.questions
+            };
+        } catch (err) {
+            console.error("Erreur lors de la mise à jour du quiz dans SQLite:", err);
+            return null;
         }
-        return false;
+    }
+
+    async deleteQuiz(id) {
+        try {
+            const result = await db.run('DELETE FROM quizzes WHERE id = ?', [id]);
+            return result.changes > 0;
+        } catch (err) {
+            console.error("Erreur lors de la suppression du quiz dans SQLite:", err);
+            return false;
+        }
     }
 }
 

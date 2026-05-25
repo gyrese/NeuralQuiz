@@ -1,115 +1,98 @@
-# 🚀 Guide de Déploiement - Neural Quiz
+# 🚀 Guide de Déploiement Public (VPS / Docker) - Neural Quiz
 
-Ce guide vous explique comment déployer l'application **Neural Quiz** (Antigravity) en mode production.
+Ce guide explique comment déployer l'application **Neural Quiz** de manière sécurisée et robuste sur un VPS accessible publiquement sur Internet.
 
-## 📋 Prérequis
-
-*   **Node.js** (version 18 ou supérieure recommandée) doit être installé sur la machine.
-*   Accès au terminal/invite de commande.
+La configuration s'appuie sur **Docker** pour le packaging, **SQLite** pour la base de données, et **Caddy** en tant que reverse proxy pour obtenir automatiquement des certificats SSL gratuits (HTTPS) via Let's Encrypt.
 
 ---
 
-## 🏗️ Étape 1 : Construction du Frontend (Client)
+## 📋 Prérequis sur le VPS
 
-Le frontend (interface utilisateur) doit être "construit" (compilé) pour être servi par le serveur backend.
+Avant de commencer, assurez-vous d'avoir les éléments suivants sur votre serveur Linux (Ubuntu recommandé) :
 
-1.  Ouvrez votre terminal et allez dans le dossier `client` :
-    ```bash
-    cd c:/ai/Antigravity/client
-    ```
-
-2.  Installez les dépendances (si ce n'est pas déjà fait) :
-    ```bash
-    npm install
-    ```
-
-3.  Lancez la construction du projet :
-    ```bash
-    npm run build
-    ```
-    ✅ **Résultat** : Un dossier `dist` va être créé dans `client/`. Il contient tous les fichiers optimisés pour la production.
+1.  **Docker** et **Docker Compose** installés.
+2.  Un **nom de domaine** ou sous-domaine (ex: `quiz.mon-domaine.com`) pointant vers l'adresse IP publique de votre VPS (enregistrements DNS `A`).
+3.  Les ports **80** (HTTP) et **443** (HTTPS) ouverts dans le pare-feu du VPS.
+4.  Une clé API **Google Maps** (nécessaire pour Street View dans GeoTrackr).
 
 ---
 
-## ⚙️ Étape 2 : Configuration du Backend (Serveur)
+## ⚙️ Étape 1 : Configuration des Variables d'Environnement
 
-Le serveur Node.js va gérer la logique du jeu ET servir les fichiers du frontend que nous venons de créer.
+Créez un fichier nommé `.env` à la racine du projet sur votre serveur avec le contenu suivant :
 
-1.  Allez dans le dossier `server` :
-    ```bash
-    cd c:/ai/Antigravity/server
-    ```
+```env
+# Adresse de votre site (utilisée par Caddy pour le certificat HTTPS)
+SITE_ADDRESS=quiz.mon-domaine.com
 
-2.  Installez les dépendances :
-    ```bash
-    npm install
-    ```
+# Votre email pour les notifications de renouvellement SSL
+ACME_EMAIL=votre-email@example.com
 
-3.  **⚠️ IMPORTANT : Activation du mode Production**
-    
-    Vous devez modifier le fichier `server/index.js` pour qu'il serve les fichiers du client.
-    
-    Ouvrez `c:/ai/Antigravity/server/index.js` et trouvez la section tout en bas (lignes ~395).
-    
-    **Décommentez** le bloc de code suivant (enlevez les `/*` et `*/`) :
+# Mot de passe administrateur sécurisé pour l'interface d'administration
+ADMIN_PASSWORD=MonMotDePasseAdminSuperSecurise123!
 
-    ```javascript
-    // --- SERVITUDE STATIQUE (POUR LE NAS/PROD) ---
-    // Sert les fichiers du frontend buildé s'ils existent
-    app.use(express.static(path.join(__dirname, '../client/dist')));
+# Clé secrète JWT pour signer les jetons de session d'administration
+JWT_SECRET=CleSecreteUniqueEtLonguePourJWT_987654321
 
-    // Pour toutes les autres requêtes (SPA), renvoyer index.html
-    app.get('/*', (req, res) => {
-        const indexPath = path.join(__dirname, '../client/dist/index.html');
-        if (require('fs').existsSync(indexPath)) {
-            res.sendFile(indexPath);
-        } else {
-            res.status(404).send("Frontend build not found. Did you run 'npm run build' in the client folder?");
-        }
-    });
-    ```
+# Clé API Google Maps (Street View & Maps)
+GOOGLE_MAPS_API_KEY=AIzaSyYourGoogleMapsAPIKeyHere...
+```
 
 ---
 
-## 🚀 Étape 3 : Lancement
+## 🏗️ Étape 2 : Lancement de l'Application
 
-Une fois le frontend construit et le backend configuré :
+Une fois le fichier `.env` configuré, exécutez la commande suivante pour construire les images et démarrer les conteneurs en arrière-plan :
 
-1.  Assurez-vous d'être dans le dossier `server` :
-    ```bash
-    cd c:/ai/Antigravity/server
-    ```
+```bash
+docker compose up -d --build
+```
 
-2.  Démarrez le serveur :
-    ```bash
-    npm start
-    ```
-
-3.  **Accès à l'application** :
-    *   Ouvrez votre navigateur.
-    *   L'application est maintenant accessible sur le port **3001** (et non plus 5173).
-    *   Adresse locale : `http://localhost:3001`
-    *   Adresse réseau (pour les autres joueurs) : `http://VOTRE_ADRESSE_IP:3001`
+### Que fait cette commande ?
+1.  **frontend-builder** : Installe les dépendances du frontend et compile l'application React en insérant la clé Google Maps.
+2.  **runner** : Installe les dépendances de production du backend Express et copie les fichiers du frontend compilé.
+3.  **database init** : Migre automatiquement toutes vos questions, mots et lieux depuis les fichiers JSON existants vers la base de données SQLite au premier démarrage.
+4.  **caddy** : Démarre le serveur web, contacte Let's Encrypt pour générer votre certificat SSL HTTPS, et redirige le trafic public vers le serveur d'application.
 
 ---
 
-## 🛡️ Optionnel : Garder le serveur actif (PM2)
+## 💾 Persistance des Données
 
-Pour éviter que le serveur ne s'arrête si vous fermez la console, utilisez **PM2**.
+Les volumes Docker sont configurés pour sauvegarder automatiquement vos modifications hors du conteneur. Vos données sont persistées dans :
+*   `quiz_data` (Base de données SQLite : `/app/server/data/database.sqlite`)
+*   `quiz_uploads` (Images uploadées par les administrateurs : `/app/server/uploads/`)
+*   `caddy_data` et `caddy_config` (Certificats SSL de votre domaine)
 
-1.  Installez PM2 globalement :
-    ```bash
-    npm install -g pm2
-    ```
+---
 
-2.  Lancez le serveur avec PM2 :
-    ```bash
-    cd c:/ai/Antigravity/server
-    pm2 start index.js --name "neural-quiz"
-    ```
+## 🛠️ Commandes Utiles de Maintenance
 
-3.  Commandes utiles :
-    *   Voir le statut : `pm2 status`
-    *   Arrêter : `pm2 stop neural-quiz`
-    *   Redémarrer : `pm2 restart neural-quiz`
-    *   Voir les logs : `pm2 logs`
+### Voir les logs en direct
+```bash
+docker compose logs -f
+```
+
+### Voir les logs du serveur de jeu uniquement
+```bash
+docker compose logs -f app
+```
+
+### Redémarrer les services
+```bash
+docker compose restart
+```
+
+### Arrêter le serveur de jeu
+```bash
+docker compose down
+```
+
+---
+
+## 🔒 Sécurité et Robustesse Actuelles
+
+L'application intègre désormais les sécurités suivantes pour le déploiement public :
+1.  **Authentification Admin renforcée** : Accès protégé aux APIs sensibles par token JWT.
+2.  **Protection Anti-Triche GeoTrackr** : Les coordonnées réelles et les noms de lieux ne sont plus transmis aux joueurs pendant la manche. Seule une version approximative bruitée (~200m) est envoyée pour initialiser Street View. Le score est calculé côté serveur par rapport à la vraie position. Si un joueur soumet la position approximative reçue, son score est forcé à 0 pour triche.
+3.  **Persistance SQLite** : Plus aucun risque d'écritures concurrentes conflictuelles ou de fichiers JSON corrompus lors de parties simultanées.
+4.  **Headers de Sécurité HTTPS** : Configurés automatiquement par Caddy pour limiter les attaques XSS, Clickjacking et MIME-sniffing.

@@ -1,0 +1,23 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$SITE_ADDRESS} {
+    # Reverse proxy vers le service app
+    reverse_proxy app:3001
+
+    # Configuration des headers de sécurité recommandés
+    header {
+        # Empêcher le site d'être inclus dans des iframes (clickjacking)
+        X-Frame-Options "DENY"
+        # Empêcher la détection automatique du type MIME
+        X-Content-Type-Options "nosniff"
+        # Protection XSS basique
+        X-XSS-Protection "1; mode=block"
+        # Politique de referer sécurisée
+        Referrer-Policy "no-referrer-when-downgrade"
+    }
+
+    # Optimisation pour les connexions Socket.IO (WebSockets / Polling)
+    # Caddy gère nativement le proxying des WebSockets, pas de configuration spéciale requise
+}

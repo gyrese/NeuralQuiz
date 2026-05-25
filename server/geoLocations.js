@@ -1,83 +1,95 @@
 /**
- * GeoTrackr - Location Database
- * Gérée via JSON pour permettre le CRUD Admin
+ * GeoTrackr - Location Database (SQLite Version)
  */
 
-const fs = require('fs');
-const path = require('path');
-
-const DATA_FILE = path.join(__dirname, 'data', 'geoLocations.json');
-
-// Initial Load
-let WORLD_LOCATIONS = [];
-
-try {
-    if (fs.existsSync(DATA_FILE)) {
-        const data = fs.readFileSync(DATA_FILE, 'utf8');
-        WORLD_LOCATIONS = JSON.parse(data);
-        console.log('[GeoLocations] Loaded locations from JSON file');
-    } else {
-        console.error('[GeoLocations] Data file not found:', DATA_FILE);
-        WORLD_LOCATIONS = [];
-    }
-} catch (error) {
-    console.error('[GeoLocations] Error loading data file:', error);
-    WORLD_LOCATIONS = [];
-}
-
-// Helper to save
-function saveLocations() {
-    try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(WORLD_LOCATIONS, null, 4), 'utf8');
-        return true;
-    } catch (error) {
-        console.error('[GeoLocations] Error saving data file:', error);
-        return false;
-    }
-}
+const db = require('./db');
 
 // --- Public Methods ---
 
-function getAll() {
-    return WORLD_LOCATIONS;
+async function getAll() {
+    try {
+        const rows = await db.all('SELECT city, lat, lng, country FROM geo_locations');
+        return rows;
+    } catch (error) {
+        console.error('[GeoLocations] Error loading locations from SQLite:', error);
+        return [];
+    }
 }
 
-function add(location) {
+async function add(location) {
     // location: { lat, lng, country, city }
-    if (!location.city || !location.lat || !location.lng) return false;
-
-    // Check strict duplicate on city name to avoid confusion
-    if (WORLD_LOCATIONS.some(l => l.city.toLowerCase() === location.city.toLowerCase())) {
+    if (!location.city || location.lat === undefined || location.lng === undefined) {
         return false;
     }
 
-    WORLD_LOCATIONS.push(location);
-    return saveLocations();
+    try {
+        // Check strict duplicate on city name to avoid confusion (case-insensitive)
+        const existing = await db.get('SELECT city FROM geo_locations WHERE LOWER(city) = LOWER(?)', [location.city]);
+        if (existing) {
+            return false;
+        }
+
+        await db.run(
+            'INSERT INTO geo_locations (city, lat, lng, country) VALUES (?, ?, ?, ?)',
+            [location.city, location.lat, location.lng, location.country || '']
+        );
+        return true;
+    } catch (error) {
+        console.error('[GeoLocations] Error adding location to SQLite:', error);
+        return false;
+    }
 }
 
-function update(originalCity, newLocation) {
-    const index = WORLD_LOCATIONS.findIndex(l => l.city === originalCity);
-    if (index === -1) return false;
+async function update(originalCity, newLocation) {
+    if (!originalCity || !newLocation.city || newLocation.lat === undefined || newLocation.lng === undefined) {
+        return false;
+    }
 
-    WORLD_LOCATIONS[index] = newLocation;
-    return saveLocations();
+    try {
+        // Si le nom de la ville a changé, vérifier si la nouvelle ville existe déjà
+        if (originalCity.toLowerCase() !== newLocation.city.toLowerCase()) {
+            const existing = await db.get('SELECT city FROM geo_locations WHERE LOWER(city) = LOWER(?)', [newLocation.city]);
+            if (existing) {
+                return false;
+            }
+        }
+
+        const result = await db.run(
+            'UPDATE geo_locations SET city = ?, lat = ?, lng = ?, country = ? WHERE city = ?',
+            [newLocation.city, newLocation.lat, newLocation.lng, newLocation.country || '', originalCity]
+        );
+        return result.changes > 0;
+    } catch (error) {
+        console.error('[GeoLocations] Error updating location in SQLite:', error);
+        return false;
+    }
 }
 
-function remove(city) {
-    const initialLength = WORLD_LOCATIONS.length;
-    WORLD_LOCATIONS = WORLD_LOCATIONS.filter(l => l.city !== city);
+async function remove(city) {
+    if (!city) return false;
 
-    if (WORLD_LOCATIONS.length === initialLength) return false;
-
-    return saveLocations();
+    try {
+        const result = await db.run('DELETE FROM geo_locations WHERE city = ?', [city]);
+        return result.changes > 0;
+    } catch (error) {
+        console.error('[GeoLocations] Error deleting location from SQLite:', error);
+        return false;
+    }
 }
 
 // Stats helpers
-function getStats() {
-    return {
-        total: WORLD_LOCATIONS.length,
-        countries: [...new Set(WORLD_LOCATIONS.map(l => l.country))].length
-    };
+async function getStats() {
+    try {
+        const totalRow = await db.get('SELECT COUNT(*) as count FROM geo_locations');
+        const countriesRow = await db.get('SELECT COUNT(DISTINCT country) as count FROM geo_locations');
+        return {
+            total: totalRow ? totalRow.count : 0,
+            countries: countriesRow ? countriesRow.count : 0
+        };
+    } catch (error) {
+        console.error('[GeoLocations] Error getting stats from SQLite:', error);
+        return { total: 0, countries: 0 };
+    }
 }
 
 module.exports = {

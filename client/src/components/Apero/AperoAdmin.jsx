@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import AperoEditor from './AperoEditor';
 import { convertPdfToQuiz } from '../../utils/pdfImporter';
 import { motion, AnimatePresence } from 'framer-motion';
+import Login from '../Admin/Login';
 import './AperoStyles.css';
 import './AperoAdmin.css'; // New CSS file for grid layout
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api/apero`;
 
 function AperoAdmin() {
+    const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
     const [quizzes, setQuizzes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isImporting, setIsImporting] = useState(false);
@@ -16,21 +18,34 @@ function AperoAdmin() {
     const fileInputRef = useRef(null);
 
     useEffect(() => {
-        loadQuizzes();
+        const handleLogoutEvent = () => {
+            setToken('');
+        };
+        window.addEventListener('admin-logout', handleLogoutEvent);
+        return () => window.removeEventListener('admin-logout', handleLogoutEvent);
     }, []);
+
+    useEffect(() => {
+        if (token) {
+            loadQuizzes();
+        }
+    }, [token]);
 
     const loadQuizzes = async () => {
         setIsLoading(true);
         try {
             const res = await fetch(`${API_URL}/quizzes`);
-            const data = await res.json();
-            setQuizzes(data);
+            if (res.ok) {
+                const data = await res.json();
+                setQuizzes(data);
+            }
         } catch (error) {
             console.error('Error loading quizzes:', error);
         } finally {
             setIsLoading(false);
         }
     };
+
 
     const createQuiz = () => {
         setEditingQuizId(null);
@@ -98,6 +113,15 @@ function AperoAdmin() {
         setEditingQuizId(null);
         loadQuizzes();
     };
+
+    // Si non connecté, afficher le formulaire de connexion
+    if (!token) {
+        return (
+            <div className="apero-admin container-fluid p-4 d-flex align-items-center justify-content-center" style={{ minHeight: '100vh', backgroundColor: '#0a0a0f' }}>
+                <Login onLoginSuccess={(t) => setToken(t)} />
+            </div>
+        );
+    }
 
     if (showEditor) {
         return <AperoEditor quizId={editingQuizId} onBack={closeEditor} />;

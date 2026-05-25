@@ -119,7 +119,7 @@ module.exports = {
             }
         });
 
-        socket.on('draw-start-game', ({ roomCode, settings }, callback) => {
+        socket.on('draw-start-game', async ({ roomCode, settings }, callback) => {
             const room = drawGameManager.getRoom(roomCode);
             if (!room || !canControlDrawGame(room, socket.id)) {
                 callback({ error: 'Room not found or not authorized' });
@@ -131,7 +131,7 @@ module.exports = {
                 room.timePerRound = settings.timePerRound || room.timePerRound;
             }
 
-            const result = drawGameManager.startGame(roomCode);
+            const result = await drawGameManager.startGame(roomCode);
             if (result.success) {
                 callback({
                     success: true,
@@ -299,7 +299,7 @@ module.exports = {
             }
         });
 
-        socket.on('draw-next-round', ({ roomCode }, callback) => {
+        socket.on('draw-next-round', async ({ roomCode }, callback) => {
             const room = drawGameManager.getRoom(roomCode);
             if (!room) {
                 callback({ error: 'Room not found' });
@@ -310,7 +310,7 @@ module.exports = {
                 return;
             }
 
-            const result = drawGameManager.nextRound(roomCode);
+            const result = await drawGameManager.nextRound(roomCode);
 
             if (result.gameOver) {
                 callback(result);
@@ -348,7 +348,7 @@ module.exports = {
         });
 
         // Skip word (drawer can't draw it)
-        socket.on('draw-skip-word', ({ roomCode }, callback) => {
+        socket.on('draw-skip-word', async ({ roomCode }, callback) => {
             const room = drawGameManager.getRoom(roomCode);
             if (!room) {
                 callback({ error: 'Room not found' });
@@ -363,7 +363,7 @@ module.exports = {
 
             // Get new word
             const { getRandomWord } = require('../drawWords');
-            const newWord = getRandomWord(room.settings.categories);
+            const newWord = await getRandomWord(room.settings.categories);
             room.currentWord = newWord;
             room.canvasHistory = [];
 

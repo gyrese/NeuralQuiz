@@ -38,6 +38,12 @@ function GeoRemoteView() {
     const hasAutoConnected = useRef(false);
     const stepRef = useRef(step); // Ref pour accéder à step dans les callbacks sans closure stale
 
+    // Bug #8 fix: déclaration de roomCodeRef AVANT son utilisation dans handleReconnect
+    const roomCodeRef = useRef(roomCode);
+    useEffect(() => {
+        roomCodeRef.current = roomCode;
+    }, [roomCode]);
+
     // Garder stepRef synchronisé
     useEffect(() => {
         stepRef.current = step;
@@ -70,7 +76,16 @@ function GeoRemoteView() {
             setGuessedCount(0);
             setError(''); // Clear any previous errors
             soundManager.play('start');
-            startTimer(data.timePerRound || 60);
+
+            // Bug #4 fix: synchroniser le timer avec roundStartTime du serveur
+            const duration = data.timePerRound || 60;
+            if (data.roundStartTime) {
+                const elapsed = Math.floor((Date.now() - data.roundStartTime) / 1000);
+                const remaining = Math.max(0, duration - elapsed);
+                startTimer(remaining);
+            } else {
+                startTimer(duration);
+            }
         });
 
         socket.on('geo-player-guessed', () => {
@@ -250,10 +265,7 @@ function GeoRemoteView() {
     };
 
     // Use ref to access current roomCode in timer callback (avoids stale closure)
-    const roomCodeRef = useRef(roomCode);
-    useEffect(() => {
-        roomCodeRef.current = roomCode;
-    }, [roomCode]);
+    // Bug #8 fix: déjà déclaré plus haut pour être disponible dans handleReconnect
 
     const startTimer = (duration) => {
         setTimeLeft(duration);
@@ -267,18 +279,8 @@ function GeoRemoteView() {
                 if (prev <= 1) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
-                    // Auto-trigger end round when timer expires
-                    // IMPORTANT: Vérifier qu'on est toujours en PLAYING avant d'envoyer
-                    if (roomCodeRef.current && stepRef.current === 'PLAYING') {
-                        console.log('[Remote] Timer expired, auto-ending round');
-                        socket.emit('geo-end-round', { roomCode: roomCodeRef.current.toUpperCase() }, (response) => {
-                            if (response.error) {
-                                console.error('[Remote] Auto end round error:', response.error);
-                            }
-                        });
-                    } else {
-                        console.log('[Remote] Timer expired but not in PLAYING state, skipping auto-end');
-                    }
+                    // Le serveur gère le auto-end round via son timer de sécurité
+                    // Le remote n'envoie plus geo-end-round pour éviter les race conditions
                     return 0;
                 }
                 return prev - 1;
@@ -504,7 +506,7 @@ function GeoRemoteView() {
                     {/* Player status */}
                     <div className="card p-3 mb-3">
                         <h6 className="text-muted mb-2">Scores actuels</h6>
-                        {players.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0)).map((player, idx) => (
+                        {[...players].sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0)).map((player, idx) => (
                             <div key={player.id || idx} className="d-flex justify-content-between align-items-center py-1 border-bottom">
                                 <span>
                                     {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}

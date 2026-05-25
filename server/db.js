@@ -1,0 +1,195 @@
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
+
+const DB_DIR = path.join(__dirname, 'data');
+const DB_FILE = path.join(DB_DIR, 'database.sqlite');
+
+// S'assurer que le dossier data existe
+if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+}
+
+// Ouvrir la base de données SQLite
+const dbInstance = new sqlite3.Database(DB_FILE, (err) => {
+    if (err) {
+        console.error('[DATABASE] Erreur lors de l\'ouverture de SQLite :', err.message);
+    } else {
+        console.log('[DATABASE] Connecté à la base de données SQLite.');
+    }
+});
+
+// Wrapper asynchrone pour faciliter l'utilisation avec async/await
+const db = {
+    run: (sql, params = []) => {
+        return new Promise((resolve, reject) => {
+            dbInstance.run(sql, params, function (err) {
+                if (err) reject(err);
+                else resolve({ lastID: this.lastID, changes: this.changes });
+            });
+        });
+    },
+    get: (sql, params = []) => {
+        return new Promise((resolve, reject) => {
+            dbInstance.get(sql, params, (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+    },
+    all: (sql, params = []) => {
+        return new Promise((resolve, reject) => {
+            dbInstance.all(sql, params, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+    },
+    exec: (sql) => {
+        return new Promise((resolve, reject) => {
+            dbInstance.exec(sql, (err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+    }
+};
+
+// Fonction pour initialiser le schéma de la base de données et importer l'ancien JSON
+async function initDatabase() {
+    try {
+        // Table des Quizzes Classiques (Neural Quiz)
+        await db.run(`
+            CREATE TABLE IF NOT EXISTS quizzes (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                questions TEXT NOT NULL -- Tableau JSON sérialisé
+            )
+        `);
+
+        // Table des Apero Quizzes
+        await db.run(`
+            CREATE TABLE IF NOT EXISTS apero_quizzes (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                slides TEXT NOT NULL, -- Tableau JSON sérialisé
+                createdAt TEXT,
+                updatedAt TEXT
+            )
+        `);
+
+        // Table des mots Draw Up (Pictionary)
+        await db.run(`
+            CREATE TABLE IF NOT EXISTS draw_words (
+                categoryKey TEXT,
+                word TEXT,
+                category TEXT,
+                hint TEXT,
+                PRIMARY KEY (categoryKey, word)
+            )
+        `);
+
+        // Table des lieux GeoTrackr
+        await db.run(`
+            CREATE TABLE IF NOT EXISTS geo_locations (
+                city TEXT PRIMARY KEY,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                country TEXT NOT NULL
+            )
+        `);
+
+        console.log('[DATABASE] Schéma de la base SQLite initialisé.');
+
+        // Exécuter l'import automatique des fichiers JSON (Seeding)
+        await seedFromJSON();
+
+    } catch (err) {
+        console.error('[DATABASE] Erreur lors de l\'initialisation de la base :', err);
+    }
+}
+
+// Fonction de migration / peuplement initial
+async function seedFromJSON() {
+    try {
+        // 1. Seeding Quizzes classiques
+        const quizJsonFile = path.join(__dirname, 'quizzes.json');
+        const countQuiz = await db.get('SELECT COUNT(*) as count FROM quizzes');
+        if (countQuiz.count === 0 && fs.existsSync(quizJsonFile)) {
+            console.log('[DATABASE] Migration : Importation de quizzes.json vers SQLite...');
+            const rawData = fs.readFileSync(quizJsonFile, 'utf8');
+            const quizzes = JSON.parse(rawData);
+            for (const quiz of quizzes) {
+                await db.run(
+                    'INSERT OR REPLACE INTO quizzes (id, title, description, questions) VALUES (?, ?, ?, ?)',
+                    [quiz.id, quiz.title, quiz.description, JSON.stringify(quiz.questions)]
+                );
+            }
+            console.log(`[DATABASE] Migration : ${quizzes.length} quizzes importés.`);
+        }
+
+        // 2. Seeding Apéro Quizzes
+        const aperoJsonFile = path.join(__dirname, 'data', 'apero', 'quizzes.json');
+        const countApero = await db.get('SELECT COUNT(*) as count FROM apero_quizzes');
+        if (countApero.count === 0 && fs.existsSync(aperoJsonFile)) {
+            console.log('[DATABASE] Migration : Importation de apero/quizzes.json vers SQLite...');
+            const rawData = fs.readFileSync(aperoJsonFile, 'utf8');
+            const data = JSON.parse(rawData);
+            const quizzes = data.quizzes || [];
+            for (const quiz of quizzes) {
+                await db.run(
+                    'INSERT OR REPLACE INTO apero_quizzes (id, title, description, slides, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+                    [quiz.id, quiz.title, quiz.description, JSON.stringify(quiz.slides), quiz.createdAt, quiz.updatedAt]
+                );
+            }
+            console.log(`[DATABASE] Migration : ${quizzes.length} quiz apéro importés.`);
+        }
+
+        // 3. Seeding Draw Words
+        const drawWordsJsonFile = path.join(__dirname, 'data', 'drawWords.json');
+        const countWords = await db.get('SELECT COUNT(*) as count FROM draw_words');
+        if (countWords.count === 0 && fs.existsSync(drawWordsJsonFile)) {
+            console.log('[DATABASE] Migration : Importation de drawWords.json vers SQLite...');
+            const rawData = fs.readFileSync(drawWordsJsonFile, 'utf8');
+            const data = JSON.parse(rawData);
+            let totalWords = 0;
+            for (const categoryKey of Object.keys(data)) {
+                const wordsList = data[categoryKey] || [];
+                for (const item of wordsList) {
+                    await db.run(
+                        'INSERT OR REPLACE INTO draw_words (categoryKey, word, category, hint) VALUES (?, ?, ?, ?)',
+                        [categoryKey, item.word, item.category, item.hint || '']
+                    );
+                    totalWords++;
+                }
+            }
+            console.log(`[DATABASE] Migration : ${totalWords} mots pictionary importés.`);
+        }
+
+        // 4. Seeding Geo Locations
+        const geoJsonFile = path.join(__dirname, 'data', 'geoLocations.json');
+        const countLocations = await db.get('SELECT COUNT(*) as count FROM geo_locations');
+        if (countLocations.count === 0 && fs.existsSync(geoJsonFile)) {
+            console.log('[DATABASE] Migration : Importation de geoLocations.json vers SQLite...');
+            const rawData = fs.readFileSync(geoJsonFile, 'utf8');
+            const locations = JSON.parse(rawData);
+            for (const loc of locations) {
+                await db.run(
+                    'INSERT OR REPLACE INTO geo_locations (city, lat, lng, country) VALUES (?, ?, ?, ?)',
+                    [loc.city, loc.lat, loc.lng, loc.country]
+                );
+            }
+            console.log(`[DATABASE] Migration : ${locations.length} lieux GeoTrackr importés.`);
+        }
+
+    } catch (error) {
+        console.error('[DATABASE] Erreur lors du seeding SQLite :', error);
+    }
+}
+
+// Initialiser en arrière-plan au chargement du module
+initDatabase();
+
+module.exports = db;

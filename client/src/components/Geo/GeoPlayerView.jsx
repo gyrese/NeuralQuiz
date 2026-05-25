@@ -49,6 +49,7 @@ function GeoPlayerView() {
     // Global flags for reliable API loading
     const googleMapsLoadingRef = useRef(false);
     const googleMapsReadyRef = useRef(false);
+    const stepRef = useRef('JOIN'); // Miroir de step pour les callbacks socket (pas de stale closure)
 
     // Restore session and handle connections
     useEffect(() => {
@@ -71,11 +72,9 @@ function GeoPlayerView() {
                 const session = JSON.parse(savedSession);
 
                 // CRITICAL: If URL code is different from stored code, user scanned a NEW QR.
-                // We typically want to join the NEW room, not the old one.
                 if (urlCode && session.roomCode !== urlCode.toUpperCase()) {
                     console.log('[Player] New room code in URL, ignoring saved session room');
                     setRoomCode(urlCode.toUpperCase());
-                    // Pre-fill pseudo/avatar for convenience but DO NOT auto-join
                     if (session.pseudo) setPseudo(session.pseudo);
                     if (session.avatar) setAvatar(session.avatar);
                     return;
@@ -89,8 +88,14 @@ function GeoPlayerView() {
                     if (session.avatar) setAvatar(session.avatar);
                     if (session.myScore) setMyScore(session.myScore);
 
-                    // Perform join
-                    doJoin(session.roomCode, session.pseudo, session.avatar);
+                    // Bug #2 fix: attendre que le socket soit connecté avant d'émettre
+                    if (socket.connected) {
+                        doJoin(session.roomCode, session.pseudo, session.avatar);
+                    } else {
+                        socket.once('connect', () => {
+                            doJoin(session.roomCode, session.pseudo, session.avatar);
+                        });
+                    }
                 }
             } catch (e) {
                 console.error('[Player] Session parse error', e);
@@ -102,16 +107,24 @@ function GeoPlayerView() {
         }
 
         // 4. Socket Reconnection Handling (Mobile Stability)
+        // Bug #3 fix: on ignore handleConnect sur le premier connect si socket.once est déjà enregistré
+        // On utilise stepRef pour ne rejoindre silencieusement que si on était déjà dans le jeu
         const handleConnect = () => {
             console.log('[Player] Socket connected/reconnected');
-            // Check if we have an active session to resume
+            // Ignorer si on n'est pas encore entré dans le jeu (JOIN ou WAITING = pas de session active)
+            const currentStep = stepRef.current;
+            if (currentStep === 'JOIN') return;
+
+            // Reconnexion après une déconnexion socket (on était en partie)
             const currentSession = localStorage.getItem('geoSession');
             if (currentSession) {
-                const s = JSON.parse(currentSession);
-                if (s.roomCode && s.pseudo) {
-                    console.log('[Player] Auto-rejoining after reconnect...');
-                    doJoin(s.roomCode, s.pseudo, s.avatar, true); // true = silent rejoin
-                }
+                try {
+                    const s = JSON.parse(currentSession);
+                    if (s.roomCode && s.pseudo) {
+                        console.log('[Player] Auto-rejoining after reconnect...');
+                        doJoin(s.roomCode, s.pseudo, s.avatar, true);
+                    }
+                } catch {}
             }
         };
 
@@ -161,6 +174,11 @@ function GeoPlayerView() {
             }
         });
     };
+
+    // Sync stepRef with step state (needed for socket callbacks without stale closures)
+    useEffect(() => {
+        stepRef.current = step;
+    }, [step]);
 
     useEffect(() => {
         // Game events
@@ -725,13 +743,25 @@ function GeoPlayerView() {
 
     const handleAvatarUpload = (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                setAvatar(event.target.result);
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                // Bug #15 fix: redimensionner à 128x128 pour éviter les gros transferts socket
+                const MAX = 128;
+                const canvas = document.createElement('canvas');
+                const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                setAvatar(canvas.toDataURL('image/jpeg', 0.8));
             };
-            reader.readAsDataURL(file);
-        }
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
     };
 
     const formatTime = (seconds) => {

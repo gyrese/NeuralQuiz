@@ -1,139 +1,163 @@
-/**
- * Draw Up - Word/Phrase Database
- * Bibliothèque de mots et phrases à dessiner
- * Gérée via JSON pour permettre le CRUD Admin
- */
-
-const fs = require('fs');
-const path = require('path');
-
-const DATA_FILE = path.join(__dirname, 'data', 'drawWords.json');
-
-// Initial load
-let DRAW_WORDS = {};
-
-try {
-    if (fs.existsSync(DATA_FILE)) {
-        const data = fs.readFileSync(DATA_FILE, 'utf8');
-        DRAW_WORDS = JSON.parse(data);
-        console.log('[DrawWords] Loaded words from JSON file');
-    } else {
-        console.error('[DrawWords] Data file not found:', DATA_FILE);
-        DRAW_WORDS = {};
-    }
-} catch (error) {
-    console.error('[DrawWords] Error loading data file:', error);
-    DRAW_WORDS = {};
-}
-
-// Helper to save data
-function saveWords() {
-    try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(DRAW_WORDS, null, 4), 'utf8');
-        return true;
-    } catch (error) {
-        console.error('[DrawWords] Error saving data file:', error);
-        return false;
-    }
-}
+const db = require('./db');
 
 // Get all words flattened
-function getAllWords() {
-    return Object.values(DRAW_WORDS).flat();
+async function getAllWords() {
+    try {
+        const rows = await db.all('SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"');
+        return rows;
+    } catch (error) {
+        console.error('[DrawWords] Error getting all words:', error);
+        return [];
+    }
 }
 
 // Get words by category
-function getWordsByCategory(category) {
-    return DRAW_WORDS[category] || [];
+async function getWordsByCategory(categoryKey) {
+    try {
+        const rows = await db.all('SELECT word, category, hint FROM draw_words WHERE categoryKey = ? AND word != "__INIT__"', [categoryKey]);
+        return rows;
+    } catch (error) {
+        console.error('[DrawWords] Error getting words by category:', error);
+        return [];
+    }
 }
 
 // Get random word from selected categories
-function getRandomWord(categories = null) {
-    let pool = [];
+async function getRandomWord(categories = null) {
+    try {
+        let rows = [];
+        if (!categories || categories.length === 0 || categories.includes('all')) {
+            rows = await db.all('SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"');
+        } else {
+            // Construire les placeholders pour le IN
+            const placeholders = categories.map(() => '?').join(',');
+            rows = await db.all(`SELECT word, category, hint FROM draw_words WHERE categoryKey IN (${placeholders}) AND word != "__INIT__"`, categories);
+        }
 
-    if (!categories || categories.length === 0 || categories.includes('all')) {
-        pool = getAllWords();
-    } else {
-        categories.forEach(cat => {
-            if (DRAW_WORDS[cat]) {
-                pool = pool.concat(DRAW_WORDS[cat]);
-            }
-        });
+        if (rows.length === 0) {
+            // Fallback
+            rows = await db.all('SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"');
+        }
+
+        if (rows.length === 0) return null;
+        return rows[Math.floor(Math.random() * rows.length)];
+    } catch (error) {
+        console.error('[DrawWords] Error getting random word:', error);
+        return null;
     }
-
-    if (pool.length === 0) {
-        pool = getAllWords();
-    }
-
-    return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // Get available categories
-function getCategories() {
-    return Object.keys(DRAW_WORDS);
+async function getCategories() {
+    try {
+        const rows = await db.all('SELECT DISTINCT categoryKey FROM draw_words');
+        return rows.map(r => r.categoryKey);
+    } catch (error) {
+        console.error('[DrawWords] Error getting categories:', error);
+        return [];
+    }
+}
+
+// Reconstruire la base de données au format d'origine (groupé par catégorie) pour l'admin
+async function getFullDatabase() {
+    try {
+        const rows = await db.all('SELECT categoryKey, word, category, hint FROM draw_words');
+        const dbGrouped = {};
+        for (const row of rows) {
+            if (!dbGrouped[row.categoryKey]) {
+                dbGrouped[row.categoryKey] = [];
+            }
+            if (row.word !== '__INIT__') {
+                dbGrouped[row.categoryKey].push({
+                    word: row.word,
+                    category: row.category,
+                    hint: row.hint
+                });
+            }
+        }
+        return dbGrouped;
+    } catch (error) {
+        console.error('[DrawWords] Error getting full database:', error);
+        return {};
+    }
 }
 
 // --- CRUD Operations ---
 
-function getFullDatabase() {
-    return DRAW_WORDS;
-}
-
-function addCategory(categoryKey, categoryName) { // e.g., 'videogames', 'Jeu Vidéo'
-    if (DRAW_WORDS[categoryKey]) return false;
-    DRAW_WORDS[categoryKey] = [];
-    return saveWords();
-}
-
-function deleteCategory(categoryKey) {
-    if (!DRAW_WORDS[categoryKey]) return false;
-    delete DRAW_WORDS[categoryKey];
-    return saveWords();
-}
-
-function addWord(categoryKey, wordObj) {
-    // wordObj: { word: 'Mario', category: 'Célébrité', hint: 'Plombier' }
-    if (!DRAW_WORDS[categoryKey]) return false;
-
-    // Check duplicates
-    if (DRAW_WORDS[categoryKey].some(w => w.word.toLowerCase() === wordObj.word.toLowerCase())) {
+async function addCategory(categoryKey, categoryName) {
+    try {
+        const existing = await db.get('SELECT COUNT(*) as count FROM draw_words WHERE categoryKey = ?', [categoryKey]);
+        if (existing && existing.count > 0) return false;
+        
+        await db.run(
+            'INSERT OR IGNORE INTO draw_words (categoryKey, word, category, hint) VALUES (?, ?, ?, ?)',
+            [categoryKey, '__INIT__', categoryName || 'Divers', '']
+        );
+        return true;
+    } catch (err) {
+        console.error('[DrawWords] Error adding category:', err);
         return false;
     }
-
-    DRAW_WORDS[categoryKey].push(wordObj);
-    return saveWords();
 }
 
-function updateWord(categoryKey, originalWord, newWordObj) {
-    if (!DRAW_WORDS[categoryKey]) return false;
-
-    const index = DRAW_WORDS[categoryKey].findIndex(w => w.word === originalWord);
-    if (index === -1) return false;
-
-    DRAW_WORDS[categoryKey][index] = newWordObj;
-    return saveWords();
+async function deleteCategory(categoryKey) {
+    try {
+        const result = await db.run('DELETE FROM draw_words WHERE categoryKey = ?', [categoryKey]);
+        return result.changes > 0;
+    } catch (err) {
+        console.error('[DrawWords] Error deleting category:', err);
+        return false;
+    }
 }
 
-function deleteWord(categoryKey, word) {
-    if (!DRAW_WORDS[categoryKey]) return false;
+async function addWord(categoryKey, wordObj) {
+    try {
+        // Supprimer le mot d'initialisation factice si présent
+        await db.run('DELETE FROM draw_words WHERE categoryKey = ? AND word = "__INIT__"', [categoryKey]);
 
-    const initialLength = DRAW_WORDS[categoryKey].length;
-    DRAW_WORDS[categoryKey] = DRAW_WORDS[categoryKey].filter(w => w.word !== word);
+        const result = await db.run(
+            'INSERT OR IGNORE INTO draw_words (categoryKey, word, category, hint) VALUES (?, ?, ?, ?)',
+            [categoryKey, wordObj.word, wordObj.category, wordObj.hint || '']
+        );
+        return result.changes > 0;
+    } catch (err) {
+        console.error('[DrawWords] Error adding word:', err);
+        return false;
+    }
+}
 
-    if (DRAW_WORDS[categoryKey].length === initialLength) return false;
+async function updateWord(categoryKey, originalWord, newWordObj) {
+    try {
+        const result = await db.run(
+            'UPDATE draw_words SET word = ?, category = ?, hint = ? WHERE categoryKey = ? AND word = ?',
+            [newWordObj.word, newWordObj.category, newWordObj.hint || '', categoryKey, originalWord]
+        );
+        return result.changes > 0;
+    } catch (err) {
+        console.error('[DrawWords] Error updating word:', err);
+        return false;
+    }
+}
 
-    return saveWords();
+async function deleteWord(categoryKey, word) {
+    try {
+        const result = await db.run(
+            'DELETE FROM draw_words WHERE categoryKey = ? AND word = ?',
+            [categoryKey, word]
+        );
+        return result.changes > 0;
+    } catch (err) {
+        console.error('[DrawWords] Error deleting word:', err);
+        return false;
+    }
 }
 
 module.exports = {
-    // Read
     getAllWords,
     getWordsByCategory,
     getRandomWord,
     getCategories,
     getFullDatabase,
-
-    // Write
     addCategory,
     deleteCategory,
     addWord,

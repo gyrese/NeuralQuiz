@@ -8,6 +8,7 @@ const aperoQuizzes = require('../aperoQuizzes');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const authMiddleware = require('../middleware/authMiddleware');
 
 // Configuration de l'upload
 const storage = multer.diskStorage({
@@ -38,7 +39,7 @@ const upload = multer({
 function setupAperoRoutes(app) {
 
     // --- UPLOAD ROUTE ---
-    app.post('/api/apero/upload', upload.single('image'), (req, res) => {
+    app.post('/api/apero/upload', authMiddleware, upload.single('image'), (req, res) => {
         try {
             if (!req.file) {
                 return res.status(400).json({ error: 'Aucun fichier uploadé' });
@@ -53,13 +54,13 @@ function setupAperoRoutes(app) {
     });
 
     // Liste tous les quiz
-    app.get('/api/apero/quizzes', (req, res) => {
-        res.json(aperoQuizzes.getAll());
+    app.get('/api/apero/quizzes', async (req, res) => {
+        res.json(await aperoQuizzes.getAll());
     });
 
     // Obtenir un quiz complet
-    app.get('/api/apero/quizzes/:id', (req, res) => {
-        const quiz = aperoQuizzes.getById(req.params.id);
+    app.get('/api/apero/quizzes/:id', async (req, res) => {
+        const quiz = await aperoQuizzes.getById(req.params.id);
         if (!quiz) {
             return res.status(404).json({ error: 'Quiz non trouvé' });
         }
@@ -67,14 +68,14 @@ function setupAperoRoutes(app) {
     });
 
     // Créer un nouveau quiz
-    app.post('/api/apero/quizzes', (req, res) => {
-        const quiz = aperoQuizzes.create(req.body);
+    app.post('/api/apero/quizzes', authMiddleware, async (req, res) => {
+        const quiz = await aperoQuizzes.create(req.body);
         res.json(quiz);
     });
 
     // Mettre à jour un quiz
-    app.put('/api/apero/quizzes/:id', (req, res) => {
-        const quiz = aperoQuizzes.update(req.params.id, req.body);
+    app.put('/api/apero/quizzes/:id', authMiddleware, async (req, res) => {
+        const quiz = await aperoQuizzes.update(req.params.id, req.body);
         if (!quiz) {
             return res.status(404).json({ error: 'Quiz non trouvé' });
         }
@@ -82,8 +83,8 @@ function setupAperoRoutes(app) {
     });
 
     // Supprimer un quiz
-    app.delete('/api/apero/quizzes/:id', (req, res) => {
-        const success = aperoQuizzes.delete(req.params.id);
+    app.delete('/api/apero/quizzes/:id', authMiddleware, async (req, res) => {
+        const success = await aperoQuizzes.delete(req.params.id);
         if (!success) {
             return res.status(404).json({ error: 'Quiz non trouvé' });
         }
@@ -91,8 +92,8 @@ function setupAperoRoutes(app) {
     });
 
     // Dupliquer un quiz
-    app.post('/api/apero/quizzes/:id/duplicate', (req, res) => {
-        const quiz = aperoQuizzes.duplicate(req.params.id);
+    app.post('/api/apero/quizzes/:id/duplicate', authMiddleware, async (req, res) => {
+        const quiz = await aperoQuizzes.duplicate(req.params.id);
         if (!quiz) {
             return res.status(404).json({ error: 'Quiz non trouvé' });
         }
@@ -102,9 +103,9 @@ function setupAperoRoutes(app) {
     // === Slides ===
 
     // Ajouter un slide
-    app.post('/api/apero/quizzes/:quizId/slides', (req, res) => {
+    app.post('/api/apero/quizzes/:quizId/slides', authMiddleware, async (req, res) => {
         const { afterIndex } = req.query;
-        const slide = aperoQuizzes.addSlide(
+        const slide = await aperoQuizzes.addSlide(
             req.params.quizId,
             req.body,
             afterIndex ? parseInt(afterIndex) : null
@@ -116,8 +117,8 @@ function setupAperoRoutes(app) {
     });
 
     // Mettre à jour un slide
-    app.put('/api/apero/quizzes/:quizId/slides/:slideId', (req, res) => {
-        const slide = aperoQuizzes.updateSlide(req.params.quizId, req.params.slideId, req.body);
+    app.put('/api/apero/quizzes/:quizId/slides/:slideId', authMiddleware, async (req, res) => {
+        const slide = await aperoQuizzes.updateSlide(req.params.quizId, req.params.slideId, req.body);
         if (!slide) {
             return res.status(404).json({ error: 'Slide non trouvé' });
         }
@@ -125,8 +126,8 @@ function setupAperoRoutes(app) {
     });
 
     // Supprimer un slide
-    app.delete('/api/apero/quizzes/:quizId/slides/:slideId', (req, res) => {
-        const success = aperoQuizzes.deleteSlide(req.params.quizId, req.params.slideId);
+    app.delete('/api/apero/quizzes/:quizId/slides/:slideId', authMiddleware, async (req, res) => {
+        const success = await aperoQuizzes.deleteSlide(req.params.quizId, req.params.slideId);
         if (!success) {
             return res.status(404).json({ error: 'Slide non trouvé' });
         }
@@ -134,9 +135,9 @@ function setupAperoRoutes(app) {
     });
 
     // Réordonner les slides
-    app.put('/api/apero/quizzes/:quizId/reorder', (req, res) => {
+    app.put('/api/apero/quizzes/:quizId/reorder', authMiddleware, async (req, res) => {
         const { order } = req.body; // Array d'IDs
-        const success = aperoQuizzes.reorderSlides(req.params.quizId, order);
+        const success = await aperoQuizzes.reorderSlides(req.params.quizId, order);
         if (!success) {
             return res.status(404).json({ error: 'Quiz non trouvé' });
         }
@@ -161,11 +162,11 @@ function handleConnection(io, socket) {
     // === HOST Events ===
 
     // Créer une salle
-    socket.on('apero-host-create', ({ quizId }) => {
+    socket.on('apero-host-create', async ({ quizId }) => {
         console.log(`[APERO SERVER Debug] Request create Room for QuizID: ${quizId} from Socket: ${socket.id}`);
 
         try {
-            const quiz = aperoQuizzes.getById(quizId);
+            const quiz = await aperoQuizzes.getById(quizId);
             if (!quiz) {
                 console.error(`[APERO SERVER] Quiz NOT FOUND: ${quizId}`);
                 socket.emit('apero-error', { message: 'Quiz non trouvé sur le serveur' });

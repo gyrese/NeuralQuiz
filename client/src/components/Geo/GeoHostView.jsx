@@ -27,6 +27,7 @@ function GeoHostView() {
     const [countdownNumber, setCountdownNumber] = useState(3);
     const [showConfetti, setShowConfetti] = useState(false); // Winner confetti
     const [showQRCode, setShowQRCode] = useState(false); // Toggle for persistent QR code
+    const [isStarting, setIsStarting] = useState(false); // Protection double-clic start
 
     // Settings
     const [settings, setSettings] = useState({
@@ -95,57 +96,102 @@ function GeoHostView() {
     }, [gameState]);
 
     useEffect(() => {
-        // Au montage : vérifier si on revient d'un rafraîchissement
-        const savedHostSession = localStorage.getItem('geoHostSession');
-        if (savedHostSession) {
-            try {
-                const session = JSON.parse(savedHostSession);
-                console.log('[Host] Session retrouvée, reconnexion à la room:', session.roomCode);
-                setRoomCode(session.roomCode);
-                roomCodeRef.current = session.roomCode;
-                // Reconnect à la room existante
-                socket.emit('geo-host-reconnect', { roomCode: session.roomCode }, (response) => {
-                    if (response.error) {
-                        console.error('[Host] Reconnect error:', response.error);
-                        localStorage.removeItem('geoHostSession');
-                        createNewRoomEmit();
-                    } else {
-                        // Restaurer l'état de la room
-                        setGameState(response.gameState);
-                        setCurrentRound(response.currentRound);
-                        setTotalRounds(response.totalRounds);
-                        setPlayers(response.players);
-                        setSettings({
-                            roundsCount: response.totalRounds,
-                            timePerRound: response.timePerRound,
-                            mapType: response.mapType
-                        });
-                        console.log('[Host] État restauré:', response.gameState);
-                    }
-                });
-            } catch (e) {
-                console.error('[Host] Session parse error, créant une nouvelle room');
-                localStorage.removeItem('geoHostSession');
-                createNewRoomEmit();
-            }
-        } else {
-            createNewRoomEmit();
-        }
+        let initDone = false;
 
         // Créer une room au montage
         function createNewRoomEmit() {
-            socket.emit('geo-create-room', { settings }, (response) => {
-                if (response.roomCode) {
+            if (initDone) return;
+            console.log('[Host] Creating new room...');
+            socket.emit('geo-create-room', { settings: { roundsCount: 5, timePerRound: 60, mapType: ['world'] } }, (response) => {
+                console.log('[Host] geo-create-room response:', response);
+                if (response?.roomCode) {
+                    initDone = true;
                     setRoomCode(response.roomCode);
                     roomCodeRef.current = response.roomCode;
-                    // Sauvegarder la session
                     localStorage.setItem('geoHostSession', JSON.stringify({
                         roomCode: response.roomCode,
                         createdAt: Date.now()
                     }));
                     setGameState('LOBBY');
+                } else {
+                    console.error('[Host] geo-create-room failed:', response);
                 }
             });
+        }
+
+        function init() {
+            if (initDone) return;
+            // Ignorer les sessions de plus de 4 heures (serveur probablement redémarré)
+            const savedHostSession = localStorage.getItem('geoHostSession');
+            if (savedHostSession) {
+                try {
+                    const session = JSON.parse(savedHostSession);
+                    const age = Date.now() - (session.createdAt || 0);
+                    if (age > 4 * 60 * 60 * 1000) {
+                        // Session trop vieille, créer une nouvelle room
+                        localStorage.removeItem('geoHostSession');
+                        createNewRoomEmit();
+                        return;
+                    }
+                    console.log('[Host] Session trouvée, reconnexion à la room:', session.roomCode);
+                    let reconnectHandled = false;
+                    // Timeout de sécurité : si pas de réponse en 4s → nouvelle room
+                    const reconnectTimeout = setTimeout(() => {
+                        if (!reconnectHandled) {
+                            reconnectHandled = true;
+                            console.warn('[Host] Reconnect timeout → creating new room');
+                            localStorage.removeItem('geoHostSession');
+                            createNewRoomEmit();
+                        }
+                    }, 4000);
+
+                    socket.emit('geo-host-reconnect', { roomCode: session.roomCode }, (response) => {
+                        clearTimeout(reconnectTimeout);
+                        if (reconnectHandled) return;
+                        reconnectHandled = true;
+                        console.log('[Host] geo-host-reconnect response:', response);
+                        if (response?.success) {
+                            initDone = true;
+                            roomCodeRef.current = session.roomCode;
+                            setRoomCode(session.roomCode);
+                            setGameState(response.gameState);
+                            setCurrentRound(response.currentRound);
+                            setTotalRounds(response.totalRounds);
+                            setPlayers(response.players || []);
+                            setSettings({
+                                roundsCount: response.totalRounds || 5,
+                                timePerRound: response.timePerRound || 60,
+                                mapType: response.mapType || ['world']
+                            });
+                            console.log('[Host] État restauré:', response.gameState);
+                            // Si on était en pleine partie, relancer le timer
+                            if (response.gameState === 'PLAYING' && response.roundStartTime) {
+                                setCorrectLocation(response.currentLocation);
+                                correctLocationRef.current = response.currentLocation;
+                                setupHostTimer(response.timePerRound || 60, response.roundStartTime);
+                            }
+                        } else {
+                            console.warn('[Host] Reconnect failed:', response?.error, '→ creating new room');
+                            localStorage.removeItem('geoHostSession');
+                            createNewRoomEmit();
+                        }
+                    });
+                } catch (e) {
+                    console.error('[Host] Session parse error:', e);
+                    localStorage.removeItem('geoHostSession');
+                    createNewRoomEmit();
+                }
+            } else {
+                createNewRoomEmit();
+            }
+        }
+
+        // Si le socket est déjà connecté, on initialise directement
+        if (socket.connected) {
+            init();
+        } else {
+            // Sinon on attend la connexion
+            socket.once('connect', init);
         }
 
         // Listeners - Player sync
@@ -161,16 +207,8 @@ function GeoHostView() {
             setGuessedPlayers(prev => new Set([...prev, playerId]));
         });
 
-        // When settings are updated from remote
-        socket.on('geo-settings-updated', (newSettings) => {
-            console.log('[Host] Settings updated event received:', newSettings);
-            setSettings(prev => ({
-                ...prev,
-                roundsCount: newSettings.roundsCount || prev.roundsCount,
-                timePerRound: newSettings.timePerRound || prev.timePerRound,
-                mapType: newSettings.mapType || prev.mapType
-            }));
-        });
+        // When settings are updated from remote (sync only, no duplicate of the listener below)
+        // NOTE: The full handler is registered later in this useEffect (line ~387)
 
         socket.on('geo-all-guessed', () => {
             // Accélérer la fin du round (3 secondes restantes)
@@ -349,15 +387,19 @@ function GeoHostView() {
             setTotalRounds(newSettings.roundsCount || 5);
         });
 
-        const handleConnect = () => {
+        const handleReconnect = () => {
             if (roomCodeRef.current) {
                 console.log('[Host] Reconnected via Socket.IO -> re-joining room');
-                socket.emit('geo-host-reconnect', { roomCode: roomCodeRef.current });
+                // Guard: ne réémettre que si le socket est bien connecté
+                if (socket.connected) {
+                    socket.emit('geo-host-reconnect', { roomCode: roomCodeRef.current });
+                }
             }
         };
-        socket.on('connect', handleConnect);
+        socket.on('connect', handleReconnect);
 
         return () => {
+            socket.off('connect', init); // Au cas où le composant est démonté avant la 1ère connexion
             socket.off('geo-player-joined');
             socket.off('geo-player-left');
             socket.off('geo-player-guessed');
@@ -369,7 +411,7 @@ function GeoHostView() {
             socket.off('geo-game-over');
             socket.off('geo-game-restarted');
             socket.off('geo-settings-updated');
-            socket.off('connect', handleConnect);
+            socket.off('connect', handleReconnect);
             if (timerRef.current) clearInterval(timerRef.current);
             if (rotationRef.current) cancelAnimationFrame(rotationRef.current);
             if (autoNextRef.current) clearInterval(autoNextRef.current);
@@ -383,7 +425,8 @@ function GeoHostView() {
 
     // Détection automatique "Tous ont répondu" - ensure 3-second minimum countdown
     useEffect(() => {
-        if (gameState === 'PLAYING' && players.length > 0 && guessedPlayers.size === players.length) {
+        const activeCount = players.filter(p => !p.disconnected).length;
+        if (gameState === 'PLAYING' && activeCount > 0 && guessedPlayers.size >= activeCount) {
             if (!allPlayersAnsweredRef.current) {
                 console.log('[Host] All players answered! Ensuring 3-second countdown...');
                 allPlayersAnsweredRef.current = true;
@@ -759,17 +802,18 @@ function GeoHostView() {
     };
 
     const startGame = () => {
-        // Envoyer les settings actualisés avant de démarrer
-        socket.emit('geo-update-settings', { roomCode, settings });
+        if (isStarting) return; // Protection double-clic
+        setIsStarting(true);
 
-        socket.emit('geo-start-game', { roomCode, settings }, (response) => {
-            if (response.success) {
-                // Le timer et l'état sont gérés par l'événement 'geo-game-started'
-                // qui est broadcasté par le serveur à toute la room (y compris le host).
-                // On ne crée PAS de timer ici pour éviter les doublons et sauts.
+        const currentRoomCode = roomCodeRef.current || roomCode;
+        socket.emit('geo-update-settings', { roomCode: currentRoomCode, settings });
+
+        socket.emit('geo-start-game', { roomCode: currentRoomCode, settings }, (response) => {
+            if (response?.success) {
                 console.log('[Host] startGame callback OK, timer sera géré par geo-game-started');
             } else {
-                console.error('Erreur démarrage:', response.error);
+                console.error('Erreur démarrage:', response?.error);
+                setIsStarting(false); // Réactiver le bouton en cas d'erreur
             }
         });
     };
@@ -843,6 +887,14 @@ function GeoHostView() {
         socket.emit('geo-end-round', { roomCode: currentRoomCode }, (response) => {
             clearTimeout(safetyTimeout);
             console.log('[GEO] endRound callback received:', response);
+            if (!response || response.error === 'Room not found') {
+                console.error('[GEO] Room not found — session expirée, retour accueil');
+                setIsEndingRound(false);
+                isEndingRoundRef.current = false;
+                localStorage.removeItem('geoHostSession');
+                navigate('/');
+                return;
+            }
             if (response.success) {
                 // Stop rotation animation
                 if (rotationRef.current) {
@@ -917,6 +969,13 @@ function GeoHostView() {
         socket.emit('geo-next-round', { roomCode: currentRoomCode }, (response) => {
             clearTimeout(safetyTimeout);
             console.log('[GEO] nextRound response:', response);
+            if (!response || response.error === 'Room not found') {
+                isNextRoundPendingRef.current = false;
+                console.error('[GEO] Room not found — session expirée, retour accueil');
+                localStorage.removeItem('geoHostSession');
+                navigate('/');
+                return;
+            }
             if (response.gameOver) {
                 isNextRoundPendingRef.current = false;
                 setGameState('GAME_END');
@@ -949,14 +1008,16 @@ function GeoHostView() {
 
     const kickPlayer = (playerId) => {
         if (window.confirm('Voulez-vous vraiment exclure ce joueur ?')) {
-            socket.emit('geo-kick-player', { roomCode, playerId }, (response) => {
-                if (response.error) console.error(response.error);
+            const currentRoomCode = roomCodeRef.current || roomCode;
+            socket.emit('geo-kick-player', { roomCode: currentRoomCode, playerId }, (response) => {
+                if (response?.error) console.error(response.error);
             });
         }
     };
 
     const restartGame = () => {
-        socket.emit('geo-restart-game', { roomCode }, (response) => {
+        const currentRoomCode = roomCodeRef.current || roomCode;
+        socket.emit('geo-restart-game', { roomCode: currentRoomCode }, (response) => {
             if (response.success) {
                 setGameState('LOBBY');
                 setCurrentRound(0);
@@ -1276,7 +1337,7 @@ function GeoHostView() {
                     )}
 
                     {/* START BUTTON */}
-                    <button className="kahoot-start-btn" onClick={startGame} disabled={players.length === 0}>
+                    <button className="kahoot-start-btn" onClick={startGame} disabled={players.length === 0 || isStarting}>
                         Commencer
                     </button>
 
@@ -1346,7 +1407,7 @@ function GeoHostView() {
                             </div>
 
                             {/* Message si tous ont répondu */}
-                            {guessedPlayers.size === players.length && players.length > 0 && (
+                            {guessedPlayers.size >= players.filter(p => !p.disconnected).length && players.filter(p => !p.disconnected).length > 0 && (
                                 <div className="geo-all-answered-banner">
                                     ✅ Tous les joueurs ont répondu !
                                 </div>
@@ -1606,6 +1667,15 @@ function GeoHostView() {
         <div className="container text-center py-5">
             <div className="spinner-border text-primary" role="status"></div>
             <p className="mt-3">Création du salon...</p>
+            <button
+                className="btn btn-sm btn-outline-secondary mt-3"
+                onClick={() => {
+                    localStorage.removeItem('geoHostSession');
+                    window.location.reload();
+                }}
+            >
+                Réinitialiser
+            </button>
         </div>
     );
 }

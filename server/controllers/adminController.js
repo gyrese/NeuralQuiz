@@ -1,19 +1,48 @@
 const drawWords = require('../drawWords');
 const geoLocations = require('../geoLocations');
+const authMiddleware = require('../middleware/authMiddleware');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'neural_quiz_secret_fallback_key_123!';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 module.exports = {
     setupRoutes: (app) => {
+        // ================================================
+        // ADMIN - LOGIN
+        // ================================================
+        app.post('/api/admin/login', (req, res) => {
+            const { password } = req.body;
+            if (!password) {
+                return res.status(400).json({ error: 'Mot de passe requis' });
+            }
+
+            if (password === ADMIN_PASSWORD) {
+                // Générer un token JWT valide pour 24h
+                const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+                return res.json({ success: true, token });
+            } else {
+                return res.status(401).json({ error: 'Mot de passe incorrect' });
+            }
+        });
+
         // ================================================
         // ADMIN - GEO TRACKR
         // ================================================
 
         // Get all locations
-        app.get('/api/admin/geo/locations', (req, res) => {
-            res.json(geoLocations.getAll());
+        app.get('/api/admin/geo/locations', authMiddleware, async (req, res) => {
+            try {
+                const locations = await geoLocations.getAll();
+                res.json(locations);
+            } catch (error) {
+                console.error('Error getting geo locations:', error);
+                res.status(500).json({ error: 'Failed to load locations' });
+            }
         });
 
         // Expand Google Maps short URL
-        app.get('/api/admin/geo/expand-url', async (req, res) => {
+        app.get('/api/admin/geo/expand-url', authMiddleware, async (req, res) => {
             const { url } = req.query;
 
             if (!url) {
@@ -21,6 +50,21 @@ module.exports = {
             }
 
             try {
+                // Fix SSRF: valider que l'URL appartient bien à Google Maps
+                const parsedUrl = new URL(url);
+                const allowedHostnames = [
+                    'maps.app.goo.gl',
+                    'goo.gl',
+                    'google.com',
+                    'www.google.com',
+                    'google.fr',
+                    'www.google.fr'
+                ];
+
+                if (!allowedHostnames.includes(parsedUrl.hostname)) {
+                    return res.status(400).json({ error: 'URL non autorisée. Seuls les liens Google Maps sont permis.' });
+                }
+
                 // Use fetch to follow redirects and get the final URL
                 const https = require('https');
                 const http = require('http');
@@ -62,15 +106,25 @@ module.exports = {
         });
 
         // Add a new location
-        app.post('/api/admin/geo/locations', (req, res) => {
+        app.post('/api/admin/geo/locations', authMiddleware, async (req, res) => {
             const { lat, lng, country, city } = req.body;
 
             if (!lat || !lng || !country || !city) {
                 return res.status(400).json({ error: 'Lat, Lng, Country and City are required' });
             }
 
-            const newLocation = { lat: parseFloat(lat), lng: parseFloat(lng), country, city };
-            const success = geoLocations.add(newLocation);
+            // Validation des coordonnées
+            const parsedLat = parseFloat(lat);
+            const parsedLng = parseFloat(lng);
+            if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+                return res.status(400).json({ error: 'Latitude invalide (-90 à 90)' });
+            }
+            if (isNaN(parsedLng) || parsedLng < -180 || parsedLng > 180) {
+                return res.status(400).json({ error: 'Longitude invalide (-180 à 180)' });
+            }
+
+            const newLocation = { lat: parsedLat, lng: parsedLng, country, city };
+            const success = await geoLocations.add(newLocation);
 
             if (success) {
                 res.json({ success: true, location: newLocation });
@@ -80,7 +134,7 @@ module.exports = {
         });
 
         // Update a location
-        app.put('/api/admin/geo/locations', (req, res) => {
+        app.put('/api/admin/geo/locations', authMiddleware, async (req, res) => {
             const { originalCity, lat, lng, country, city } = req.body;
 
             if (!originalCity || !lat || !lng || !country || !city) {
@@ -88,7 +142,7 @@ module.exports = {
             }
 
             const newLocation = { lat: parseFloat(lat), lng: parseFloat(lng), country, city };
-            const success = geoLocations.update(originalCity, newLocation);
+            const success = await geoLocations.update(originalCity, newLocation);
 
             if (success) {
                 res.json({ success: true, location: newLocation });
@@ -98,14 +152,14 @@ module.exports = {
         });
 
         // Delete a location
-        app.delete('/api/admin/geo/locations', (req, res) => {
+        app.delete('/api/admin/geo/locations', authMiddleware, async (req, res) => {
             const { city } = req.body;
 
             if (!city) {
                 return res.status(400).json({ error: 'City is required' });
             }
 
-            const success = geoLocations.remove(city);
+            const success = await geoLocations.remove(city);
             if (success) {
                 res.json({ success: true });
             } else {
@@ -118,12 +172,18 @@ module.exports = {
         // ================================================
 
         // Get all words (grouped by category key)
-        app.get('/api/admin/draw/words', (req, res) => {
-            res.json(drawWords.getFullDatabase());
+        app.get('/api/admin/draw/words', authMiddleware, async (req, res) => {
+            try {
+                const dbGrouped = await drawWords.getFullDatabase();
+                res.json(dbGrouped);
+            } catch (error) {
+                console.error('Error getting draw words:', error);
+                res.status(500).json({ error: 'Failed to load words' });
+            }
         });
 
         // Add a new word
-        app.post('/api/admin/draw/words', (req, res) => {
+        app.post('/api/admin/draw/words', authMiddleware, async (req, res) => {
             const { categoryKey, word, hint, categoryLabel } = req.body;
 
             if (!categoryKey || !word) {
@@ -136,7 +196,7 @@ module.exports = {
                 hint
             };
 
-            const success = drawWords.addWord(categoryKey, newWord);
+            const success = await drawWords.addWord(categoryKey, newWord);
             if (success) {
                 res.json({ success: true, word: newWord });
             } else {
@@ -145,7 +205,7 @@ module.exports = {
         });
 
         // Update a word
-        app.put('/api/admin/draw/words', (req, res) => {
+        app.put('/api/admin/draw/words', authMiddleware, async (req, res) => {
             const { categoryKey, originalWord, newWord, newHint, newCategoryLabel } = req.body;
 
             if (!categoryKey || !originalWord || !newWord) {
@@ -158,7 +218,7 @@ module.exports = {
                 hint: newHint
             };
 
-            const success = drawWords.updateWord(categoryKey, originalWord, newWordObj);
+            const success = await drawWords.updateWord(categoryKey, originalWord, newWordObj);
             if (success) {
                 res.json({ success: true, word: newWordObj });
             } else {
@@ -167,14 +227,14 @@ module.exports = {
         });
 
         // Delete a word
-        app.delete('/api/admin/draw/words', (req, res) => {
+        app.delete('/api/admin/draw/words', authMiddleware, async (req, res) => {
             const { categoryKey, word } = req.body;
 
             if (!categoryKey || !word) {
                 return res.status(400).json({ error: 'CategoryKey and Word are required' });
             }
 
-            const success = drawWords.deleteWord(categoryKey, word);
+            const success = await drawWords.deleteWord(categoryKey, word);
             if (success) {
                 res.json({ success: true });
             } else {
@@ -183,11 +243,11 @@ module.exports = {
         });
 
         // Add a new category
-        app.post('/api/admin/draw/categories', (req, res) => {
+        app.post('/api/admin/draw/categories', authMiddleware, async (req, res) => {
             const { key, label } = req.body;
             if (!key) return res.status(400).json({ error: 'Key is required' });
 
-            const success = drawWords.addCategory(key, label);
+            const success = await drawWords.addCategory(key, label);
             if (success) {
                 res.json({ success: true });
             } else {
@@ -196,9 +256,9 @@ module.exports = {
         });
 
         // Delete a category
-        app.delete('/api/admin/draw/categories/:key', (req, res) => {
+        app.delete('/api/admin/draw/categories/:key', authMiddleware, async (req, res) => {
             const { key } = req.params;
-            const success = drawWords.deleteCategory(key);
+            const success = await drawWords.deleteCategory(key);
             if (success) {
                 res.json({ success: true });
             } else {
@@ -207,3 +267,4 @@ module.exports = {
         });
     }
 };
+

@@ -6,6 +6,7 @@ const fs = require('fs');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const quizManager = require('./quizManager');
+const authMiddleware = require('./middleware/authMiddleware');
 
 // Controllers
 const quizController = require('./controllers/quizController');
@@ -27,29 +28,29 @@ aperoController.setupAperoRoutes(app);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // API REST pour l'Admin
-app.get('/api/quizzes', (req, res) => {
-    res.json(quizManager.getAllQuizzes());
+app.get('/api/quizzes', async (req, res) => {
+    res.json(await quizManager.getAllQuizzes());
 });
 
-app.get('/api/quizzes/:id', (req, res) => {
-    const quiz = quizManager.getQuiz(req.params.id);
+app.get('/api/quizzes/:id', async (req, res) => {
+    const quiz = await quizManager.getQuiz(req.params.id);
     if (quiz) res.json(quiz);
     else res.status(404).json({ error: 'Quiz not found' });
 });
 
-app.post('/api/quizzes', (req, res) => {
-    const newQuiz = quizManager.createQuiz(req.body);
+app.post('/api/quizzes', authMiddleware, async (req, res) => {
+    const newQuiz = await quizManager.createQuiz(req.body);
     res.json(newQuiz);
 });
 
-app.put('/api/quizzes/:id', (req, res) => {
-    const updatedQuiz = quizManager.updateQuiz(req.params.id, req.body);
+app.put('/api/quizzes/:id', authMiddleware, async (req, res) => {
+    const updatedQuiz = await quizManager.updateQuiz(req.params.id, req.body);
     if (updatedQuiz) res.json(updatedQuiz);
     else res.status(404).json({ error: 'Quiz not found' });
 });
 
-app.delete('/api/quizzes/:id', (req, res) => {
-    const success = quizManager.deleteQuiz(req.params.id);
+app.delete('/api/quizzes/:id', authMiddleware, async (req, res) => {
+    const success = await quizManager.deleteQuiz(req.params.id);
     if (success) res.json({ success: true });
     else res.status(404).json({ error: 'Quiz not found' });
 });
@@ -90,30 +91,47 @@ const io = new Server(server, {
     maxHttpBufferSize: 1e8,
     cors: {
         origin: "*",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST"],
+        credentials: true
     },
-    // Ping settings for mobile stability
-    pingTimeout: 30000,     // 30s before considering connection dead
-    pingInterval: 10000,    // Ping every 10s to keep connection alive
-    // Allow upgrades from polling to websocket
-    allowUpgrades: true,
-    // Increase for slow mobile connections
-    upgradeTimeout: 30000
+    // STRATÉGIE POLLING-ONLY (Stabilité maximale - mobile)
+    transports: ["polling"],
+    allowUpgrades: false,
+    // Hardening pour réseaux instables (mobile)
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    connectTimeout: 45000,
+    allowEIO3: false
 });
 
-// HTTP → HTTPS redirect server (when HTTPS is enabled)
-let httpRedirectServer = null;
-if (sslOptions) {
-    const redirectApp = express();
-    redirectApp.use((req, res) => {
-        const httpsUrl = `https://${req.hostname}:${HTTPS_PORT}${req.url}`;
-        res.redirect(301, httpsUrl);
+// Logging Engine.IO (Focus Polling)
+io.engine.on("connection_error", (err) => {
+    console.error(`[POLLING_ERR] code=${err.code} message=${err.message} req_url=${err.req?.url}`);
+});
+
+io.engine.on("connection", (engineSocket) => {
+    console.log(`[POLLING] Connexion active: sid=${engineSocket.id} transport=${engineSocket.transport.name} ip=${engineSocket.remoteAddress}`);
+    engineSocket.on("close", (reason) => {
+        console.log(`[POLLING] Connexion close: sid=${engineSocket.id} raison=${reason}`);
     });
-    httpRedirectServer = http.createServer(redirectApp);
+});
+
+// HTTP server (when HTTPS is enabled) — Socket.IO accessible en HTTP ET HTTPS
+// On n'utilise PAS de redirection : Socket.IO ne suit pas les redirections 301
+let httpServer = null;
+if (sslOptions) {
+    httpServer = http.createServer(app);
+    // Attacher Socket.IO aussi au serveur HTTP pour les clients Vite (dev)
+    io.attach(httpServer);
 }
 
 io.on('connection', (socket) => {
-    console.log('[SERVER] User connected:', socket.id);
+    const transport = socket.conn.transport.name;
+    console.log(`[IO] Client connecté: socketId=${socket.id} transport=${transport}`);
+
+    socket.on('error', (err) => {
+        console.error(`[IO_ERR] socketId=${socket.id}: ${err.message}`);
+    });
 
     try {
         // Delegate execution to game controllers
@@ -127,8 +145,8 @@ io.on('connection', (socket) => {
         console.error('[SERVER] ERROR initializing controllers for socket', socket.id, ':', error);
     }
 
-    socket.on('disconnect', () => {
-        console.log('[SERVER] User disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+        console.log(`[IO] Client déconnecté: socketId=${socket.id} raison=${reason}`);
     });
 });
 
@@ -148,14 +166,14 @@ app.get(/(.*)/, (req, res) => {
 });
 
 if (sslOptions) {
-    // HTTPS mode: main server on HTTPS_PORT, redirect HTTP on PORT
+    // HTTPS mode: serveur principal sur HTTPS_PORT, HTTP sur PORT (sans redirection — Socket.IO doit fonctionner en HTTP aussi)
     server.listen(HTTPS_PORT, () => {
         console.log(`[SERVER] HTTPS en écoute sur le port ${HTTPS_PORT}`);
         console.log(`[SERVER] Accès sécurisé: https://localhost:${HTTPS_PORT}`);
     });
-    if (httpRedirectServer) {
-        httpRedirectServer.listen(PORT, () => {
-            console.log(`[SERVER] HTTP→HTTPS redirect sur le port ${PORT}`);
+    if (httpServer) {
+        httpServer.listen(PORT, () => {
+            console.log(`[SERVER] HTTP en écoute sur le port ${PORT} (Socket.IO accessible en HTTP et HTTPS)`);
         });
     }
 } else {

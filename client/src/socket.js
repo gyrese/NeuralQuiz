@@ -1,34 +1,42 @@
 import { io } from 'socket.io-client';
 
-// En développement (Vite), on force le port 3001.
-// En production (NAS/Render), si le site est servi par le même serveur, 'undefined' laisse Socket.io se connecter automatiquement à l'URL courante.
-// En dev, on utilise le hostname actuel (localhost ou IP) sur le port 3001
-const URL = import.meta.env.VITE_SERVER_URL || (import.meta.env.DEV ? `http://${window.location.hostname}:3001` : undefined);
+// En production (NAS), le site est servi par le même serveur → undefined = même origine
+// En dev, on cible le bon port serveur selon le protocole utilisé par Vite :
+//   - Si la page est servie en HTTPS (ex: certificat auto-signé sur NAS), on pointe vers le port HTTPS du serveur (3443)
+//   - Sinon on pointe vers le port HTTP (3001)
+function getServerURL() {
+    if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
+    if (!import.meta.env.DEV) return undefined;
+    const isHttps = window.location.protocol === 'https:';
+    const port = isHttps ? 3443 : 3001;
+    const proto = isHttps ? 'https' : 'http';
+    return `${proto}://${window.location.hostname}:${port}`;
+}
+const URL = getServerURL();
 
 export const socket = io(URL, {
     autoConnect: true,
-    // Reconnection settings for mobile stability
+    // STRATÉGIE POLLING-ONLY (Stabilité maximale - mobile)
+    transports: ['polling'],
+    upgrade: false,
+    rememberUpgrade: false,
+    // Reconnexion robuste
     reconnection: true,
-    reconnectionAttempts: Infinity,  // Never stop trying
-    reconnectionDelay: 500,          // Start with 500ms (faster initial retry)
-    reconnectionDelayMax: 3000,      // Max 3s between attempts (reduced for responsiveness)
-    randomizationFactor: 0.3,        // Random jitter to prevent thundering herd
-    timeout: 10000,                  // 10s connection timeout (reduced for faster retry)
-    // Transports - prefer WebSocket but fallback to polling
-    transports: ['websocket', 'polling'],
-    // Upgrade from polling to websocket when possible
-    upgrade: true,
-    // Force new connection on reconnect (helps with stale connections)
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 8000,  // Plus lent pour le polling
+    randomizationFactor: 0.5,
+    timeout: 20000,
     forceNew: false,
-    // Ping settings for mobile keep-alive
-    // These are configured server-side, but client should be compatible
 });
 
-// Debug: Log connection events
-if (import.meta.env.DEV) {
-    socket.on('connect', () => console.log('[Socket] Connected:', socket.id));
-    socket.on('disconnect', (reason) => console.log('[Socket] Disconnected:', reason));
-    socket.on('connect_error', (err) => console.log('[Socket] Connect error:', err.message));
-    socket.on('reconnect', (attempt) => console.log('[Socket] Reconnected after', attempt, 'attempts'));
-    socket.on('reconnect_attempt', (attempt) => console.log('[Socket] Reconnection attempt', attempt));
-}
+// Debug: Log connection events (toujours actif pour diagnostic mobile)
+socket.on('connect', () => {
+    const transport = socket.io?.engine?.transport?.name;
+    console.log(`[SOCKET] Connecté (POLLING) socket=${socket.id} transport=${transport}`);
+});
+socket.on('disconnect', (reason) => console.log(`[SOCKET] Déconnecté: ${reason}`));
+socket.on('connect_error', (err) => console.error(`[SOCKET] Erreur connexion: ${err.message}`));
+socket.io.on('reconnect_attempt', (attempt) => console.log(`[SOCKET] Tentative reconnexion #${attempt}`));
+socket.io.on('reconnect_error', (err) => console.error(`[SOCKET] Erreur reconnexion: ${err.message}`));
+socket.io.on('reconnect_failed', () => console.error('[SOCKET] Échec définitif de la reconnexion'));

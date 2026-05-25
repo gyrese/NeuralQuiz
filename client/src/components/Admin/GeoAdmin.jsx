@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api/admin/geo`;
+const API_URL = `/api/admin/geo`;
 
 function GeoAdmin() {
     const [locations, setLocations] = useState([]);

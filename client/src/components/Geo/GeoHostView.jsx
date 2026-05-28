@@ -15,6 +15,14 @@ function GeoHostView() {
     const [totalRounds, setTotalRounds] = useState(5);
     const [timeLeft, setTimeLeft] = useState(60);
     const [roundResults, setRoundResults] = useState(null);
+
+    useEffect(() => {
+        document.body.classList.add('pop-culture-theme');
+        return () => {
+            document.body.classList.remove('pop-culture-theme');
+        };
+    }, []);
+
     const [correctLocation, setCorrectLocation] = useState(null);
     const [finalResults, setFinalResults] = useState(null);
     const [awards, setAwards] = useState([]);
@@ -50,6 +58,7 @@ function GeoHostView() {
     const streetViewRef = useRef(null); // Div persistant du panorama
     const streetViewPlayingSlotRef = useRef(null); // Slot dans le layout PLAYING
     const streetViewRoundEndSlotRef = useRef(null); // Slot dans le layout ROUND_END
+    const streetViewWrapperRef = useRef(null); // Ref pour le parent d'origine du div Street View
     const mapRef = useRef(null);
     const panoramaInstance = useRef(null);
     const mapInstance = useRef(null);
@@ -93,6 +102,13 @@ function GeoHostView() {
         } else if (gameState === 'ROUND_END' && streetViewRoundEndSlotRef.current) {
             streetViewRoundEndSlotRef.current.appendChild(svDiv);
         }
+
+        return () => {
+            // Remettre le div Street View dans son parent d'origine avant toute modification/démontage
+            if (svDiv && streetViewWrapperRef.current) {
+                streetViewWrapperRef.current.appendChild(svDiv);
+            }
+        };
     }, [gameState]);
 
     useEffect(() => {
@@ -351,7 +367,7 @@ function GeoHostView() {
             setGameState('GAME_END');
             setFinalResults(data.results);
             setAwards(data.awards || []);
-            soundManager.play('win');
+            // soundManager.play('win');
             triggerConfetti();
         });
 
@@ -517,6 +533,51 @@ function GeoHostView() {
 
         loadGoogleMapsAPI();
     }, []);
+
+    // Particules de célébration néon (Podium final)
+    useEffect(() => {
+        if (gameState !== 'GAME_END') return;
+
+        // Petite attente pour s'assurer que le DOM de GAME_END soit rendu
+        const timeoutId = setTimeout(() => {
+            const container = document.getElementById('main-canvas');
+            if (!container) return;
+
+            const createParticles = () => {
+                const colors = ['#00f2ff', '#FFD700', '#d1bcff'];
+                for (let i = 0; i < 30; i++) {
+                    setTimeout(() => {
+                        const canvas = document.getElementById('main-canvas');
+                        if (!canvas) return;
+                        const particle = document.createElement('div');
+                        particle.className = 'particle';
+                        particle.style.left = Math.random() * 100 + '%';
+                        particle.style.bottom = '0px';
+                        particle.style.animation = `particleUp ${2 + Math.random() * 3}s ease-in forwards`;
+                        
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        particle.style.background = color;
+                        particle.style.boxShadow = `0 0 10px ${color}`;
+
+                        canvas.appendChild(particle);
+                        
+                        setTimeout(() => {
+                            particle.remove();
+                        }, 5000);
+                    }, Math.random() * 2000);
+                }
+            };
+
+            createParticles();
+            const intervalId = setInterval(createParticles, 3000);
+
+            return () => {
+                clearInterval(intervalId);
+            };
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+    }, [gameState]);
 
     // Initialiser Street View quand la partie commence ou change de manche
     useEffect(() => {
@@ -981,7 +1042,7 @@ function GeoHostView() {
                 setGameState('GAME_END');
                 setFinalResults(response.results);
                 if (response.awards) setAwards(response.awards);
-                soundManager.play('win');
+                // soundManager.play('win');
                 triggerConfetti();
             } else if (response.success) {
                 // Le timer et l'état sont gérés par l'événement 'geo-next-round'
@@ -1013,6 +1074,15 @@ function GeoHostView() {
                 if (response?.error) console.error(response.error);
             });
         }
+    };
+
+    const handleQuitGame = () => {
+        const currentRoomCode = roomCodeRef.current || roomCode;
+        if (currentRoomCode) {
+            socket.emit('geo-delete-room', { roomCode: currentRoomCode });
+        }
+        localStorage.removeItem('geoHostSession');
+        navigate('/');
     };
 
     const restartGame = () => {
@@ -1147,411 +1217,616 @@ function GeoHostView() {
     // RENDER LOBBY
     if (gameState === 'LOBBY') {
         const joinUrl = window.location.origin;
+        const qrUrl = `${joinUrl}/geo/play/${roomCode}`;
 
         return (
-            <div className="geo-lobby-background" style={{ overflow: 'hidden' }}>
-                {/* KAHOOT TOP BAR */}
-                <div className="kahoot-top-bar">
-                    <div className="kahoot-bar-content">
-                        <div className="kahoot-join-info">
-                            <span>Rejoindre le jeu à l'adresse <strong>{window.location.host}</strong></span>
-                        </div>
-                        <div className="kahoot-pin-box">
-                            <span className="kahoot-pin-label">Code PIN du jeu :</span>
-                            <span className="kahoot-pin-value">{roomCode}</span>
+            <div 
+                className="pop-culture-lobby-bg font-body-md h-screen w-screen overflow-hidden flex selection:bg-primary-container selection:text-white relative"
+                style={{
+                    backgroundColor: '#0a0e27',
+                    backgroundImage: 'linear-gradient(rgba(10, 14, 39, 0.8), rgba(10, 14, 39, 0.8)), url("https://cdn.midjourney.com/bf9bd72c-442b-474a-a98e-2c19ea87ddd1/0_2.png")',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat'
+                }}
+            >
+                {/* Pop Dots pattern overlay */}
+                <div className="pop-dots"></div>
+
+                {/* Floating decorative pop art stickers */}
+                <div className="sticker bg-secondary text-white absolute top-28 left-12 -rotate-12 floating select-none" style={{ '--rot': '-12deg' }}>GEO-PRO</div>
+                <div className="sticker bg-primary-container text-on-primary-container absolute bottom-24 left-16 rotate-6 floating select-none" style={{ '--rot': '6deg', 'animationDelay': '1s' }}>READY?</div>
+                <div className="sticker bg-tertiary text-white absolute top-1/2 right-12 -rotate-6 floating select-none" style={{ '--rot': '-6deg', 'animationDelay': '2s' }}>EXPLORE!</div>
+
+                {/* Main Canvas */}
+                <main className="flex-grow h-full overflow-y-auto overflow-x-hidden relative flex flex-col z-10">
+                    <div className="max-w-[1280px] mx-auto w-full h-full p-8 flex flex-col gap-6 relative">
+                        {/* Header */}
+                        <header className="flex justify-between items-end flex-shrink-0">
+                            <div>
+                                <span className="inline-block bg-tertiary text-white text-[10px] font-bold font-headline-sm px-3 py-1 border-2 border-on-background uppercase tracking-widest -rotate-2 mb-2">
+                                    Initialisation
+                                </span>
+                                <h1 className="text-4xl md:text-5xl font-black font-headline-xl text-white uppercase italic tracking-tighter">LE SALON</h1>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 border-2 border-white/20 hover:border-white/30 rounded-full transition-all flex items-center gap-1.5 text-xs font-bold font-headline-sm uppercase tracking-wider backdrop-blur-md active:scale-95"
+                                    onClick={() => setShowSettings(true)}
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">settings</span>
+                                    Paramètres
+                                </button>
+                                <button 
+                                    className="bg-red-500/10 hover:bg-red-500/25 text-red-300 px-4 py-2 border-2 border-red-500/25 hover:border-red-500/40 rounded-full transition-all flex items-center gap-1.5 text-xs font-bold font-headline-sm uppercase tracking-wider backdrop-blur-md active:scale-95"
+                                    onClick={handleQuitGame}
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">logout</span>
+                                    Quitter
+                                </button>
+                                <div className="bg-white/10 px-4 py-2 rounded-full border-2 border-white/25 flex items-center gap-2 backdrop-blur-md">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span>
+                                    <span className="font-headline-sm text-white/80 text-[10px] uppercase font-bold tracking-wider">Réseau Stable</span>
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* Bento Grid Layout */}
+                        <div className="grid grid-cols-12 gap-6 flex-grow items-stretch">
+                            {/* Access Code & QR Card (Top Left) */}
+                            <div className="col-span-12 xl:col-span-8 glass-panel rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group transition-colors">
+                                {/* Accent Strip */}
+                                <div className="absolute left-0 top-0 bottom-0 w-[6px] bg-[#ffd700]"></div>
+                                <div className="flex-col flex gap-4">
+                                    <h2 className="font-headline-sm text-white/60 uppercase tracking-widest text-[11px]">Code d'Expédition</h2>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-6xl md:text-7xl leading-none font-black font-headline-xl text-white tracking-[0.1em] select-all uppercase">
+                                            {roomCode}
+                                        </span>
+                                    </div>
+                                    <p className="font-body-md text-white/70 max-w-md text-sm">
+                                        Partagez ce code avec votre équipe ou demandez-leur de scanner le code QR pour rejoindre le jeu.
+                                    </p>
+                                </div>
+                                {/* QR Code Container */}
+                                <div className="w-44 h-44 bg-white border-[3px] border-on-background rounded-xl p-2 shadow-sm flex-shrink-0 relative overflow-hidden flex items-center justify-center neo-shadow-sm">
+                                    <img 
+                                        alt="Join QR Code" 
+                                        className="w-full h-full object-contain mix-blend-multiply" 
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`}
+                                    />
+                                    {/* Scanning line effect */}
+                                    <div className="absolute top-0 left-0 w-full h-[3px] bg-primary-container opacity-80 shadow-[0_0_10px_#ffd700] animate-[scan_2s_ease-in-out_infinite]"></div>
+                                </div>
+                            </div>
+
+                            {/* Game Configuration Panel (Right Column) */}
+                            <div className="col-span-12 xl:col-span-4 xl:row-span-2 glass-panel rounded-2xl p-6 flex flex-col justify-between shadow-sm">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-6 border-b border-white/10 pb-3">
+                                        <span className="material-symbols-outlined text-[#ffd700]">tune</span>
+                                        <h3 className="text-lg font-headline-md font-bold text-white uppercase tracking-wide">Paramètres</h3>
+                                    </div>
+                                    <div className="flex flex-col gap-5">
+                                        {/* Region Setting */}
+                                        <div className="flex flex-col gap-2">
+                                            <label className="font-headline-sm text-white/60 uppercase text-[10px] tracking-wider">Secteur Géographique</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                <span className="px-3.5 py-1.5 border-2 border-[#ffd700] bg-[#ffd700]/15 text-[#ffd700] font-headline-sm text-[11px] uppercase font-black tracking-wider">
+                                                    {settings.mapType.join(', ')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {/* Rounds Setting */}
+                                        <div className="flex flex-col gap-2">
+                                            <label className="font-headline-sm text-white/60 uppercase flex justify-between text-[10px] tracking-wider">
+                                                <span>Nombre de Cycles</span>
+                                                <span className="font-black text-[#ffd700] text-xs">{settings.roundsCount}</span>
+                                            </label>
+                                            <input 
+                                                className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#ffd700]" 
+                                                max="20" min="1" 
+                                                type="range" 
+                                                value={settings.roundsCount}
+                                                onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
+                                            />
+                                        </div>
+                                        {/* Time Setting */}
+                                        <div className="flex flex-col gap-2">
+                                            <label className="font-headline-sm text-white/60 uppercase flex justify-between text-[10px] tracking-wider">
+                                                <span>Fenêtre Temporelle</span>
+                                                <span className="font-black text-[#ffd700] text-xs">{settings.timePerRound}s</span>
+                                            </label>
+                                            <div className="flex border-2 border-white/20 rounded-md overflow-hidden bg-white/5">
+                                                <button 
+                                                    className="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 transition-colors"
+                                                    onClick={() => updateSettings({ ...settings, timePerRound: Math.max(10, settings.timePerRound - 10) })}
+                                                >
+                                                    <span className="material-symbols-outlined">remove</span>
+                                                </button>
+                                                <div className="flex-1 flex items-center justify-center font-headline-sm text-white border-x-2 border-white/20 bg-white/5 font-black text-sm">{settings.timePerRound}</div>
+                                                <button 
+                                                    className="w-10 h-10 flex items-center justify-center text-white/70 hover:bg-white/10 transition-colors"
+                                                    onClick={() => updateSettings({ ...settings, timePerRound: Math.min(300, settings.timePerRound + 10) })}
+                                                >
+                                                    <span className="material-symbols-outlined">add</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Start Action Button */}
+                                <div className="mt-6 p-1 marching-ants rounded-lg">
+                                    <button 
+                                        className="w-full bg-[#ffd700] text-[#161a33] py-4 rounded-lg font-headline-lg text-[22px] font-black uppercase italic tracking-tighter hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(22,26,51,1)] shadow-[4px_4px_0px_0px_rgba(22,26,51,1)] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-3 border-[3px] border-[#161a33]"
+                                        onClick={startGame} 
+                                        disabled={players.length === 0 || isStarting}
+                                    >
+                                        <span>{isStarting ? 'INITIALISATION...' : 'LANCER LA PARTIE'}</span>
+                                        <span className="material-symbols-outlined text-[24px]">play_arrow</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Connected Players Grid (Bottom Left) */}
+                            <div className="col-span-12 xl:col-span-8 glass-panel rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3 flex-shrink-0">
+                                    <h3 className="text-lg font-headline-md font-bold text-white uppercase tracking-wide">Agents Connectés</h3>
+                                    <div className="bg-[#ffd700]/15 text-[#ffd700] px-3.5 py-1 border-2 border-[#ffd700]/25 font-headline-sm text-xs font-bold tracking-wider uppercase">
+                                        {players.length} CONNECTÉ{players.length > 1 ? 'S' : ''}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 overflow-y-auto pr-1 max-h-[360px] custom-scrollbar flex-grow content-start">
+                                    {players.map((player) => (
+                                        <div key={player.id} className="bg-white border-2 border-on-background p-4 flex flex-col items-center gap-2 hover:translate-y-[-4px] transition-transform duration-200 group relative overflow-hidden neo-shadow-sm">
+                                            {/* Kick Player button */}
+                                            <button
+                                                className="absolute top-1.5 right-1.5 bg-red-500 hover:bg-red-600 border-2 border-on-background text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md opacity-100 transition-all duration-200 z-20 cursor-pointer active:scale-95"
+                                                onClick={(e) => { e.stopPropagation(); kickPlayer(player.id); }}
+                                                title="Exclure ce joueur"
+                                                aria-label={`Exclure ${player.name}`}
+                                            >
+                                                <span className="material-symbols-outlined text-[14px] font-bold">close</span>
+                                            </button>
+                                            
+                                            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-on-background bg-surface-variant flex-shrink-0">
+                                                {player.avatar ? (
+                                                    <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full bg-surface-variant flex items-center justify-center text-primary/70">
+                                                        <span className="material-symbols-outlined text-2xl">person</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="font-headline-sm text-[13px] text-on-background truncate w-full text-center font-bold">{player.name}</span>
+                                            <span className="bg-primary-container text-on-primary-container font-headline-sm px-2.5 py-0.5 border-2 border-on-background text-[10px] uppercase shadow-[2px_2px_0px_0px_#161a33]">PRÊT</span>
+                                        </div>
+                                    ))}
+                                    
+                                    {/* Empty Slots */}
+                                    {Array.from({ length: Math.max(0, 4 - players.length) }).map((_, idx) => (
+                                        <div key={`empty-${idx}`} className="border-2 border-dashed border-white/20 bg-white/5 rounded-xl p-4 flex flex-col items-center justify-center gap-2 opacity-40">
+                                            <div className="w-16 h-16 rounded-full border border-dashed border-white/25 flex items-center justify-center text-white/30">
+                                                <span className="material-symbols-outlined">person_add</span>
+                                            </div>
+                                            <span className="font-headline-sm text-white/50 text-[10px] uppercase font-bold tracking-wider">En attente</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div className="d-flex gap-3">
-                        <div className="kahoot-qr">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '/geo/play/' + roomCode)}`} alt={`QR Code pour rejoindre — code ${roomCode}`} />
+                </main>
+
+                {/* SETTINGS MODAL */}
+                {showSettings && (
+                    <div className="geo-settings-backdrop" style={{ zIndex: 1000 }} onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}>
+                        <div className="glass-panel text-on-surface rounded-xl p-8 max-w-lg w-full border border-primary/30 shadow-[0_0_30px_rgba(0,0,0,0.1)] relative" onClick={(e) => e.stopPropagation()}>
+                            <h3 className="font-headline-md text-xl text-primary text-center mb-6 uppercase tracking-widest border-b border-primary/20 pb-4 flex items-center justify-center gap-2 font-bold">
+                                <span className="material-symbols-outlined text-primary">tune</span> CONFIGURATION DE LA SALLE
+                            </h3>
+
+                            <div className="settings-section mb-6">
+                                <label className="font-label-caps text-xs text-primary/70 block mb-2" htmlFor="setting-rounds">Nombre de manches</label>
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        id="setting-rounds"
+                                        type="range"
+                                        className="w-full accent-primary-container"
+                                        min="1" max="20"
+                                        value={settings.roundsCount}
+                                        onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
+                                    />
+                                    <span className="font-code-data text-lg text-primary min-w-[30px] text-right font-bold">{settings.roundsCount}</span>
+                                </div>
+                            </div>
+
+                            <div className="settings-section mb-6">
+                                <label className="font-label-caps text-xs text-primary/70 block mb-2" htmlFor="setting-time">Temps par manche (secondes)</label>
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        id="setting-time"
+                                        type="range"
+                                        className="w-full accent-primary-container"
+                                        min="10" max="300" step="10"
+                                        value={settings.timePerRound}
+                                        onChange={(e) => updateSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
+                                    />
+                                    <span className="font-code-data text-lg text-primary min-w-[45px] text-right font-bold">{settings.timePerRound}s</span>
+                                </div>
+                            </div>
+
+                            <div className="settings-section mb-6">
+                                <div className="font-label-caps text-xs text-primary/70 block mb-3">Régions de jeu</div>
+                                <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                                    {[
+                                        { id: 'world', name: 'Monde', icon: '🌍' },
+                                        { id: 'europe', name: 'Europe', icon: '🇪🇺' },
+                                        { id: 'asia', name: 'Asie', icon: '⛩️' },
+                                        { id: 'africa', name: 'Afrique', icon: '🦁' },
+                                        { id: 'americas', name: 'Amériques', icon: '🌎' },
+                                        { id: 'oceania', name: 'Océanie', icon: '🦘' },
+                                        { id: 'france', name: 'France', icon: '🇫🇷' },
+                                        { id: 'usa', name: 'USA', icon: '🇺🇸' },
+                                        { id: 'reunion', name: 'La Réunion', icon: '🏝️' },
+                                        { id: 'themeparks', name: 'Parcs d\'Attractions', icon: '🎢' },
+                                        { id: 'beaches', name: 'Plages Célèbres', icon: '🏖️' },
+                                        { id: 'markets', name: 'Marchés Célèbres', icon: '🛍️' },
+                                    ].map(region => {
+                                        const isSelected = settings.mapType.includes(region.id);
+                                        return (
+                                            <button
+                                                key={region.id}
+                                                className={`p-2 rounded border flex flex-col items-center justify-center text-center transition-all duration-200 active:scale-95 ${
+                                                    isSelected 
+                                                        ? 'border-primary bg-primary/20 text-primary shadow-[0_0_10px_rgba(255,107,53,0.25)] font-bold' 
+                                                        : 'border-white/10 bg-white/5 text-on-surface-variant hover:border-white/30'
+                                                }`}
+                                                onClick={() => {
+                                                    let newTypes;
+                                                    if (region.id === 'world') {
+                                                        newTypes = ['world'];
+                                                    } else {
+                                                        newTypes = settings.mapType.filter(t => t !== 'world');
+                                                        if (isSelected) {
+                                                            newTypes = newTypes.filter(t => t !== region.id);
+                                                        } else {
+                                                            newTypes.push(region.id);
+                                                        }
+                                                        if (newTypes.length === 0) newTypes = ['world'];
+                                                    }
+                                                    updateSettings({ ...settings, mapType: newTypes });
+                                                }}
+                                            >
+                                                <span className="text-xl mb-1">{region.icon}</span>
+                                                <span className="font-body-sm text-[10px] uppercase font-bold text-truncate w-full">{region.name}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="border-t border-primary/20 pt-4 flex flex-col items-center">
+                                <div className="font-label-caps text-xs text-primary/70 mb-2 flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-sm">phone_android</span> Télécommande Admin
+                                </div>
+                                <div className="relative group p-1.5 bg-white rounded-lg border border-primary/20">
+                                    <img
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(joinUrl + '/geo/remote/' + roomCode)}`}
+                                        alt="QR Code Télécommande"
+                                        className="w-[100px] h-[100px] object-contain rounded"
+                                    />
+                                </div>
+                                <p className="text-on-surface-variant/60 font-body-sm text-[10px] mt-2">Contrôlez le jeu depuis votre téléphone</p>
+                            </div>
+
+                            <div className="text-center mt-6">
+                                <button 
+                                    className="bg-primary-container text-white font-bold font-headline-md px-8 py-2.5 rounded-full hover:bg-primary transition-all duration-200 active:scale-95 shadow-[0_4px_10px_rgba(255,107,53,0.3)]"
+                                    onClick={() => setShowSettings(false)}
+                                >
+                                    VALIDER
+                                </button>
+                            </div>
                         </div>
                     </div>
+                )}
+            </div>
+        );
+    }
+
+    // RENDER PLAYING + ROUND_END : div Street View PERSISTANT
+    if (gameState === 'PLAYING' || gameState === 'ROUND_END') {
+        const isPlaying = gameState === 'PLAYING';
+        const isRoundEnd = gameState === 'ROUND_END';
+
+        return (
+            <div className="h-screen w-screen relative font-body-md text-on-background bg-background overflow-hidden flex flex-col pop-culture-theme">
+                {/* Pop Dots Pattern globally visible in host canvas */}
+                <div className="pop-dots"></div>
+
+                {/* Div Street View persistant — créé une seule fois, déplacé entre les slots par useEffect */}
+                <div ref={streetViewWrapperRef}>
+                    <div
+                        ref={streetViewRef}
+                        className="geo-host-sv-persistent"
+                        style={{ width: '100%', height: '100%', display: isPlaying ? 'block' : 'none' }}
+                    ></div>
                 </div>
 
-                {/* MAIN CONTENT AREA */}
-                <div className="container-fluid h-100 d-flex flex-column align-items-center justify-content-center" style={{ paddingTop: '100px', paddingBottom: '60px' }}>
-
-                    {/* LOGO & WAITING MSG */}
-                    {/* LOGO & WAITING MSG */}
-                    <div className="text-center mb-5">
-                        <h1 className="display-1 fw-bold text-white mb-0" style={{ textShadow: '0 4px 15px rgba(0,0,0,0.5)', fontFamily: 'var(--font-display)', letterSpacing: '5px' }}>
-                            GEO_TRACKR
-                        </h1>
-                        <div className="kahoot-waiting-msg">
-                            En attente de participants
+                {/* ===== VUE PLAYING ===== */}
+                {isPlaying && (
+                    <div className="absolute inset-0 z-0 flex flex-col h-full w-full overflow-hidden">
+                        {/* Background Panorama Container */}
+                        <div className="absolute inset-0 z-0">
+                            <div ref={streetViewPlayingSlotRef} className="w-full h-full"></div>
+                            <div className="absolute inset-0 bg-[#161a33]/15 mix-blend-multiply pointer-events-none"></div>
                         </div>
-                    </div>
 
-                    {/* PLAYERS GRID (Floating style) */}
-                    <div className="container">
-                        <div className="row justify-content-center g-3">
-                            {players.map(player => (
-                                <div key={player.id} className="col-12 col-sm-6 col-md-4 col-lg-3">
-                                    <div className="geo-lobby-player-card position-relative">
-                                        <button
-                                            className="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 shadow-sm border-0"
-                                            style={{ borderRadius: '50%', width: '44px', height: '44px', padding: 0, fontSize: '16px', lineHeight: '1', zIndex: 10 }}
-                                            onClick={(e) => { e.stopPropagation(); kickPlayer(player.id); }}
-                                            title="Exclure ce joueur"
-                                            aria-label={`Exclure ${player.name}`}
-                                        >
-                                            ✕
-                                        </button>
-                                        {player.avatar ? (
-                                            <img src={player.avatar} alt="" />
-                                        ) : (
-                                            <span className="me-3" style={{ fontSize: '2rem' }}>👤</span>
-                                        )}
-                                        <div className="text-truncate">{player.name}</div>
-                                    </div>
+                        {/* Top Navigation */}
+                        <header className="absolute top-0 left-0 w-full z-20 px-6 py-4">
+                            <div className="max-w-[1280px] mx-auto flex justify-between items-center glass-panel rounded-full px-6 py-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-2xl font-black font-headline-xl text-secondary uppercase italic">GeoTrackr</span>
+                                    <span className="text-on-background/20 font-bold">|</span>
+                                    <span className="text-xs font-bold font-headline-sm text-on-background uppercase tracking-wide">SALON: {roomCode}</span>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* SETTINGS BUTTON (Main) */}
-                    <div className="position-fixed bottom-0 start-0 p-4">
-                        <button className="btn btn-dark rounded-circle shadow-lg d-flex align-items-center justify-content-center"
-                            style={{ width: '60px', height: '60px', border: '2px solid var(--neon-blue)' }}
-                            aria-label="Paramètres de la partie"
-                            onClick={() => setShowSettings(true)}>
-                            <span style={{ fontSize: '1.8rem' }} aria-hidden="true">⚙️</span>
-                        </button>
-                    </div>
-
-                    {/* SETTINGS MODAL */}
-                    {showSettings && (
-                        <div className="geo-settings-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}>
-                            <div className="geo-settings-modal">
-                                <h3 className="text-center text-primary mb-4" style={{ fontFamily: 'var(--font-display)', letterSpacing: '2px' }}>
-                                    CONFIGURATION
-                                </h3>
-
-                                <div className="settings-section">
-                                    <label className="settings-label" htmlFor="setting-rounds">Nombre de manches</label>
-                                    <div className="geo-range-container">
-                                        <input
-                                            id="setting-rounds"
-                                            type="range"
-                                            className="geo-range"
-                                            min="1" max="20"
-                                            value={settings.roundsCount}
-                                            aria-valuemin={1} aria-valuemax={20} aria-valuenow={settings.roundsCount}
-                                            onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
-                                        />
-                                        <div className="range-value" aria-hidden="true">{settings.roundsCount}</div>
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-[#ffd700]/15 border border-[#ffd700]/30 px-4 py-1.5 rounded-full flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-[#705d00] text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>groups</span>
+                                        <span className="text-[10px] font-bold font-headline-sm text-[#705d00] uppercase tracking-wider">
+                                            {players.filter(p => !p.disconnected).length} EN JEU
+                                        </span>
                                     </div>
+                                    <button 
+                                        className="bg-white/10 hover:bg-white/20 border border-white/20 p-2 rounded-full transition-colors active:scale-90"
+                                        onClick={() => setShowSettings(true)}
+                                    >
+                                        <span className="material-symbols-outlined text-white">settings</span>
+                                    </button>
                                 </div>
+                            </div>
+                        </header>
 
-                                <div className="settings-section">
-                                    <label className="settings-label" htmlFor="setting-time">Temps par manche (secondes)</label>
-                                    <div className="geo-range-container">
-                                        <input
-                                            id="setting-time"
-                                            type="range"
-                                            className="geo-range"
-                                            min="10" max="300" step="10"
-                                            value={settings.timePerRound}
-                                            aria-valuemin={10} aria-valuemax={300} aria-valuenow={settings.timePerRound}
-                                            onChange={(e) => updateSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
-                                        />
-                                        <div className="range-value" aria-hidden="true">{settings.timePerRound}s</div>
+                        {/* Main Game HUD */}
+                        <main className="absolute inset-0 z-10 flex flex-col items-center justify-between pointer-events-none p-6 pt-24 pb-12">
+                            {/* Top Center: Round Info & Score */}
+                            <div className="glass-panel px-8 py-3 rounded-full flex items-center gap-6 pointer-events-auto">
+                                <div className="flex flex-col items-center">
+                                    <span className="font-headline-sm text-on-background/60 uppercase tracking-widest text-[9px]">Manche</span>
+                                    <span className="text-lg font-black font-headline-md text-on-background">{currentRound} <span className="text-on-background/30">/</span> {totalRounds}</span>
+                                </div>
+                                <div className="h-8 w-[2px] bg-on-background/10"></div>
+                                <div className="flex flex-col items-center">
+                                    <span className="font-headline-sm text-on-background/60 uppercase tracking-widest text-[9px]">Lieu</span>
+                                    <span className="text-xs font-black font-headline-sm text-[#705d00] flex items-center gap-1 uppercase tracking-wider">
+                                        <span className="material-symbols-outlined text-[16px]">public</span> {settings.mapType.join(', ')}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Center: Large Timer Overlay */}
+                            <div className="flex-grow flex items-center justify-center">
+                                <div 
+                                    className={`glass-panel rounded-full w-48 h-48 flex flex-col items-center justify-center timer-glow pointer-events-auto cursor-pointer relative ${timeLeft <= 10 ? 'border-error/50 shadow-[0_0_15px_rgba(186,26,26,0.3)]' : ''}`}
+                                    id="timer-container"
+                                >
+                                    {/* Radial Progress Ring SVG */}
+                                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" fill="none" r="46" stroke="rgba(22, 26, 51, 0.15)" strokeWidth="4"></circle>
+                                        <circle 
+                                            className="transition-all duration-1000 ease-linear" 
+                                            cx="50" cy="50" 
+                                            fill="none" 
+                                            id="timer-progress" 
+                                            r="46" 
+                                            stroke={timeLeft <= 10 ? '#ba1a1a' : '#ffd700'} 
+                                            strokeDasharray="289" 
+                                            strokeDashoffset={289 - (timeLeft / (settings.timePerRound || 60)) * 289} 
+                                            strokeWidth="4"
+                                        ></circle>
+                                    </svg>
+                                    <span className={`text-[56px] font-black font-headline-xl relative z-10 ${timeLeft <= 10 ? 'text-error animate-pulse' : 'text-on-background'}`}>
+                                        {formatTime(timeLeft)}
+                                    </span>
+                                    <span className="font-headline-sm text-on-background/60 relative z-10 mt-1 uppercase tracking-widest text-[9px]">RESTANT</span>
+                                </div>
+                            </div>
+
+                            {/* Bottom: Player Status & Actions */}
+                            <div className="w-full max-w-[1280px] mx-auto flex justify-between items-end pointer-events-auto gap-6">
+                                {/* Player Response Status Card */}
+                                <div className="bg-white/80 backdrop-blur-md border-[3px] border-on-background p-5 rounded-2xl w-80 flex flex-col gap-2 neo-shadow-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-headline-sm font-black text-secondary text-xs uppercase tracking-wider">Réponses</span>
+                                        <span className="font-headline-sm font-black text-on-background text-sm">{guessedPlayers.size} / {players.filter(p => !p.disconnected).length}</span>
                                     </div>
-                                </div>
-
-                                <div className="settings-section">
-                                    <div className="settings-label">Régions (Plusieurs possibles)</div>
-                                    <div className="region-grid">
-                                        {[
-                                            { id: 'world', name: 'Monde', icon: '🌍' },
-                                            { id: 'europe', name: 'Europe', icon: '🇪🇺' },
-                                            { id: 'asia', name: 'Asie', icon: '⛩️' },
-                                            { id: 'africa', name: 'Afrique', icon: '🦁' },
-                                            { id: 'americas', name: 'Amériques', icon: '🌎' },
-                                            { id: 'oceania', name: 'Océanie', icon: '🦘' },
-                                            { id: 'france', name: 'France', icon: '🇫🇷' },
-                                            { id: 'usa', name: 'USA', icon: '🇺🇸' },
-                                            { id: 'reunion', name: 'La Réunion', icon: '🏝️' },
-                                            { id: 'themeparks', name: 'Parcs d\'Attractions', icon: '🎢' },
-                                            { id: 'beaches', name: 'Plages Célèbres', icon: '🏖️' },
-                                            { id: 'markets', name: 'Marchés Célèbres', icon: '🛍️' },
-                                        ].map(region => {
-                                            const isSelected = settings.mapType.includes(region.id);
+                                    <div className="w-full bg-[#dee0ff] rounded-full h-3 border-2 border-on-background overflow-hidden">
+                                        <div 
+                                            className="bg-secondary h-full transition-all duration-500" 
+                                            style={{ width: `${players.filter(p => !p.disconnected).length > 0 ? (guessedPlayers.size / players.filter(p => !p.disconnected).length) * 100 : 0}%` }}
+                                        ></div>
+                                    </div>
+                                    <div className="flex -space-x-1.5 mt-2 overflow-x-auto py-1 max-w-full">
+                                        {players.map(player => {
+                                            const hasGuessed = guessedPlayers.has(player.id);
                                             return (
-                                                <div
-                                                    key={region.id}
-                                                    className={`region-option ${isSelected ? 'selected' : ''}`}
-                                                    role="checkbox"
-                                                    aria-checked={isSelected}
-                                                    tabIndex={0}
-                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click(); }}
-                                                    onClick={() => {
-                                                        let newTypes;
-                                                        if (region.id === 'world') {
-                                                            // Si on clique World, on ne garde que World
-                                                            newTypes = ['world'];
-                                                        } else {
-                                                            // Si on clique une autre, on enlève World si présent
-                                                            newTypes = settings.mapType.filter(t => t !== 'world');
-
-                                                            if (isSelected) {
-                                                                newTypes = newTypes.filter(t => t !== region.id);
-                                                            } else {
-                                                                newTypes.push(region.id);
-                                                            }
-
-                                                            // Si plus rien, on remet World par défaut
-                                                            if (newTypes.length === 0) newTypes = ['world'];
-                                                        }
-                                                        updateSettings({ ...settings, mapType: newTypes });
-                                                    }}
+                                                <div 
+                                                    key={player.id} 
+                                                    className={`relative w-8 h-8 rounded-full border-2 border-on-background flex-shrink-0 overflow-hidden cursor-pointer hover:scale-115 hover:z-30 hover:opacity-100 transition-all ${hasGuessed ? 'ring-2 ring-primary-container shadow-md' : 'opacity-60'}`}
+                                                    title={`${player.name} (${hasGuessed ? 'Prêt' : 'Réfléchit...'}) - Cliquer pour exclure`}
+                                                    onClick={() => kickPlayer(player.id)}
                                                 >
-                                                    <div className="region-icon">{region.icon}</div>
-                                                    <div className="region-name">{region.name}</div>
+                                                    {player.avatar ? (
+                                                        <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full bg-surface-variant flex items-center justify-center text-primary/70">
+                                                            <span className="material-symbols-outlined text-xs">person</span>
+                                                        </div>
+                                                    )}
+                                                    {/* Small indicator */}
+                                                    {hasGuessed && (
+                                                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border border-on-background flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-[7px] text-white font-bold">check</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 </div>
 
-                                {/* Remote Control QR Code */}
-                                <div className="settings-section" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', marginTop: '20px' }}>
-                                    <div className="settings-label">📱 Télécommande Admin</div>
-                                    <div className="text-center">
-                                        <img
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(joinUrl + '/geo/remote/' + roomCode)}`}
-                                            alt="QR Code Télécommande"
-                                            style={{ borderRadius: '8px', border: '2px solid var(--neon-blue)' }}
-                                        />
-                                        <p className="text-muted small mt-2 mb-0">Scannez pour contrôler depuis votre téléphone</p>
-                                    </div>
-                                </div>
-
-                                <div className="text-center mt-4">
-                                    <button className="btn btn-primary btn-lg px-5" onClick={() => setShowSettings(false)}>
-                                        Valider
+                                {/* Host Controls */}
+                                <div className="flex gap-4">
+                                    <button 
+                                        className="bg-white hover:bg-surface-container-low text-on-background font-headline-sm text-xs font-black px-6 py-4 border-[3px] border-on-background rounded-xl transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none neo-shadow-sm flex items-center gap-1.5"
+                                        onClick={endRound}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">skip_next</span>
+                                        PASSER
+                                    </button>
+                                    <button 
+                                        className="bg-primary-container hover:bg-primary-container/90 text-on-primary-container font-headline-sm text-xs font-black px-6 py-4 border-[3px] border-on-background rounded-xl transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none neo-shadow-sm flex items-center gap-1.5"
+                                        onClick={endRound}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">stop_circle</span>
+                                        TERMINER MANCHE
                                     </button>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        </main>
 
-                    {/* START BUTTON */}
-                    <button className="kahoot-start-btn" onClick={startGame} disabled={players.length === 0 || isStarting}>
-                        Commencer
-                    </button>
-
-                    {/* PLAYER COUNTER */}
-                    <div className="kahoot-counter-box">
-                        <span>👤</span>
-                        <span>{players.length}</span>
-                    </div>
-
-                </div>
-            </div>
-        );
-    }
-
-    // RENDER PLAYING + ROUND_END : div Street View PERSISTANT (jamais démonté)
-    if (gameState === 'PLAYING' || gameState === 'ROUND_END') {
-        const isPlaying = gameState === 'PLAYING';
-        const isRoundEnd = gameState === 'ROUND_END';
-
-        return (
-            <div className="geo-lobby-background">
-                {/* Div Street View persistant — créé une seule fois, déplacé entre les slots par useEffect */}
-                <div
-                    ref={streetViewRef}
-                    className="geo-host-sv-persistent"
-                    style={{ width: '100%', height: '100%' }}
-                ></div>
-
-                {/* ===== VUE PLAYING ===== */}
-                <div className="geo-playing-layout" style={{ display: isPlaying ? 'flex' : 'none' }}>
-                    {/* Header avec timer et infos */}
-                    <div className="geo-playing-header">
-                        <div className="geo-playing-badge">
-                            <span className="badge-icon">🎯</span>
-                            <span className="badge-text">MANCHE {currentRound}/{totalRounds}</span>
-                        </div>
-                        <div className={`geo-playing-timer ${timeLeft <= 10 ? 'danger' : ''}`}>
-                            <span className="timer-icon">⏱️</span>
-                            <span className="timer-value">{formatTime(timeLeft)}</span>
-                        </div>
-                        <div className="geo-playing-badge">
-                            <span className="badge-icon">📍</span>
-                            <span className="badge-text">PIN: {roomCode}</span>
+                        {/* Floating reactions from users */}
+                        <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden" id="emoji-container">
+                            {reactions.map(reaction => (
+                                <div
+                                    key={reaction.id}
+                                    className="floating-emoji"
+                                    style={{ 
+                                        left: `${reaction.xPos}vw`,
+                                        animationDuration: '4s',
+                                        opacity: 1
+                                    }}
+                                >
+                                    <span className="block text-4xl">{reaction.emoji}</span>
+                                    <span className="block text-[10px] text-on-background font-bold bg-white border-2 border-on-background px-2 py-0.5 rounded-md transform -translate-y-2 max-w-[80px] truncate shadow-sm">
+                                        {reaction.playerName}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     </div>
+                )}
 
-                    {/* Contenu principal */}
-                    <div className="geo-playing-content">
-                        {/* Panel Street View (le div persistant est positionné ici via CSS) */}
-                        <div className="geo-playing-streetview-panel">
-                            <div className="streetview-frame" ref={streetViewPlayingSlotRef}>
-                                {/* Le div persistant sera injecté ici par useEffect */}
+                {/* ===== VUE ROUND END ===== */}
+                {isRoundEnd && (
+                    <div className="absolute inset-0 z-0 flex flex-col h-full w-full overflow-hidden">
+                        {/* Background Results Map (Google Maps instance bound here) */}
+                        <div className="absolute inset-0 z-0">
+                            <div ref={mapRef} className="w-full h-full"></div>
+                            {/* Overlay transparent blue to match style */}
+                            <div className="absolute inset-0 bg-secondary/5 mix-blend-multiply pointer-events-none"></div>
+                        </div>
+
+                        {/* Top Info Banner overlay */}
+                        <div className="absolute top-6 left-6 z-20">
+                            <div className="glass-panel rounded-xl p-4 flex flex-col gap-1 border border-surface-variant/40 shadow-md">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">target</span>
+                                    <h2 className="text-headline-md font-headline-md text-on-surface font-bold text-lg">
+                                        Résultats de la Manche {currentRound}
+                                    </h2>
+                                </div>
+                                <div className="flex items-center gap-3 text-on-surface-variant">
+                                    <span className="flex items-center gap-1 font-code-data text-xs bg-surface-container/50 px-2.5 py-1 rounded-full font-semibold border border-surface-variant/30">
+                                        <span className="material-symbols-outlined text-[14px]">location_on</span>
+                                        Cible : {correctLocation?.city}, {correctLocation?.country}
+                                    </span>
+                                    {correctLocation?.lat && (
+                                        <span className="flex items-center gap-1 font-code-data text-xs bg-surface-container/50 px-2.5 py-1 rounded-full font-semibold border border-surface-variant/30">
+                                            {Math.abs(correctLocation.lat).toFixed(4)}° {correctLocation.lat >= 0 ? 'N' : 'S'}, {Math.abs(correctLocation.lng).toFixed(4)}° {correctLocation.lng >= 0 ? 'E' : 'W'}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
+                        </div>
 
-                            {/* Emoji réactions flottantes */}
-                            <div className="geo-floating-reactions" aria-hidden="true">
-                                {reactions.map(reaction => (
-                                    <div
-                                        key={reaction.id}
-                                        className="geo-floating-emoji"
-                                        style={{ left: `${reaction.xPos}%` }}
-                                    >
-                                        <span className="geo-floating-emoji-icon">{reaction.emoji}</span>
-                                        <span className="geo-floating-emoji-name">{reaction.playerName}</span>
+                        {/* Right Leaderboard Side Panel */}
+                        <div className="absolute top-6 right-6 bottom-6 w-96 z-20 flex flex-col">
+                            <div className="glass-panel rounded-2xl h-full flex flex-col overflow-hidden shadow-lg border border-surface-variant/40">
+                                <div className="p-4 border-b border-surface-variant/30 bg-white/40 flex justify-between items-center flex-shrink-0">
+                                    <h3 className="text-base font-headline-md text-on-surface font-bold">Classement Global</h3>
+                                    <div className="text-[10px] font-label-caps text-secondary bg-secondary-container/20 px-3 py-1 rounded-full border border-secondary/20 font-bold uppercase">
+                                        Manche {currentRound} / {totalRounds}
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Message si tous ont répondu */}
-                            {guessedPlayers.size >= players.filter(p => !p.disconnected).length && players.filter(p => !p.disconnected).length > 0 && (
-                                <div className="geo-all-answered-banner">
-                                    ✅ Tous les joueurs ont répondu !
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Sidebar avec joueurs et scores */}
-                        <div className="geo-playing-sidebar">
-                            <div className="sidebar-section">
-                                <div className="sidebar-header">
-                                    <span>👥 Joueurs</span>
-                                    <span className="player-count">{guessedPlayers.size}/{players.length}</span>
-                                </div>
-                                <div className="players-list">
-                                    {players.map(player => {
-                                        const hasGuessed = guessedPlayers.has(player.id);
+                                <div className="flex-grow overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                                    {roundResults?.filter(r => players.some(p => p.id === r.id)).map((result, index) => {
+                                        const isFirst = index === 0;
                                         return (
-                                            <div
-                                                key={player.id}
-                                                className={`player-row ${player.disconnected ? 'disconnected' : hasGuessed ? 'answered' : 'waiting'}`}
+                                            <div 
+                                                key={result.id}
+                                                className={`relative bg-white border rounded-lg p-3 flex items-center gap-3 hover:border-secondary/40 transition-colors shadow-sm ${
+                                                    isFirst ? 'border-primary/20 shadow-md ring-1 ring-primary-container/10' : 'border-surface-variant/30'
+                                                }`}
                                             >
-                                                <div className="player-avatar">
-                                                    {player.avatar ? (
-                                                        <img src={player.avatar} alt="" />
-                                                    ) : <span>👤</span>}
+                                                {isFirst && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary-container"></div>}
+                                                <div className={`flex-shrink-0 w-6 text-center font-headline-md font-bold ${isFirst ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                                    {index + 1}
                                                 </div>
-                                                <div className="player-info">
-                                                    <span className="player-name">{player.name}</span>
-                                                    <span className="player-score">{player.totalScore?.toLocaleString() || 0} pts</span>
+                                                <div className="w-8 h-8 rounded-full border border-surface-variant/50 overflow-hidden bg-surface flex-shrink-0 flex items-center justify-center">
+                                                    {result.avatar ? (
+                                                        <img src={result.avatar} alt={result.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-xs text-on-surface-variant">person</span>
+                                                    )}
                                                 </div>
-                                                <div className="player-status">
-                                                    {player.disconnected ? '⚠️' : hasGuessed ? '✅' : '⏳'}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-sm font-body-md text-on-surface truncate font-semibold">{result.name}</div>
+                                                    <div className="flex gap-2 mt-1">
+                                                        <span className="bg-surface-container px-2 py-0.5 rounded text-code-data text-[10px] flex items-center gap-1 text-on-surface-variant font-medium">
+                                                            <span className="material-symbols-outlined text-[12px]">straighten</span> 
+                                                            {formatDistance(result.distance)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right flex items-center gap-2">
+                                                    <div>
+                                                        <div className="font-code-data text-sm text-primary font-bold">+{result.roundScore?.toLocaleString()}</div>
+                                                        <div className="text-[10px] font-label-caps text-on-surface-variant">{result.totalScore?.toLocaleString()} PTS</div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="bg-red-100 hover:bg-red-500 border border-red-200 text-red-650 hover:text-white w-5 h-5 rounded-full flex items-center justify-center transition-all z-20 cursor-pointer active:scale-95 ml-2"
+                                                        onClick={(e) => { e.stopPropagation(); kickPlayer(result.id); }}
+                                                        title={`Exclure ${result.name}`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[10px] font-bold">close</span>
+                                                    </button>
                                                 </div>
                                             </div>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ===== VUE ROUND END ===== */}
-                <div className="geo-round-end-layout" style={{ display: isRoundEnd ? 'flex' : 'none' }}>
-                    {/* Header */}
-                    <div className="geo-round-end-header">
-                        <div className="geo-round-badge">
-                            <span className="badge-icon">🎯</span>
-                            <span className="badge-text">MANCHE {currentRound}/{totalRounds}</span>
-                        </div>
-                        <div className="geo-location-reveal">
-                            <span className="location-label">C'était</span>
-                            <span className="location-name">{correctLocation?.city}</span>
-                            <span className="location-country">{correctLocation?.country}</span>
-                        </div>
-                        <div className="geo-round-pin">
-                            <span className="pin-label">PIN</span>
-                            <span className="pin-code">{roomCode}</span>
-                        </div>
-                    </div>
-
-                    {/* Contenu en 2 colonnes (Map + Classement) — Street View visible via le div persistant */}
-                    <div className="geo-round-end-content">
-                        {/* Colonne gauche: le div persistant .mode-roundend se place ici via CSS */}
-                        <div className="geo-round-streetview-panel">
-                            <div className="panel-header">
-                                <span>📍 Vue Street View</span>
-                            </div>
-                            <div ref={streetViewRoundEndSlotRef} className="geo-round-streetview">
-                                {/* Le div persistant sera déplacé ici par useEffect */}
-                            </div>
-                        </div>
-
-                        {/* Colonne centrale: Map */}
-                        <div className="geo-round-map-panel">
-                            <div className="panel-header">
-                                <span>🗺️ Carte des réponses</span>
-                            </div>
-                            <div ref={mapRef} className="geo-round-map"></div>
-                        </div>
-
-                        {/* Colonne droite: Classement */}
-                        <div className="geo-round-ranking-panel">
-                            <div className="panel-header">
-                                <span>🏆 Classement</span>
-                            </div>
-                            <div className="geo-ranking-list">
-                                {roundResults?.map((result, index) => {
-                                    const maxScore = roundResults[0]?.roundScore || 1;
-                                    const barWidth = Math.max(10, (result.roundScore / maxScore) * 100);
-                                    const positionEmoji = index === 0 ? '🔥' : index === 1 ? '💪' : index === 2 ? '⭐' : '✨';
-                                    return (
-                                        <div
-                                            key={result.id}
-                                            className={`geo-ranking-item ${index === 0 ? 'winner' : ''}`}
-                                            style={{ animationDelay: `${index * 0.15}s` }}
-                                        >
-                                            <div className="ranking-position">
-                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
-                                            </div>
-                                            <div className="ranking-avatar">
-                                                {result.avatar ? (
-                                                    <img src={result.avatar} alt="" />
-                                                ) : <span>👤</span>}
-                                            </div>
-                                            <div className="ranking-info">
-                                                <div className="ranking-name">
-                                                    {result.name}
-                                                    <span className={`ranking-emoji delay-${index % 4}`}>{positionEmoji}</span>
-                                                </div>
-                                                <div className="ranking-score-bar-container">
-                                                    <div
-                                                        className="ranking-score-bar"
-                                                        style={{
-                                                            '--target-width': `${barWidth}%`,
-                                                            animationDelay: `${0.3 + index * 0.2}s`
-                                                        }}
-                                                    ></div>
-                                                </div>
-                                                <div className="ranking-distance">{formatDistance(result.distance)}</div>
-                                            </div>
-                                            <div className="ranking-scores">
-                                                <div className="score-round">+{result.roundScore?.toLocaleString()}</div>
-                                                <div className="score-total">{result.totalScore?.toLocaleString()} pts</div>
-                                            </div>
+                                <div className="p-4 border-t border-surface-variant/30 bg-surface-container-low/85 backdrop-blur-md flex-shrink-0 flex flex-col gap-2">
+                                    <button 
+                                        className="w-full bg-primary-container text-white font-label-caps text-xs py-3.5 px-4 rounded-lg hover:bg-primary transition-colors flex items-center justify-center gap-2 shadow-md active:scale-95 font-bold tracking-widest"
+                                        onClick={nextRound}
+                                    >
+                                        <span>{currentRound >= totalRounds ? 'RÉSULTATS FINAUX' : `LANCER LA MANCHE ${currentRound + 1}`}</span>
+                                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                    </button>
+                                    {autoNextCountdown && (
+                                        <div className="text-center font-label-caps text-[9px] text-primary/70 tracking-wider animate-pulse">
+                                            ⏱️ TRANSITION AUTOMATIQUE DANS {autoNextCountdown}S...
                                         </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Bouton manche suivante */}
-                            <div className="geo-next-round-btn-container">
-                                <button className="geo-next-round-btn" onClick={nextRound}>
-                                    {currentRound >= totalRounds ? '🏁 Résultats finaux' : '➡️ Manche suivante'}
-                                </button>
-                                {autoNextCountdown && (
-                                    <div className="auto-next-timer">
-                                        ⏱️ Auto dans {autoNextCountdown}s...
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 <PersistentQRCode />
             </div>
@@ -1560,115 +1835,221 @@ function GeoHostView() {
 
     // RENDER GAME END
     if (gameState === 'GAME_END') {
-        const podiumOrder = [1, 0, 2]; // Affichage : 2ème, 1er, 3ème
-        const medalColors = ['#C0C0C0', '#FFD700', '#CD7F32'];
-        const podiumHeights = ['140px', '200px', '110px']; // 2e, 1er, 3e
+        const podiumOrder = [1, 0, 2]; // Affichage : 2ème (gauche), 1er (centre), 3ème (droite)
 
         return (
-            <div className="geo-game-end-screen">
-                {/* ===== HEADER ===== */}
-                <div className="geo-game-end-header">
-                    <div className="geo-game-end-title">🏆 PARTIE TERMINÉE</div>
-                    <div className="geo-game-end-pin">PIN: {roomCode}</div>
-                </div>
+            <div 
+                id="main-canvas" 
+                className="pop-culture-lobby-bg h-screen w-screen overflow-hidden flex flex-col relative font-body-md text-white selection:bg-primary-container selection:text-white"
+                style={{
+                    backgroundColor: '#0a0e27',
+                    backgroundImage: 'linear-gradient(rgba(10, 14, 39, 0.85), rgba(10, 14, 39, 0.85)), url("https://cdn.midjourney.com/bf9bd72c-442b-474a-a98e-2c19ea87ddd1/0_2.png")',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat'
+                }}
+            >
+                {/* Pop Dots pattern overlay */}
+                <div className="pop-dots"></div>
 
-                {/* ===== BODY : Podium + Classement ===== */}
-                <div className="geo-game-end-body">
+                {/* Top Navigation */}
+                <header className="absolute top-0 left-0 w-full z-20 px-6 py-4 pointer-events-none">
+                    <div className="max-w-[1280px] mx-auto flex justify-between items-center glass-panel rounded-full px-6 py-2 pointer-events-auto">
+                        <div className="flex items-center gap-2">
+                            <span className="text-2xl font-black font-headline-xl text-secondary uppercase italic">GeoTrackr</span>
+                            <span className="text-on-background/20 font-bold">|</span>
+                            <span className="text-xs font-bold font-headline-sm text-on-background uppercase tracking-wide">FIN DE PARTIE : {roomCode}</span>
+                        </div>
+                        <div className="bg-white/10 px-4 py-1.5 rounded-full border border-white/20 flex items-center gap-2 backdrop-blur-md">
+                            <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                            <span className="font-headline-sm text-white/80 text-[10px] uppercase font-bold tracking-wider">Mission Accomplie</span>
+                        </div>
+                    </div>
+                </header>
 
-                    {/* --- PODIUM --- */}
-                    <div className="geo-game-end-podium-section">
-                        <div className="geo-game-end-podium">
+                <main className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 pt-24 pb-12 overflow-y-auto">
+                    <div className="max-w-[1280px] w-full mx-auto flex flex-col items-center gap-6">
+                        {/* Header Section */}
+                        <div className="text-center flex flex-col items-center">
+                            <span className="inline-block bg-tertiary text-white text-[10px] font-bold font-headline-sm px-3 py-1 border-2 border-on-background uppercase tracking-widest -rotate-2 mb-3">
+                                CLASSEMENT GLOBAL
+                            </span>
+                            <h2 className="text-4xl md:text-5xl font-black font-headline-xl text-white uppercase italic tracking-tighter comic-glow mb-2">
+                                RÉSULTATS FINAUX
+                            </h2>
+                            <p className="text-sm font-semibold text-white/80 max-w-2xl text-center">
+                                La mission d'exploration est terminée ! Félicitations à tous les agents.
+                            </p>
+                        </div>
+
+                        {/* Podium Section */}
+                        <div className="relative w-full max-w-2xl mx-auto flex items-end justify-center h-[280px] mt-6 gap-4 md:gap-8">
+                            {/* Stickers decorations inside podium */}
+                            <div className="sticker bg-secondary text-white absolute -top-8 -left-6 rotate-6 floating text-[10px] px-2 py-0.5" style={{ '--rot': '6deg' }}>TOP AGENT</div>
+                            <div className="sticker bg-tertiary text-white absolute -top-10 -right-4 -rotate-12 floating text-[10px] px-2 py-0.5" style={{ '--rot': '-12deg' }}>BOOM!</div>
+                            
                             {podiumOrder.map((rankIndex, displayIndex) => {
-                                const result = finalResults?.[rankIndex];
-                                const rank = rankIndex + 1;
-                                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
-                                const color = medalColors[displayIndex];
-                                const height = podiumHeights[displayIndex];
+                                const resultsArray = Array.isArray(finalResults) ? finalResults : [];
+                                const result = resultsArray[rankIndex];
+                                const isFirst = rankIndex === 0;
+                                const isSecond = rankIndex === 1;
+                                const isThird = rankIndex === 2;
+                                
+                                // Column heights & styles
+                                let columnHeight = "h-[85px]"; // 2nd
+                                let columnBg = "bg-secondary"; // Electric Violet
+                                let stickerText = "CHALLENGER";
+                                let columnLabel = "2";
+
+                                if (isFirst) {
+                                    columnHeight = "h-[135px]"; // 1st
+                                    columnBg = "bg-primary-container"; // Acid Yellow
+                                    stickerText = "CHAMPION!";
+                                    columnLabel = "1";
+                                } else if (isThird) {
+                                    columnHeight = "h-[60px]"; // 3rd
+                                    columnBg = "bg-tertiary"; // Flashy Pink
+                                    stickerText = "RECRUE";
+                                    columnLabel = "3";
+                                }
 
                                 return (
-                                    <div key={rankIndex} className="geo-game-end-podium-slot">
+                                    <div 
+                                        key={rankIndex}
+                                        className="flex flex-col items-center justify-end w-1/3 max-w-[150px] z-10"
+                                    >
                                         {result ? (
                                             <>
-                                                <div className="geo-game-end-player-info">
-                                                    <div className="geo-game-end-avatar" style={{ borderColor: color }}>
-                                                        {result.avatar
-                                                            ? <img src={result.avatar} alt={result.name} />
-                                                            : <span>👤</span>}
+                                                <div className="relative mb-3 flex flex-col items-center">
+                                                    {isFirst && (
+                                                        <div className="absolute -top-7 text-primary-container animate-bounce">
+                                                            <span className="material-symbols-outlined text-3xl font-black" style={{ fontVariationSettings: "'FILL' 1" }}>trophy</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-full border-[3px] border-on-background overflow-hidden bg-white shadow-md relative z-20">
+                                                        {result.avatar ? (
+                                                            <img src={result.avatar} alt={result.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-surface-variant flex items-center justify-center text-on-background/60">
+                                                                <span className="material-symbols-outlined text-3xl">person</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="geo-game-end-player-name" style={{ color }}>{result.name}</div>
-                                                    <div className="geo-game-end-player-score">{result.totalScore?.toLocaleString()} pts</div>
-                                                    <div className="geo-game-end-medal">{medal}</div>
+                                                    <div className="absolute -bottom-2 bg-white text-on-background w-6 h-6 rounded-full flex items-center justify-center font-black text-xs border-2 border-on-background z-30 shadow-sm">
+                                                        {columnLabel}
+                                                    </div>
                                                 </div>
-                                                <div className="geo-game-end-podium-block" style={{ height, background: `linear-gradient(180deg, ${color}33, ${color}11)`, borderTop: `3px solid ${color}` }}>
-                                                    <span style={{ color, fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 'bold', opacity: 0.5 }}>{rank}</span>
+                                                
+                                                <div className="text-center mb-2 px-1 w-full z-10">
+                                                    <h3 className="text-xs font-headline-md font-bold text-white truncate max-w-full">{result.name}</h3>
+                                                    <p className="text-[10px] font-black font-code-data text-primary-container mt-0.5">{result.totalScore?.toLocaleString()} PTS</p>
+                                                </div>
+                                                
+                                                <div className={`w-full ${columnHeight} ${columnBg} border-[3px] border-on-background rounded-t-xl relative overflow-hidden flex flex-col items-center justify-center neo-shadow-sm`}>
+                                                    <span className="font-headline-xl font-black text-on-background/15 text-5xl select-none">{columnLabel}</span>
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="geo-game-end-podium-block" style={{ height, background: 'rgba(255,255,255,0.03)', borderTop: '3px solid #333' }} />
+                                            <div className="flex flex-col items-center justify-center h-full text-white/20 py-8">
+                                                <span className="material-symbols-outlined text-2xl">person</span>
+                                                <span className="text-[9px] font-label-caps mt-1">VIDE</span>
+                                            </div>
                                         )}
                                     </div>
                                 );
                             })}
                         </div>
 
-                        {/* Awards */}
-                        {awards && awards.length > 0 && (
-                            <div className="geo-game-end-awards">
-                                <div className="geo-game-end-awards-title">🌟 Hall of Fame</div>
-                                <div className="geo-game-end-awards-list">
-                                    {awards.map((award, index) => (
-                                        <div key={index} className="geo-game-end-award-item">
-                                            <span className="geo-game-end-award-icon">{award.icon}</span>
-                                            <div>
-                                                <div className="geo-game-end-award-name">{award.playerName}</div>
-                                                <div className="geo-game-end-award-title-text">{award.title}</div>
-                                                <div className="geo-game-end-award-value">{award.value}</div>
+                        {/* Special Awards Bento Grid */}
+                        {Array.isArray(awards) && awards.length > 0 && (
+                            <div className="w-full max-w-3xl mx-auto mt-6">
+                                <h3 className="text-xs font-headline-sm font-black text-white/60 mb-3 text-center uppercase tracking-widest">Distinctions Spéciales</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                    {awards.slice(0, 3).map((award, index) => {
+                                        // Style d'award
+                                        const styles = [
+                                            { bg: 'bg-secondary/15 border-secondary/35 text-secondary', icon: 'search', title: 'Sherlock', iconColor: 'text-[#aa30fa]' },
+                                            { bg: 'bg-[#ffd700]/15 border-[#ffd700]/35 text-[#ffd700]', icon: 'rocket_launch', title: 'L\'Astronaute', iconColor: 'text-[#ffd700]' },
+                                            { bg: 'bg-tertiary/15 border-tertiary/35 text-tertiary', icon: 'bolt', title: 'L\'Éclair', iconColor: 'text-[#ffccdf]' }
+                                        ];
+                                        const currentStyle = styles[index % styles.length];
+
+                                        return (
+                                            <div key={index} className="glass-panel rounded-xl p-4 flex flex-col items-center text-center relative overflow-hidden group hover:border-[#ffd700]/50 transition-colors border border-white/10 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]">
+                                                <div className="absolute top-0 left-0 w-1 h-full bg-[#ffd700]"></div>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${currentStyle.bg} border border-white/10`}>
+                                                    <span className={`material-symbols-outlined text-lg ${currentStyle.iconColor}`}>{currentStyle.icon}</span>
+                                                </div>
+                                                <h4 className="text-xs font-headline-sm font-black text-white mb-1">{award.title}</h4>
+                                                <p className="text-[10px] text-white/70 mb-3 min-h-[28px] line-clamp-2">{award.value}</p>
+                                                <div className="mt-auto flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full border border-white/10">
+                                                    <span className="text-[10px] font-code-data text-[#ffd700] font-black">{award.playerName}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
 
-                        {/* Boutons */}
-                        <div className="geo-game-end-actions">
-                            <button className="geo-game-end-btn-restart" aria-label="Rejouer une partie" onClick={restartGame}>🔄 Rejouer</button>
-                            <button className="geo-game-end-btn-home" aria-label="Retourner au menu principal" onClick={() => { localStorage.removeItem('geoHostSession'); navigate('/'); }}>🏠 Menu</button>
+                        {/* Action buttons */}
+                        <div className="mt-8 flex gap-4 pointer-events-auto">
+                            <button 
+                                className="bg-[#ffd700] text-[#161a33] font-black py-3 px-6 border-[3px] border-[#161a33] rounded-xl hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(22,26,51,1)] shadow-[4px_4px_0px_0px_rgba(22,26,51,1)] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2 text-xs font-headline-sm uppercase tracking-wider"
+                                onClick={restartGame}
+                            >
+                                <span>NOUVELLE PARTIE</span>
+                                <span className="material-symbols-outlined text-sm font-black">autorenew</span>
+                            </button>
+                            <button 
+                                className="bg-white text-[#161a33] font-black py-3 px-6 border-[3px] border-[#161a33] rounded-xl hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(22,26,51,1)] shadow-[4px_4px_0px_0px_rgba(22,26,51,1)] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2 text-xs font-headline-sm uppercase tracking-wider"
+                                onClick={handleQuitGame}
+                            >
+                                <span>QUITTER LE SALON</span>
+                                <span className="material-symbols-outlined text-sm font-black">logout</span>
+                            </button>
                         </div>
                     </div>
+                </main>
 
-                    {/* --- CLASSEMENT COMPLET --- */}
-                    <div className="geo-game-end-leaderboard">
-                        <div className="geo-game-end-leaderboard-title">📋 Classement final</div>
-                        <div className="geo-game-end-leaderboard-list">
-                            {finalResults?.map((result, index) => (
-                                <div key={result.id} className={`geo-game-end-lb-row ${index === 0 ? 'winner' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
-                                    <span className="geo-game-end-lb-rank">
-                                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
-                                    </span>
-                                    <div className="geo-game-end-lb-avatar">
-                                        {result.avatar ? <img src={result.avatar} alt="" /> : <span>👤</span>}
-                                    </div>
-                                    <span className="geo-game-end-lb-name">{result.name}</span>
-                                    <span className="geo-game-end-lb-score">{result.totalScore?.toLocaleString()} pts</span>
-                                </div>
-                            ))}
-                        </div>
+                {/* Confetti Container */}
+                {showConfetti && (
+                    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden shadow-none" id="confetti-container">
+                        {Array.from({ length: 50 }).map((_, idx) => {
+                            const colors = ['#ffd700', '#8d00d9', '#ac2471', '#fbf8ff'];
+                            const left = Math.random() * 100;
+                            const animationDuration = Math.random() * 3 + 2;
+                            const color = colors[Math.floor(Math.random() * colors.length)];
+                            const size = Math.random() * 8 + 4;
+                            return (
+                                <div
+                                    key={idx}
+                                    className="confetti"
+                                    style={{
+                                        left: `${left}vw`,
+                                        top: `-20px`,
+                                        backgroundColor: color,
+                                        width: `${size}px`,
+                                        height: `${size}px`,
+                                        animationDuration: `${animationDuration}s`,
+                                        borderRadius: Math.random() > 0.5 ? '50%' : '0'
+                                    }}
+                                />
+                            );
+                        })}
                     </div>
-                </div>
-
-                <PersistentQRCode />
+                )}
             </div>
         );
     }
 
     // INIT State
     return (
-        <div className="container text-center py-5">
-            <div className="spinner-border text-primary" role="status"></div>
-            <p className="mt-3">Création du salon...</p>
+        <div className="h-screen w-screen flex flex-col items-center justify-center bg-background text-on-surface font-body-md">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-4 font-headline-md text-sm text-on-surface-variant">Création du salon...</p>
             <button
-                className="btn btn-sm btn-outline-secondary mt-3"
+                className="mt-6 border border-surface-variant text-on-surface-variant hover:bg-surface-container-low text-xs px-4 py-2 rounded transition-all active:scale-95"
                 onClick={() => {
                     localStorage.removeItem('geoHostSession');
                     window.location.reload();
@@ -1680,13 +2061,5 @@ function GeoHostView() {
     );
 }
 
-// Dark map style
-const darkMapStyle = [
-    { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f0f23' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2a4a' }] }
-];
-
 export default GeoHostView;
+

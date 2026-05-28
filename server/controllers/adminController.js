@@ -81,8 +81,20 @@ module.exports = {
                         }, (response) => {
                             // Check for redirect
                             if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-                                // Follow redirect
-                                expandUrl(response.headers.location).then(resolve).catch(reject);
+                                try {
+                                    const redirectUrl = response.headers.location;
+                                    const parsedRedirect = new URL(redirectUrl, shortUrl);
+                                    
+                                    // Valider le domaine de redirection pour éviter les vulnérabilités SSRF
+                                    if (parsedRedirect.hostname && !allowedHostnames.includes(parsedRedirect.hostname)) {
+                                        return reject(new Error('Redirection non autorisée vers un domaine externe.'));
+                                    }
+                                    
+                                    // Follow redirect
+                                    expandUrl(parsedRedirect.toString()).then(resolve).catch(reject);
+                                } catch (err) {
+                                    reject(err);
+                                }
                             } else {
                                 // Final URL - return what we have
                                 resolve(shortUrl);

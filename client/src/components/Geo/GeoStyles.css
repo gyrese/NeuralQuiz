@@ -3214,3 +3214,113 @@ button,
         scroll-behavior: auto !important;
     }
 }
+
+/* ===================================
+   STITCH STYLES & SOLARIS EXPEDITION THEME
+   =================================== */
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(141, 113, 104, 0.2) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03) !important;
+}
+
+.bg-tech-pattern {
+    background-image: radial-gradient(#24619d 1px, transparent 1px) !important;
+    background-size: 40px 40px !important;
+    opacity: 0.04 !important;
+}
+
+.anim-pulse-slow {
+    animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.beam {
+    width: 2px;
+    height: 40px;
+    background: linear-gradient(to top, #ff6b35, transparent);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+}
+.beam-target {
+    background: linear-gradient(to top, #24619d, transparent) !important;
+}
+
+@keyframes scan {
+    0% { top: 0; }
+    50% { top: 100%; }
+    100% { top: 0; }
+}
+
+.scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: #ff6b35;
+    opacity: 0.5;
+    box-shadow: 0 0 10px #ff6b35;
+    animation: scan 3s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #ff6b35;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #ff6b35;
+    pointer-events: none;
+    opacity: 0;
+}
+
+@keyframes particleUp {
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(-100vh) scale(0); opacity: 0; }
+}
+
+@keyframes float-up {
+    0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 0.8; }
+    100% { transform: translateY(-20vh) scale(1.5) rotate(15deg); opacity: 0; }
+}
+
+.emoji-reaction {
+    position: absolute;
+    font-size: 48px;
+    pointer-events: none;
+    animation: float-up 4s ease-out forwards;
+    z-index: 40;
+    filter: drop-shadow(0 0 8px rgba(0,0,0,0.1));
+}
+
+.timer-pulse {
+    animation: pulse-slow 2s infinite ease-in-out;
+}
+
+.hud-grid-bg {
+    background-image: radial-gradient(#24619d 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.03;
+}
+
+.pulse-border {
+    animation: pulse-border 3s infinite;
+}
+@keyframes pulse-border {
+    0% { border-color: rgba(255, 107, 53, 0.2); }
+    50% { border-color: rgba(255, 107, 53, 0.8); }
+    100% { border-color: rgba(255, 107, 53, 0.2); }
+}

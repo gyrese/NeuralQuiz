@@ -54,6 +54,14 @@ function GeoRemoteView() {
         }
     }, [step]);
 
+    // Activer la classe du thème pop culture sur le body
+    useEffect(() => {
+        document.body.classList.add('pop-culture-theme');
+        return () => {
+            document.body.classList.remove('pop-culture-theme');
+        };
+    }, []);
+
     // Socket event listeners - set up FIRST, then auto-connect
     useEffect(() => {
         // Set up all listeners
@@ -135,7 +143,7 @@ function GeoRemoteView() {
             setStep('GAME_END');
             setFinalResults(data.results);
             setError(''); // Clear any previous errors
-            soundManager.play('win');
+            // soundManager.play('win');
         });
 
         socket.on('geo-game-restarted', () => {
@@ -349,49 +357,66 @@ function GeoRemoteView() {
     // CONNECT Screen
     if (step === 'CONNECT') {
         return (
-            <div className="geo-player-background">
-                <div className="container py-4">
-                    <button className="btn btn-outline-secondary mb-4" onClick={() => navigate('/geo')}>
-                        ← RETOUR
-                    </button>
-
-                    <div className="row justify-content-center">
-                        <div className="col-md-5">
-                            <div className="card p-4">
-                                <h2 className="text-center mb-4 text-info" style={{ fontFamily: 'var(--font-display)', letterSpacing: '4px' }}>
-                                    📱 TÉLÉCOMMANDE
-                                </h2>
-
-                                {error && (
-                                    <div className="alert alert-danger">{error}</div>
-                                )}
-
-                                <div className="mb-4">
-                                    <label className="form-label">Code du salon</label>
-                                    <input
-                                        type="text"
-                                        className="form-control text-uppercase text-center fs-4"
-                                        placeholder="ABC123"
-                                        maxLength={6}
-                                        value={roomCode}
-                                        onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                                    />
-                                </div>
-
-                                <button
-                                    className="btn btn-info btn-lg w-100"
-                                    onClick={connectToRoom}
-                                    disabled={isConnecting}
-                                >
-                                    {isConnecting ? (
-                                        <><span className="spinner-border spinner-border-sm me-2" role="status"></span>Connexion...</>
-                                    ) : (
-                                        '🎮 CONNECTER'
-                                    )}
-                                </button>
-                            </div>
-                        </div>
+            <div className="min-h-screen w-full relative overflow-hidden bg-background flex flex-col justify-center items-center p-4">
+                <div className="pop-dots"></div>
+                <div className="w-full max-w-[340px] flex flex-col gap-4 relative z-10">
+                    
+                    {/* Title */}
+                    <div className="w-full text-center mb-2 flex flex-col items-center">
+                        <h2 className="text-2xl font-black text-on-background text-center uppercase italic tracking-tighter mb-1 rotate-[-2deg] font-headline-xl">
+                            📱 TÉLÉCOMMANDE
+                        </h2>
+                        <p className="text-[10px] text-center font-bold text-secondary uppercase tracking-wider">
+                            Contrôle le jeu depuis ton mobile
+                        </p>
                     </div>
+
+                    {error && (
+                        <div className="bg-error/15 border-[3px] border-error text-error text-[10px] rounded-xl p-2.5 text-center font-bold" role="alert">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="bg-white border-[3px] border-on-background p-6 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black uppercase text-secondary tracking-wider" htmlFor="roomCode">Code du Salon</label>
+                            <input
+                                className="w-full p-2.5 border-[3px] border-on-background font-bold text-center text-lg uppercase placeholder:text-on-background/30 focus:outline-none focus:ring-0 bg-[#fbf8ff] rounded-lg tracking-widest"
+                                id="roomCode"
+                                maxLength={6}
+                                placeholder="EX: X7Z9"
+                                type="text"
+                                value={roomCode}
+                                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                            />
+                        </div>
+
+                        <button
+                            className="w-full bg-[#ffe16d] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-px active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            onClick={connectToRoom}
+                            disabled={isConnecting}
+                        >
+                            {isConnecting ? (
+                                <>
+                                    <div className="w-4 h-4 rounded-full border-2 border-on-background border-t-transparent animate-spin"></div>
+                                    <span className="text-xs font-black uppercase tracking-wider">CONNEXION...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-xs font-black uppercase tracking-wider">🎮 CONNECTER</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="text-[9px] font-black text-secondary hover:text-secondary/80 transition-colors flex items-center justify-center gap-1 mx-auto uppercase tracking-wide mt-2"
+                        onClick={() => navigate('/geo')}
+                    >
+                        <span className="material-symbols-outlined text-xs font-bold">arrow_back</span>
+                        Retour au menu
+                    </button>
                 </div>
             </div>
         );
@@ -402,73 +427,147 @@ function GeoRemoteView() {
         const activePlayers = players.filter(p => !p.disconnected);
 
         return (
-            <div className="geo-player-background">
-                <div className="container py-3">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h4 className="text-info mb-0">📱 Télécommande</h4>
-                        <span className="badge bg-dark fs-6">CODE: {roomCode}</span>
+            <div className="min-h-screen w-full relative overflow-hidden bg-background flex flex-col p-4">
+                <div className="pop-dots"></div>
+                <div className="w-full max-w-[360px] mx-auto flex flex-col gap-4 relative z-10 flex-grow">
+                    
+                    {/* Header info */}
+                    <div className="bg-[#bd00ff] text-white border-[3px] border-on-background p-3.5 rounded-xl shadow-[4px_4px_0px_0px_#161a33] rotate-[-1deg] flex-shrink-0 flex items-center justify-between">
+                        <h1 className="text-xs font-black uppercase tracking-widest italic font-headline-lg">
+                            📱 TÉLÉCOMMANDE
+                        </h1>
+                        <span className="bg-[#ffe16d] text-on-background font-black text-[10px] px-2.5 py-0.5 border-2 border-on-background rounded-full shadow-[2px_2px_0px_0px_rgba(22,26,51,1)]">
+                            PIN: {roomCode}
+                        </span>
                     </div>
 
-                    {error && <div className="alert alert-danger py-2">{error}</div>}
+                    {error && (
+                        <div className="bg-error/15 border-[3px] border-error text-error text-[10px] rounded-xl p-2.5 text-center font-bold" role="alert">
+                            {error}
+                        </div>
+                    )}
 
-                    {/* Player list */}
-                    <div className="card p-3 mb-3">
-                        <h6 className="text-muted mb-2">Joueurs connectés ({activePlayers.length})</h6>
+                    {/* Players list Bento */}
+                    <div className="bg-white border-[3px] border-on-background p-4 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-3">
+                        <div className="flex items-center justify-between border-b-2 border-on-background pb-2">
+                            <h2 className="text-xs font-black uppercase text-secondary">Joueurs connectés ({activePlayers.length})</h2>
+                            <span className="material-symbols-outlined text-sm text-secondary animate-pulse">groups</span>
+                        </div>
                         {activePlayers.length === 0 ? (
-                            <p className="text-muted mb-0">En attente de joueurs...</p>
+                            <p className="text-[10px] text-secondary font-black italic text-center py-2">En attente de joueurs...</p>
                         ) : (
-                            <div className="d-flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 py-1 max-h-[120px] overflow-y-auto custom-scrollbar">
                                 {activePlayers.map((player, idx) => (
-                                    <div key={player.id || idx} className="badge bg-primary py-2 px-3">
-                                        {player.avatar && (
-                                            <img src={player.avatar} alt=""
-                                                style={{ width: 20, height: 20, borderRadius: '50%', marginRight: 5 }} />
+                                    <div 
+                                        key={player.id || idx} 
+                                        className="flex items-center gap-1.5 bg-[#dee0ff] text-on-background font-bold text-[10px] uppercase px-2.5 py-1 border-2 border-on-background rounded-full shadow-[2px_2px_0px_0px_rgba(22,26,51,1)]"
+                                    >
+                                        {player.avatar ? (
+                                            <img src={player.avatar} alt="" className="w-4 h-4 rounded-full object-cover border border-on-background" />
+                                        ) : (
+                                            <span className="material-symbols-outlined text-[10px]">person</span>
                                         )}
-                                        {player.name}
+                                        <span className="truncate max-w-[80px]">{player.name}</span>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
 
-                    {/* Settings */}
-                    <div className="card p-3 mb-3">
-                        <h6 className="text-muted mb-2">Paramètres</h6>
-                        <div className="row g-2">
-                            <div className="col-6">
-                                <label className="form-label small">Manches</label>
+                    {/* Settings Bento */}
+                    <div className="bg-white border-[3px] border-on-background p-4 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-3">
+                        <div className="flex items-center justify-between border-b-2 border-on-background pb-2">
+                            <h2 className="text-xs font-black uppercase text-secondary">Configuration de la partie</h2>
+                            <span className="material-symbols-outlined text-sm text-secondary">tune</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-black uppercase text-secondary/80">Manches</label>
                                 <select
-                                    className="form-select"
+                                    className="w-full p-2 border-2 border-on-background font-bold text-[11px] uppercase focus:outline-none focus:ring-0 bg-[#fbf8ff] rounded-lg"
                                     value={settings.roundsCount}
                                     onChange={(e) => updateSettings({ ...settings, roundsCount: parseInt(e.target.value) })}
                                 >
-                                    {[3, 5, 7, 10].map(n => (
-                                        <option key={n} value={n}>{n}</option>
+                                    {[3, 5, 7, 10, 15, 20].map(n => (
+                                        <option key={n} value={n}>{n} Manches</option>
                                     ))}
                                 </select>
                             </div>
-                            <div className="col-6">
-                                <label className="form-label small">Temps/manche</label>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-black uppercase text-secondary/80">Temps / Manche</label>
                                 <select
-                                    className="form-select"
+                                    className="w-full p-2 border-2 border-on-background font-bold text-[11px] uppercase focus:outline-none focus:ring-0 bg-[#fbf8ff] rounded-lg"
                                     value={settings.timePerRound}
                                     onChange={(e) => updateSettings({ ...settings, timePerRound: parseInt(e.target.value) })}
                                 >
-                                    {[30, 45, 60, 90, 120].map(n => (
+                                    {[15, 30, 45, 60, 90, 120, 180, 240, 300].map(n => (
                                         <option key={n} value={n}>{n}s</option>
                                     ))}
                                 </select>
                             </div>
                         </div>
+
+                        {/* Region selector within settings */}
+                        <div className="flex flex-col gap-1.5 mt-2">
+                            <label className="text-[9px] font-black uppercase text-secondary/80">Régions de jeu ({settings.mapType.length})</label>
+                            <div className="grid grid-cols-3 gap-1 max-h-[110px] overflow-y-auto custom-scrollbar border-2 border-on-background/10 p-1.5 bg-[#fbf8ff] rounded-lg">
+                                {[
+                                    { id: 'world', name: 'Monde', icon: '🌍' },
+                                    { id: 'europe', name: 'Europe', icon: '🇪🇺' },
+                                    { id: 'asia', name: 'Asie', icon: '⛩️' },
+                                    { id: 'africa', name: 'Afrique', icon: '🦁' },
+                                    { id: 'americas', name: 'Amériques', icon: '🌎' },
+                                    { id: 'oceania', name: 'Océanie', icon: '🦘' },
+                                    { id: 'france', name: 'France', icon: '🇫🇷' },
+                                    { id: 'usa', name: 'USA', icon: '🇺🇸' },
+                                    { id: 'reunion', name: 'La Réunion', icon: '🏝️' },
+                                    { id: 'themeparks', name: 'Parcs', icon: '🎢' },
+                                    { id: 'beaches', name: 'Plages', icon: '🏖️' },
+                                    { id: 'markets', name: 'Marchés', icon: '🛍️' },
+                                ].map(region => {
+                                    const isSelected = settings.mapType.includes(region.id);
+                                    return (
+                                        <button
+                                            key={region.id}
+                                            type="button"
+                                            className={`p-1.5 rounded-lg border-2 flex flex-col items-center justify-center text-center transition-all duration-150 active:scale-95 ${
+                                                isSelected 
+                                                    ? 'border-on-background bg-[#ffc2eb] text-on-background font-bold shadow-[1.5px_1.5px_0px_0px_rgba(22,26,51,1)]' 
+                                                    : 'border-on-background/10 bg-white text-secondary'
+                                            }`}
+                                            onClick={() => {
+                                                let newTypes;
+                                                if (region.id === 'world') {
+                                                    newTypes = ['world'];
+                                                } else {
+                                                    newTypes = settings.mapType.filter(t => t !== 'world');
+                                                    if (isSelected) {
+                                                        newTypes = newTypes.filter(t => t !== region.id);
+                                                    } else {
+                                                        newTypes.push(region.id);
+                                                    }
+                                                    if (newTypes.length === 0) newTypes = ['world'];
+                                                }
+                                                updateSettings({ ...settings, mapType: newTypes });
+                                            }}
+                                        >
+                                            <span className="text-sm mb-0.5">{region.icon}</span>
+                                            <span className="text-[7.5px] uppercase font-bold tracking-tight truncate w-full">{region.name}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Start button */}
+                    {/* Launch Game button */}
                     <button
-                        className="btn btn-success btn-lg w-100 py-3"
+                        className="w-full mt-auto bg-[#ffe16d] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-px active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         onClick={startGame}
                         disabled={activePlayers.length === 0}
                     >
-                        🚀 LANCER LA PARTIE
+                        <span className="text-sm font-black uppercase tracking-widest">🚀 LANCER LA PARTIE</span>
                     </button>
                 </div>
             </div>
@@ -480,50 +579,86 @@ function GeoRemoteView() {
         const activePlayers = players.filter(p => !p.disconnected);
 
         return (
-            <div className="geo-player-background">
-                <div className="container py-3">
-                    {/* Header */}
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <span className="badge bg-info fs-6">Manche {currentRound}/{totalRounds}</span>
-                        </div>
-                        <div className={`fs-2 fw-bold ${timeLeft <= 10 ? 'text-danger' : 'text-warning'}`}>
+            <div className="min-h-screen w-full relative overflow-hidden bg-background flex flex-col p-4">
+                <div className="pop-dots"></div>
+                <div className="w-full max-w-[360px] mx-auto flex flex-col gap-4 relative z-10 flex-grow">
+                    
+                    {/* Header Info */}
+                    <div className="flex justify-between items-center bg-[#dee0ff] border-[3px] border-on-background p-3.5 rounded-xl shadow-[4px_4px_0px_0px_#161a33] rotate-[-1deg] flex-shrink-0">
+                        <span className="bg-on-background text-white font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase">
+                            Manche {currentRound}/{totalRounds}
+                        </span>
+                        
+                        <div className={`text-xl font-black font-headline-xl uppercase tracking-tighter ${
+                            timeLeft <= 10 ? 'text-error animate-pulse scale-105' : 'text-on-background'
+                        }`}>
                             {formatTime(timeLeft)}
                         </div>
                     </div>
 
-                    {error && <div className="alert alert-danger py-2">{error}</div>}
-
-                    {/* Guessed count */}
-                    <div className="card p-3 mb-3 text-center">
-                        <div className="fs-4">
-                            <span className="text-success">{guessedCount}</span>
-                            <span className="text-muted">/{activePlayers.length}</span>
+                    {error && (
+                        <div className="bg-error/15 border-[3px] border-error text-error text-[10px] rounded-xl p-2.5 text-center font-bold" role="alert">
+                            {error}
                         </div>
-                        <div className="text-muted small">joueurs ont répondu</div>
+                    )}
+
+                    {/* Progress Bento */}
+                    <div className="bg-white border-[3px] border-on-background p-4 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase text-secondary">
+                            <span>Réponses enregistrées</span>
+                            <span>{guessedCount} / {activePlayers.length}</span>
+                        </div>
+                        
+                        {/* Custom Pop Progress Bar */}
+                        <div className="w-full h-4 bg-background border-2 border-on-background rounded-full overflow-hidden p-0.5 shadow-[1.5px_1.5px_0px_0px_rgba(22,26,51,1)]">
+                            <div 
+                                className="h-full bg-[#ffc2eb] border border-on-background rounded-full transition-all duration-300"
+                                style={{ width: `${(guessedCount / (activePlayers.length || 1)) * 100}%` }}
+                            ></div>
+                        </div>
                     </div>
 
-                    {/* Player status */}
-                    <div className="card p-3 mb-3">
-                        <h6 className="text-muted mb-2">Scores actuels</h6>
-                        {[...players].sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0)).map((player, idx) => (
-                            <div key={player.id || idx} className="d-flex justify-content-between align-items-center py-1 border-bottom">
-                                <span>
-                                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                                    {' '}{player.name}
-                                    {player.disconnected && <span className="text-muted"> (déco)</span>}
-                                </span>
-                                <span className="text-primary fw-bold">{(player.totalScore || 0).toLocaleString()}</span>
-                            </div>
-                        ))}
+                    {/* Current Standing Bento */}
+                    <div className="bg-white border-[3px] border-on-background p-4 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-3 flex-grow overflow-hidden">
+                        <div className="flex items-center justify-between border-b-2 border-on-background pb-2">
+                            <h2 className="text-xs font-black uppercase text-secondary">Classement Général</h2>
+                            <span className="material-symbols-outlined text-sm text-secondary">leaderboard</span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar py-1">
+                            {[...players]
+                                .sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0))
+                                .map((player, idx) => {
+                                    const medals = ['🥇', '🥈', '🥉'];
+                                    return (
+                                        <div 
+                                            key={player.id || idx} 
+                                            className="flex justify-between items-center bg-[#fbf8ff] border-2 border-on-background p-2 rounded-lg"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-black">
+                                                    {idx < 3 ? medals[idx] : `#${idx + 1}`}
+                                                </span>
+                                                <span className="text-[10px] font-black uppercase text-on-background truncate max-w-[120px]">
+                                                    {player.name}
+                                                    {player.disconnected && <span className="text-secondary/50 font-normal"> (deco)</span>}
+                                                </span>
+                                            </div>
+                                            <span className="text-xs font-black text-secondary">
+                                                {(player.totalScore || 0).toLocaleString()} pts
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                        </div>
                     </div>
 
                     {/* End round button */}
                     <button
-                        className="btn btn-warning btn-lg w-100 py-3"
+                        className="w-full bg-[#ffe16d] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-px active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2"
                         onClick={endRound}
                     >
-                        ⏹️ TERMINER LA MANCHE
+                        <span className="text-sm font-black uppercase tracking-widest">⏹️ TERMINER LA MANCHE</span>
                     </button>
                 </div>
             </div>
@@ -533,36 +668,68 @@ function GeoRemoteView() {
     // ROUND_END Screen
     if (step === 'ROUND_END') {
         return (
-            <div className="geo-player-background">
-                <div className="container py-3">
-                    <h4 className="text-center text-primary mb-3">📊 Résultats Manche {currentRound}</h4>
-
-                    {error && <div className="alert alert-danger py-2">{error}</div>}
-
-                    {/* Results */}
-                    <div className="card p-3 mb-3">
-                        {roundResults?.map((result, idx) => (
-                            <div key={result.id || idx} className="d-flex justify-content-between align-items-center py-2 border-bottom">
-                                <div>
-                                    <span className="fw-bold">
-                                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                                    </span>
-                                    {' '}{result.name}
-                                </div>
-                                <div className="text-end">
-                                    <div className="text-success fw-bold">+{(result.roundScore || 0).toLocaleString()}</div>
-                                    <div className="small text-muted">{formatDistance(result.distance)}</div>
-                                </div>
-                            </div>
-                        ))}
+            <div className="min-h-screen w-full relative overflow-hidden bg-background flex flex-col p-4">
+                <div className="pop-dots"></div>
+                <div className="w-full max-w-[360px] mx-auto flex flex-col gap-4 relative z-10 flex-grow">
+                    
+                    {/* Header Title */}
+                    <div className="bg-[#ffc2eb] border-[3px] border-on-background p-3.5 rounded-xl shadow-[4px_4px_0px_0px_#161a33] rotate-[1deg] flex-shrink-0 flex items-center justify-center">
+                        <h1 className="text-xs font-black uppercase tracking-widest italic font-headline-lg text-on-background">
+                            📊 RÉSULTATS DE LA MANCHE {currentRound}
+                        </h1>
                     </div>
 
-                    {/* Next round button */}
+                    {error && (
+                        <div className="bg-error/15 border-[3px] border-error text-error text-[10px] rounded-xl p-2.5 text-center font-bold" role="alert">
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Results List Bento */}
+                    <div className="bg-white border-[3px] border-on-background p-4 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-3 flex-grow overflow-hidden">
+                        <div className="flex items-center justify-between border-b-2 border-on-background pb-2">
+                            <h2 className="text-xs font-black uppercase text-secondary">Résultats des Joueurs</h2>
+                            <span className="material-symbols-outlined text-sm text-secondary">tour</span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2.5 overflow-y-auto custom-scrollbar py-1">
+                            {roundResults?.map((result, idx) => {
+                                const medals = ['🥇', '🥈', '🥉'];
+                                return (
+                                    <div 
+                                        key={result.id || idx} 
+                                        className="flex justify-between items-center bg-[#fbf8ff] border-2 border-on-background p-2.5 rounded-lg"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black">
+                                                {idx < 3 ? medals[idx] : `#${idx + 1}`}
+                                            </span>
+                                            <span className="text-[10px] font-black uppercase text-on-background truncate max-w-[100px]">
+                                                {result.name}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[9px] font-bold text-secondary bg-[#dee0ff] px-2 py-0.5 rounded-full border border-on-background/20">
+                                                {formatDistance(result.distance)}
+                                            </span>
+                                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 border border-emerald-300 rounded-md">
+                                                +{(result.roundScore || 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Next action button */}
                     <button
-                        className="btn btn-primary btn-lg w-100 py-3"
+                        className="w-full bg-[#ffe16d] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-px active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2"
                         onClick={nextRound}
                     >
-                        ▶️ {currentRound < totalRounds ? 'MANCHE SUIVANTE' : 'VOIR RÉSULTATS'}
+                        <span className="text-sm font-black uppercase tracking-widest">
+                            {currentRound < totalRounds ? '▶️ MANCHE SUIVANTE' : '🏆 VOIR LES RÉSULTATS'}
+                        </span>
                     </button>
                 </div>
             </div>
@@ -572,42 +739,77 @@ function GeoRemoteView() {
     // GAME_END Screen
     if (step === 'GAME_END') {
         return (
-            <div className="geo-player-background">
-                <div className="container py-3">
-                    <h2 className="text-center text-primary mb-4">🏆 Partie Terminée</h2>
-
-                    {error && <div className="alert alert-danger py-2">{error}</div>}
-
-                    {/* Final results */}
-                    <div className="card p-3 mb-3">
-                        {finalResults?.map((result, idx) => (
-                            <div key={result.id || idx} className="d-flex justify-content-between align-items-center py-2 border-bottom">
-                                <div>
-                                    <span className="fs-5">
-                                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                                    </span>
-                                    {' '}{result.name}
-                                </div>
-                                <div className="text-primary fw-bold fs-5">
-                                    {(result.totalScore || 0).toLocaleString()} pts
-                                </div>
-                            </div>
-                        ))}
+            <div className="min-h-screen w-full relative overflow-hidden bg-background flex flex-col p-4">
+                <div className="pop-dots"></div>
+                <div className="w-full max-w-[360px] mx-auto flex flex-col gap-4 relative z-10 flex-grow">
+                    
+                    {/* Header Title */}
+                    <div className="bg-[#ffe16d] border-[3px] border-on-background p-3.5 rounded-xl shadow-[4px_4px_0px_0px_#161a33] rotate-[-1deg] flex-shrink-0 flex items-center justify-center">
+                        <h1 className="text-xs font-black uppercase tracking-widest italic font-headline-lg text-on-background">
+                            🏆 PARTIE TERMINÉE !
+                        </h1>
                     </div>
 
-                    {/* Actions */}
-                    <div className="d-grid gap-2">
+                    {error && (
+                        <div className="bg-error/15 border-[3px] border-error text-error text-[10px] rounded-xl p-2.5 text-center font-bold" role="alert">
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Final Standing Bento */}
+                    <div className="bg-white border-[3px] border-on-background p-4 rounded-xl shadow-[4px_4px_0px_0px_#161a33] flex flex-col gap-3 flex-grow overflow-hidden">
+                        <div className="flex items-center justify-between border-b-2 border-on-background pb-2">
+                            <h2 className="text-xs font-black uppercase text-secondary">Podium Final</h2>
+                            <span className="material-symbols-outlined text-sm text-secondary">military_tech</span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2.5 overflow-y-auto custom-scrollbar py-1">
+                            {finalResults?.map((result, idx) => {
+                                const medals = ['🥇', '🥈', '🥉'];
+                                const isPodium = idx < 3;
+                                return (
+                                    <div 
+                                        key={result.id || idx} 
+                                        className={`flex justify-between items-center p-3 rounded-lg border-2 border-on-background ${
+                                            idx === 0 
+                                                ? 'bg-[#ffe16d]/30 shadow-[2px_2px_0px_0px_rgba(22,26,51,1)]' 
+                                                : idx === 1 
+                                                    ? 'bg-[#dee0ff]/30' 
+                                                    : idx === 2 
+                                                        ? 'bg-[#ffc2eb]/30' 
+                                                        : 'bg-[#fbf8ff]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-sm font-black">
+                                                {isPodium ? medals[idx] : `#${idx + 1}`}
+                                            </span>
+                                            <span className="text-[10px] font-black uppercase text-on-background truncate max-w-[120px]">
+                                                {result.name}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs font-black text-on-background">
+                                            {(result.totalScore || 0).toLocaleString()} pts
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Actions Panel */}
+                    <div className="flex flex-col gap-2.5 mt-auto">
                         <button
-                            className="btn btn-success btn-lg py-3"
+                            className="w-full bg-[#ffc2eb] text-on-background font-black py-3.5 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-px active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2"
                             onClick={restartGame}
                         >
-                            🔄 REJOUER
+                            <span className="text-xs font-black uppercase tracking-wider">🔄 REJOUER UNE PARTIE</span>
                         </button>
                         <button
-                            className="btn btn-outline-secondary btn-lg"
-                            onClick={() => navigate('/')}
+                            className="w-full bg-white text-secondary font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-px active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2"
+                            onClick={() => navigate('/geo')}
                         >
-                            🏠 Retour au menu
+                            <span className="text-xs font-black uppercase tracking-wider">🏠 RETOUR AU MENU</span>
                         </button>
                     </div>
                 </div>

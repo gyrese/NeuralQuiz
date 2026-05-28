@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -179,4 +181,252 @@ h6,
 .game-features .badge {
   font-weight: normal;
   padding: 0.5em 1em;
+}
+
+/* ==========================================================================
+   POP CULTURE / VIVID PULSE THEME OVERRIDES
+   Scopes all styling to avoid breaking other cyberpunk/dark games.
+   ========================================================================== */
+
+body.pop-culture-theme {
+  background-color: #fbf8ff !important;
+  background-image: none !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  color: #161a33 !important;
+  min-height: 100vh;
+}
+
+body.pop-culture-theme h1,
+body.pop-culture-theme h2,
+body.pop-culture-theme h3,
+body.pop-culture-theme h4,
+body.pop-culture-theme h5,
+body.pop-culture-theme h6 {
+  font-family: 'Space Grotesk', sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+/* Glassmorphism panels for Host Lobby with high transparency & blur */
+body.pop-culture-theme .glass-panel {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 2px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.pop-culture-theme .timer-glow {
+  animation: pulse-border-pop 2.5s infinite !important;
+}
+
+@keyframes pulse-border-pop {
+  0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
+  70% { box-shadow: 0 0 0 12px rgba(255, 215, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+}
+
+body.pop-culture-theme .pulse-animation {
+  animation: pulse-pop 2s infinite !important;
+}
+
+@keyframes pulse-pop {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(141, 0, 217, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(141, 0, 217, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(141, 0, 217, 0);
+  }
+}
+
+/* Darkened space background overlayed with Pop Culture deep navy gradient */
+body.pop-culture-theme .pop-culture-lobby-bg {
+  background-color: #0a0e27 !important;
+  background-image: linear-gradient(rgba(10, 14, 39, 0.55), rgba(10, 14, 39, 0.55)), url('https://cdn.midjourney.com/bf9bd72c-442b-474a-a98e-2c19ea87ddd1/0_2.png') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-attachment: fixed !important;
+  min-height: 100vh;
+}
+
+/* Pop Art Dots Pattern Overlay */
+body.pop-culture-theme .pop-dots {
+  background-image: radial-gradient(#161a33 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+  opacity: 0.05 !important;
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: -5 !important;
+}
+
+body.pop-culture-theme .bg-pattern {
+  background-color: #fbf8ff !important;
+  background-image: radial-gradient(#dee0ff 1.5px, transparent 1.5px) !important;
+  background-size: 24px 24px !important;
+}
+
+body.pop-culture-theme .abstract-bg {
+  background-color: #fbf8ff !important;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(141, 0, 217, 0.1) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(255, 215, 0, 0.15) 0%, transparent 25%),
+    radial-gradient(circle at 50% 50%, rgba(172, 36, 113, 0.05) 0%, transparent 40%) !important;
+}
+
+/* Neo-Brutalism Hard offset shadows */
+body.pop-culture-theme .neo-shadow {
+  box-shadow: 8px 8px 0px 0px #161a33 !important;
+}
+
+body.pop-culture-theme .neo-shadow-sm {
+  box-shadow: 4px 4px 0px 0px #161a33 !important;
+}
+
+body.pop-culture-theme .neo-shadow-lg {
+  box-shadow: 12px 12px 0px 0px #161a33 !important;
+}
+
+body.pop-culture-theme .neo-shadow-primary {
+  box-shadow: 6px 6px 0px 0px #ffd700 !important;
+}
+
+body.pop-culture-theme .neo-shadow-secondary {
+  box-shadow: 6px 6px 0px 0px #8d00d9 !important;
+}
+
+/* Marching Ants Animation (Border dance) */
+body.pop-culture-theme .marching-ants {
+  background-image: linear-gradient(90deg, #161a33 50%, transparent 50%), linear-gradient(90deg, #161a33 50%, transparent 50%), linear-gradient(0deg, #161a33 50%, transparent 50%), linear-gradient(0deg, #161a33 50%, transparent 50%) !important;
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y !important;
+  background-size: 15px 3px, 15px 3px, 3px 15px, 3px 15px !important;
+  animation: border-dance 1s infinite linear !important;
+}
+
+@keyframes border-dance {
+  0% { background-position: 0 0, 100% 100%, 0 100%, 100% 0; }
+  100% { background-position: 30px 0, -30px 100%, 0 -30px, 100% 30px; }
+}
+
+/* Floating animation for stickers */
+@keyframes float {
+  0% { transform: translateY(0px) rotate(var(--rot, 0deg)); }
+  50% { transform: translateY(-12px) rotate(calc(var(--rot, 0deg) + 3deg)); }
+  100% { transform: translateY(0px) rotate(var(--rot, 0deg)); }
+}
+body.pop-culture-theme .floating {
+  animation: float 4s ease-in-out infinite !important;
+}
+
+body.pop-culture-theme .sticker {
+  padding: 8px 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+  border: 3px solid #161a33;
+  z-index: 10;
+  pointer-events: none;
+  font-family: 'Space Grotesk', sans-serif !important;
+}
+
+body.pop-culture-theme .comic-glow {
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.6), 4px 4px 0px #161a33 !important;
+}
+
+body.pop-culture-theme .die-cut {
+  border: 4px solid white !important;
+  box-shadow: 0 0 0 2px black, 6px 6px 0px 0px #161a33 !important;
+}
+
+/* Custom Brutalist Animations and Styles for GeoTrackr Podium */
+@keyframes pop-elastic {
+  0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+  70% { transform: scale(1.1) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes fade-slide-in {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes float-avatar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes marching-ants {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+@keyframes background-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}
+
+.animate-pop-elastic { animation: pop-elastic 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards; }
+.animate-slide-up { animation: slide-up 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards; opacity: 0; }
+.animate-fade-slide { animation: fade-slide-in 0.6s ease-out forwards; opacity: 0; }
+.animate-float { animation: float-avatar 4s ease-in-out infinite; }
+
+.bg-animated {
+  background: linear-gradient(-45deg, #fbf8ff, #f4f2ff, #edecff, #dee0ff);
+  background-size: 400% 400%;
+  animation: background-flow 15s ease infinite;
+}
+
+.marching-ants-border {
+  position: relative;
+  z-index: 10;
+}
+.marching-ants-border::before {
+  content: '';
+  position: absolute;
+  top: -6px; left: -6px; right: -6px; bottom: -6px;
+  background: linear-gradient(90deg, #161a33 50%, transparent 50%),
+              linear-gradient(90deg, #161a33 50%, transparent 50%),
+              linear-gradient(0deg, #161a33 50%, transparent 50%),
+              linear-gradient(0deg, #161a33 50%, transparent 50%);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 20px 4px, 20px 4px, 4px 20px, 4px 20px;
+  background-position: 0 0, 100% 100%, 0 100%, 100% 0;
+  animation: marching-ants 10s linear infinite;
+  z-index: -1;
+}
+
+.neo-shadow-purple { box-shadow: 8px 8px 0px 0px #8d00d9; }
+.neo-border { border: 3px solid #161a33; }
+
+.neo-button { transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.neo-button:hover { transform: translate(-2px, -2px); box-shadow: 10px 10px 0px 0px #161a33; }
+.neo-button:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px 0px #161a33; }
+
+.confetti-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Custom desktop order overrides for the end-game podium columns */
+@media (min-width: 768px) {
+  .geo-podium-desktop-1 {
+    order: 2 !important;
+  }
+  .geo-podium-desktop-2 {
+    order: 1 !important;
+  }
+  .geo-podium-desktop-3 {
+    order: 3 !important;
+  }
 }

@@ -322,9 +322,11 @@ class GeoGameManager {
         if (!player) return { error: 'Joueur introuvable' };
         if (player.hasGuessed) return { error: 'Déjà répondu' };
 
-        // Détection Anti-Triche: si les coordonnées de guess sont STRICTEMENT identiques
-        // aux coordonnées approximatives envoyées par le serveur (copier-coller du payload websocket)
-        const isCheating = (guessLat === room.currentLocationApprox.lat && guessLng === room.currentLocationApprox.lng);
+        // Détection Anti-Triche: si les coordonnées de guess sont identiques ou extrêmement proches
+        // aux coordonnées approximatives envoyées par le serveur (copier-coller du payload websocket ou script de triche)
+        const latDiff = Math.abs(guessLat - room.currentLocationApprox.lat);
+        const lngDiff = Math.abs(guessLng - room.currentLocationApprox.lng);
+        const isCheating = (latDiff < 0.00001 && lngDiff < 0.00001); // ~1 mètre de précision
 
         player.currentGuess = { lat: guessLat, lng: guessLng };
         player.hasGuessed = true;
@@ -345,7 +347,7 @@ class GeoGameManager {
                 guessLat,
                 guessLng
             );
-            distanceScore = this.calculateScore(distance, room.maxPoints);
+            distanceScore = this.calculateScore(distance, room.maxPoints, room.settings?.mapType);
         }
 
         player.lastDistance = distance;
@@ -396,8 +398,49 @@ class GeoGameManager {
         return deg * (Math.PI / 180);
     }
 
-    calculateScore(distance, maxPoints) {
-        const score = maxPoints * Math.exp(-distance / 2000);
+    calculateScore(distance, maxPoints, mapType = ['world']) {
+        const regions = Array.isArray(mapType) ? mapType : [mapType];
+        
+        // Configuration des facteurs d'échelle et des seuils max de distance par secteur (en km)
+        const regionConfigs = {
+            world: { scale: 2000, max: 12000 },
+            americas: { scale: 1500, max: 8000 },
+            asia: { scale: 1200, max: 6000 },
+            africa: { scale: 1000, max: 5000 },
+            europe: { scale: 500, max: 2500 },
+            oceania: { scale: 1800, max: 9000 },
+            usa: { scale: 400, max: 2000 },
+            france: { scale: 150, max: 800 },
+            reunion: { scale: 10, max: 50 },
+            themeparks: { scale: 1000, max: 5000 },
+            beaches: { scale: 1000, max: 5000 },
+            markets: { scale: 1000, max: 5000 }
+        };
+
+        // Trouver la configuration la plus large parmi les régions sélectionnées
+        let scaleFactor = 2000;
+        let maxDistance = 12000;
+
+        if (regions.length > 0) {
+            let maxScale = 0;
+            let maxDistThreshold = 0;
+
+            regions.forEach(r => {
+                const config = regionConfigs[r] || regionConfigs.world;
+                if (config.scale > maxScale) maxScale = config.scale;
+                if (config.max > maxDistThreshold) maxDistThreshold = config.max;
+            });
+
+            if (maxScale > 0) scaleFactor = maxScale;
+            if (maxDistThreshold > 0) maxDistance = maxDistThreshold;
+        }
+
+        // Si le guess est trop éloigné, c'est 0 point
+        if (distance > maxDistance) {
+            return 0;
+        }
+
+        const score = maxPoints * Math.exp(-distance / scaleFactor);
         return Math.max(0, Math.round(score));
     }
 

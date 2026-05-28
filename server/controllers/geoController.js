@@ -308,6 +308,35 @@ module.exports = {
             }
         });
 
+        socket.on('geo-delete-room', (data, callback) => {
+            try {
+                const { roomCode } = data || {};
+                const room = geoGameManager.getRoom(roomCode);
+                if (!room || room.hostId !== socket.id) {
+                    safeCallback(callback, { error: 'Unauthorized or room not found' });
+                    return;
+                }
+
+                // Annuler le timer de déconnexion de grâce s'il y en avait un
+                if (geoHostDisconnectTimers.has(roomCode)) {
+                    clearTimeout(geoHostDisconnectTimers.get(roomCode));
+                    geoHostDisconnectTimers.delete(roomCode);
+                }
+
+                // Informer tous les joueurs que l'hôte s'en va et que le salon est fermé
+                io.to(`geo-${roomCode}`).emit('geo-host-disconnected');
+
+                // Supprimer la room
+                geoGameManager.deleteRoom(roomCode);
+                console.log(`[GEO] Room ${roomCode} explicitly deleted by host ${socket.id}`);
+
+                safeCallback(callback, { success: true });
+            } catch (error) {
+                console.error('[GEO] Erreur geo-delete-room:', error);
+                safeCallback(callback, { error: 'Erreur serveur' });
+            }
+        });
+
         socket.on('geo-submit-guess', (data, callback) => {
             try {
                 const { roomCode, lat, lng } = data || {};
@@ -347,6 +376,23 @@ module.exports = {
                 }
             } catch (error) {
                 console.error('[GEO] Erreur geo-reaction:', error);
+            }
+        });
+
+        socket.on('geo-chat-message', (data) => {
+            try {
+                const { roomCode, message, playerName } = data || {};
+                const room = geoGameManager.getRoom(roomCode);
+                if (room) {
+                    io.to(`geo-${roomCode}`).emit('geo-chat-message', {
+                        message,
+                        playerName,
+                        playerId: socket.id,
+                        id: Date.now() + Math.random().toString(36).substring(2, 7)
+                    });
+                }
+            } catch (error) {
+                console.error('[GEO] Erreur geo-chat-message:', error);
             }
         });
 

@@ -43,9 +43,9 @@ Ce document recense tous les bugs connus, les points de friction techniques et l
 
 ## 📱 Optimisations Mobiles (Joueurs)
 
-- [ ] **Carte de "Guess" sur iPhone/Safari** : Le défilement de la page interfère parfois avec le glissement de la Google Map (scroll lock). Empêcher le document body de scroller lorsque le doigt est sur la carte.
-- [ ] **Performance du Parallax/Animations** : Désactiver ou alléger la rotation automatique Street View et les particules sur les vieux smartphones pour garder le site fluide.
-- [ ] **Mode "Standby" iOS** : Empêcher le téléphone de s'éteindre (Sleep mode) pendant le round si possible (API WebLock ou vidéo invisible).
+- [x] **Carte de "Guess" sur iPhone/Safari** : Le défilement de la page interfère parfois avec le glissement de la Google Map (scroll lock). Empêcher le document body de scroller lorsque le doigt est sur la carte. *(Corrigé : Verrouillage du viewport en position: fixed sur le body lors des phases actives et filtrage sélectif des évènements touchmove).*
+- [x] **Performance du Parallax/Animations** : Désactiver ou alléger la rotation automatique Street View et les particules sur les vieux smartphones pour garder le site fluide. *(Corrigé : Ajout d'un Mode Performance persistant désactivant l'arrière-plan animé et la génération de confettis).*
+- [x] **Mode "Standby" iOS** : Empêcher le téléphone de s'éteindre (Sleep mode) pendant le round si possible (API WebLock ou vidéo invisible). *(Corrigé : Fiabilisation de la ré-acquisition du Wake Lock lors des évènements visibilitychange).*
 
 ---
 

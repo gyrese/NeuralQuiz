@@ -27,13 +27,25 @@
   --font-display: 'Orbitron', 'Segoe UI', sans-serif;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+  touch-action: pan-x pan-y; /* pas de zoom global */
+}
+
 body {
+  height: 100%;
+  overflow: hidden;
   background-color: var(--bs-body-bg);
   background-image:
     radial-gradient(circle at 50% 0%, rgba(0, 255, 65, 0.15) 0%, transparent 50%),
     linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(10, 10, 10, 1) 100%);
   font-family: 'Montserrat', sans-serif;
-  min-height: 100vh;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 h1,

@@ -1363,10 +1363,10 @@ function GeoPlayerView() {
                                 </button>
                             </div>
                         )}
-                        <div 
-                            ref={mapRef} 
+                        <div
+                            ref={mapRef}
                             className="w-full h-full cursor-crosshair"
-                            style={{ minHeight: showMap ? '200px' : '100%' }}
+                            style={{ minHeight: showMap ? '200px' : '100%', touchAction: 'auto' }}
                             onClick={!showMap ? () => setShowMap(true) : undefined}
                         ></div>
                         {!showMap && (

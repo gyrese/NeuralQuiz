@@ -41,8 +41,25 @@ socket.on('connect', () => {
     const transport = socket.io?.engine?.transport?.name;
     console.log(`[SOCKET] Connecté (POLLING) socket=${socket.id} transport=${transport}`);
 });
-socket.on('disconnect', (reason) => console.log(`[SOCKET] Déconnecté: ${reason}`));
-socket.on('connect_error', (err) => console.error(`[SOCKET] Erreur connexion: ${err.message}`));
+
+// Quand le serveur répond 400 "Session ID unknown" (ex: redémarrage du serveur),
+// forcer une reconnexion avec un nouvel identifiant de session.
+socket.on('disconnect', (reason) => {
+    console.log(`[SOCKET] Déconnecté: ${reason}`);
+    if (reason === 'transport error' || reason === 'transport close') {
+        socket.io.opts.query = {};   // efface le sid en cache
+        socket.connect();
+    }
+});
+
+socket.on('connect_error', (err) => {
+    console.error(`[SOCKET] Erreur connexion: ${err.message}`);
+    // Forcer une reconnexion propre sans l'ancien session ID
+    if (err.message?.includes('Session ID unknown') || err.description === 400) {
+        socket.io.opts.query = {};
+        setTimeout(() => socket.connect(), 500);
+    }
+});
 socket.io.on('reconnect_attempt', (attempt) => console.log(`[SOCKET] Tentative reconnexion #${attempt}`));
 socket.io.on('reconnect_error', (err) => console.error(`[SOCKET] Erreur reconnexion: ${err.message}`));
 socket.io.on('reconnect_failed', () => console.error('[SOCKET] Échec définitif de la reconnexion'));

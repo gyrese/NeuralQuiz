@@ -30,6 +30,12 @@ export const socket = io(URL, {
     forceNew: false,
 });
 
+// Exposition du socket pour les tests E2E uniquement (jamais en usage normal).
+// Le flag window.__E2E__ est posé par Playwright via addInitScript avant le chargement.
+if (typeof window !== 'undefined' && window.__E2E__) {
+    window.__geoSocket = socket;
+}
+
 // Debug: Log connection events (toujours actif pour diagnostic mobile)
 socket.on('connect', () => {
     const transport = socket.io?.engine?.transport?.name;

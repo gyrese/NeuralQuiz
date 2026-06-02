@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'neural_quiz_secret_fallback_key_123!';
+// Aucune valeur de repli : la présence de JWT_SECRET est garantie au démarrage (voir index.js)
+const JWT_SECRET = process.env.JWT_SECRET;
 
 module.exports = (req, res, next) => {
     // Permettre les requêtes OPTIONS (CORS preflight)

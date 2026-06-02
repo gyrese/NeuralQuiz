@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import { soundManager } from '../../utils/soundManager';
 import './GeoStyles.css';
@@ -12,6 +12,8 @@ import './GeoStyles.css';
 function GeoRemoteView() {
     const navigate = useNavigate();
     const { roomCode: urlRoomCode } = useParams();
+    const [searchParams] = useSearchParams();
+    const urlRemoteToken = searchParams.get('rt') || '';
     const [step, setStep] = useState('CONNECT'); // CONNECT, LOBBY, PLAYING, ROUND_END, GAME_END
     const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [error, setError] = useState('');
@@ -43,6 +45,9 @@ function GeoRemoteView() {
     useEffect(() => {
         roomCodeRef.current = roomCode;
     }, [roomCode]);
+
+    // Token secret de la télécommande (issu du QR de l'hôte), conservé pour les reconnexions
+    const remoteTokenRef = useRef(urlRemoteToken);
 
     // Garder stepRef synchronisé
     useEffect(() => {
@@ -233,7 +238,7 @@ function GeoRemoteView() {
 
         console.log('[Remote] Connecting with code:', code);
 
-        socket.emit('geo-join-remote', { roomCode: code }, (response) => {
+        socket.emit('geo-join-remote', { roomCode: code, remoteToken: remoteTokenRef.current }, (response) => {
             setIsConnecting(false);
             if (response.error) {
                 setError(response.error);

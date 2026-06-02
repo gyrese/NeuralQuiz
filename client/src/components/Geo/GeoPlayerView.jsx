@@ -1406,7 +1406,7 @@ function GeoPlayerView() {
                         onClick={submitGuess}
                         disabled={!guessMarker}
                     >
-                        <span>VALIDER MON GUESS</span>
+                        <span>VALIDER MA RÉPONSE</span>
                         <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                     </button>
                 </div>
@@ -1424,7 +1424,7 @@ function GeoPlayerView() {
                     <div className="relative w-full mt-2">
                         <div className="bg-[#ffe16d] border-[4px] border-on-background p-5 comic-bubble neo-shadow-primary transform -rotate-2 rounded-xl">
                             <h2 className="text-2xl font-black text-on-background leading-none uppercase italic text-center font-headline-xl">
-                                BOOM! <br/> GUESS ENVOYÉ
+                                BOOM! <br/> RÉPONSE ENVOYÉE
                             </h2>
                         </div>
                         {/* Decorative Star */}
@@ -1744,7 +1744,7 @@ function GeoPlayerView() {
                         title={performanceMode ? "Mode Performance Activé (Animations Réduites)" : "Activer le Mode Performance"}
                     >
                         <span className="material-symbols-outlined text-xs font-black">
-                            {performanceMode ? 'bolt' : 'bolt_disabled'}
+                            {performanceMode ? 'bolt' : 'flash_off'}
                         </span>
                     </button>
                     <div className="font-bold text-[10px] text-on-background bg-[#ffe16d] px-3 py-1 border-[3px] border-on-background rounded-full shadow-sm flex items-center justify-center tracking-tight">

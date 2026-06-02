@@ -5,6 +5,22 @@ const https = require('https');
 const fs = require('fs');
 const { Server } = require('socket.io');
 const cors = require('cors');
+
+// --- VALIDATION DES SECRETS (fail-fast) ---
+// Refuser de démarrer si les secrets critiques ne sont pas fournis par l'environnement.
+// Empêche tout déploiement avec des valeurs de repli prévisibles.
+const REQUIRED_ENV = ['JWT_SECRET', 'ADMIN_PASSWORD'];
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+    console.error(`[FATAL] Variables d'environnement requises manquantes : ${missingEnv.join(', ')}`);
+    console.error('[FATAL] Définissez-les (ex. via docker-compose / .env) avant de démarrer le serveur.');
+    process.exit(1);
+}
+if (process.env.ADMIN_PASSWORD.length < 8) {
+    console.error('[FATAL] ADMIN_PASSWORD doit faire au moins 8 caractères.');
+    process.exit(1);
+}
+
 const quizManager = require('./quizManager');
 const authMiddleware = require('./middleware/authMiddleware');
 
@@ -15,9 +31,23 @@ const drawController = require('./controllers/drawController');
 const adminController = require('./controllers/adminController');
 const aperoController = require('./controllers/aperoController');
 
+const rateLimit = require('express-rate-limit');
+
 const app = express();
+// Derrière Caddy (reverse proxy) : faire confiance au 1er proxy pour obtenir la vraie IP
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Rate limiting global sur l'API REST (protection DoS / abus)
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 300,            // 300 requêtes/min/IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Trop de requêtes. Réessayez dans un instant.' }
+});
+app.use('/api/', apiLimiter);
 
 // Setup Admin Routes
 adminController.setupRoutes(app);

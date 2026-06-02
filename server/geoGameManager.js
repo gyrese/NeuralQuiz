@@ -2,6 +2,7 @@
  * GeoGuessr Game Manager (SQLite & Anti-Cheat Version)
  */
 
+const crypto = require('crypto');
 const geoLocations = require('./geoLocations');
 
 class GeoGameManager {
@@ -61,6 +62,9 @@ class GeoGameManager {
 
         this.rooms.set(roomCode, {
             code: roomCode,
+            // Secret partagé pour la télécommande : seul l'hôte le reçoit (via QR).
+            // Empêche un joueur connaissant le code du salon de détourner les commandes.
+            remoteToken: crypto.randomBytes(16).toString('hex'),
             hostId: hostId,
             players: new Map(),    // Map<socketId, PlayerData>
             gameState: 'LOBBY',    // LOBBY, PLAYING, ROUND_END, GAME_END

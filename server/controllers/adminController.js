@@ -2,16 +2,27 @@ const drawWords = require('../drawWords');
 const geoLocations = require('../geoLocations');
 const authMiddleware = require('../middleware/authMiddleware');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'neural_quiz_secret_fallback_key_123!';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+// Anti brute-force : limiter les tentatives de login (par IP)
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,                  // 10 tentatives par fenêtre
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Trop de tentatives de connexion. Réessayez plus tard.' }
+});
+
+// Aucune valeur de repli : présence garantie au démarrage (voir index.js, validation fail-fast)
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 module.exports = {
     setupRoutes: (app) => {
         // ================================================
         // ADMIN - LOGIN
         // ================================================
-        app.post('/api/admin/login', (req, res) => {
+        app.post('/api/admin/login', loginLimiter, (req, res) => {
             const { password } = req.body;
             if (!password) {
                 return res.status(400).json({ error: 'Mot de passe requis' });

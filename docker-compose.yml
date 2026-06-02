@@ -13,8 +13,10 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
-      - JWT_SECRET=${JWT_SECRET:-neural_quiz_secret_secure_key_123!}
+      # Pas de valeur par défaut : le conteneur refuse de démarrer si ces secrets
+      # ne sont pas fournis (voir .env / validation fail-fast dans server/index.js)
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD requis dans .env}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET requis dans .env}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
     volumes:
       - quiz_data:/app/server/data

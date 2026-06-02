@@ -25,8 +25,10 @@ module.exports = {
             try {
                 const { settings } = data || {};
                 const roomCode = geoGameManager.createRoom(socket.id, settings);
+                const room = geoGameManager.getRoom(roomCode);
                 socket.join(`geo-${roomCode}`);
-                safeCallback(callback, { roomCode });
+                // Le remoteToken n'est renvoyé qu'à l'hôte créateur (jamais broadcasté)
+                safeCallback(callback, { roomCode, remoteToken: room.remoteToken });
                 console.log(`[GEO] Room created: ${roomCode} by ${socket.id}`);
             } catch (error) {
                 console.error('[GEO] Erreur geo-create-room:', error);
@@ -132,15 +134,22 @@ module.exports = {
 
         socket.on('geo-join-remote', (data, callback) => {
             try {
-                const { roomCode } = data || {};
+                const { roomCode, remoteToken } = data || {};
                 const room = geoGameManager.getRoom(roomCode);
                 if (!room) {
                     safeCallback(callback, { error: 'Salon introuvable' });
                     return;
                 }
 
+                // Auth télécommande : exiger le token secret du salon (connu du seul hôte)
+                if (!remoteToken || remoteToken !== room.remoteToken) {
+                    console.warn(`[GEO] [SECURITY] Tentative de remote non autorisée sur ${roomCode} par ${socket.id}`);
+                    safeCallback(callback, { error: 'Télécommande non autorisée' });
+                    return;
+                }
+
                 if (!room.remoteIds) room.remoteIds = [];
-                room.remoteIds.push(socket.id);
+                if (!room.remoteIds.includes(socket.id)) room.remoteIds.push(socket.id);
 
                 socket.join(`geo-${roomCode}`);
 

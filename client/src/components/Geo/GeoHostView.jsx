@@ -9,6 +9,7 @@ const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 function GeoHostView() {
     const navigate = useNavigate();
     const [roomCode, setRoomCode] = useState(null);
+    const [remoteToken, setRemoteToken] = useState(null);
     const [players, setPlayers] = useState([]);
     const [gameState, setGameState] = useState('INIT'); // INIT, LOBBY, PLAYING, ROUND_END, GAME_END
     const [currentRound, setCurrentRound] = useState(0);
@@ -124,8 +125,10 @@ function GeoHostView() {
                     initDone = true;
                     setRoomCode(response.roomCode);
                     roomCodeRef.current = response.roomCode;
+                    if (response.remoteToken) setRemoteToken(response.remoteToken);
                     localStorage.setItem('geoHostSession', JSON.stringify({
                         roomCode: response.roomCode,
+                        remoteToken: response.remoteToken,
                         createdAt: Date.now()
                     }));
                     setGameState('LOBBY');
@@ -170,6 +173,7 @@ function GeoHostView() {
                             initDone = true;
                             roomCodeRef.current = session.roomCode;
                             setRoomCode(session.roomCode);
+                            if (session.remoteToken) setRemoteToken(session.remoteToken);
                             setGameState(response.gameState);
                             setCurrentRound(response.currentRound);
                             setTotalRounds(response.totalRounds);
@@ -1513,7 +1517,7 @@ function GeoHostView() {
                                 </div>
                                 <div className="relative group p-1.5 bg-white rounded-lg border border-primary/20">
                                     <img
-                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(joinUrl + '/geo/remote/' + roomCode)}`}
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(joinUrl + '/geo/remote/' + roomCode + (remoteToken ? '?rt=' + remoteToken : ''))}`}
                                         alt="QR Code Télécommande"
                                         className="w-[100px] h-[100px] object-contain rounded"
                                     />

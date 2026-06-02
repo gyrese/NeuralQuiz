@@ -24,7 +24,7 @@ ENV PORT=3005
 
 # Copier package.json du serveur et installer les dépendances de production
 COPY server/package*.json ./server/
-RUN cd server && npm ci --omit=dev
+RUN cd server && npm install --omit=dev
 
 # Copier le reste du serveur
 COPY server/ ./server/

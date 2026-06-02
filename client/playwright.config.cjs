@@ -12,7 +12,7 @@ module.exports = defineConfig({
     retries: 0,
     reporter: [['list']],
     use: {
-        baseURL: 'http://localhost:3001',
+        baseURL: 'http://localhost:3005',
         ignoreHTTPSErrors: true,
         headless: true,
         actionTimeout: 25_000,
@@ -27,13 +27,13 @@ module.exports = defineConfig({
     webServer: {
         command: 'node index.js',
         cwd: '../server',
-        url: 'http://localhost:3001',
+        url: 'http://localhost:3005',
         timeout: 60_000,
         reuseExistingServer: false,
         env: {
             JWT_SECRET: 'e2e_test_secret_key_0123456789abcdef',
             ADMIN_PASSWORD: 'e2e_admin_password',
-            PORT: '3001',
+            PORT: '3005',
         },
     },
 });

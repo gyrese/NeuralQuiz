@@ -3,12 +3,12 @@ import { io } from 'socket.io-client';
 // En production (NAS), le site est servi par le même serveur → undefined = même origine
 // En dev, on cible le bon port serveur selon le protocole utilisé par Vite :
 //   - Si la page est servie en HTTPS (ex: certificat auto-signé sur NAS), on pointe vers le port HTTPS du serveur (3443)
-//   - Sinon on pointe vers le port HTTP (3001)
+//   - Sinon on pointe vers le port HTTP (3005)
 function getServerURL() {
     if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
     if (!import.meta.env.DEV) return undefined;
     const isHttps = window.location.protocol === 'https:';
-    const port = isHttps ? 3443 : 3001;
+    const port = isHttps ? 3443 : 3005;
     const proto = isHttps ? 'https' : 'http';
     return `${proto}://${window.location.hostname}:${port}`;
 }

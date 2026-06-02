@@ -4,7 +4,7 @@
 
 {$SITE_ADDRESS} {
     # Reverse proxy vers le service app
-    reverse_proxy app:3001
+    reverse_proxy app:3005
 
     # Configuration des headers de sécurité recommandés
     header {

@@ -87,7 +87,7 @@ app.delete('/api/quizzes/:id', authMiddleware, async (req, res) => {
 
 // --- HTTPS / HTTP SERVER SETUP ---
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3005;
 
 // Try to load SSL certificates
 let sslOptions = null;

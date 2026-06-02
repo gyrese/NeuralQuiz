@@ -10,9 +10,9 @@ services:
     image: neural-quiz-app:latest
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3005:3005"
     environment:
-      - PORT=3001
+      - PORT=3005
       # Pas de valeur par défaut : le conteneur refuse de démarrer si ces secrets
       # ne sont pas fournis (voir .env / validation fail-fast dans server/index.js)
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD requis dans .env}

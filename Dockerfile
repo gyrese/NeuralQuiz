@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Définir l'environnement de production
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3005
 
 # Copier package.json du serveur et installer les dépendances de production
 COPY server/package*.json ./server/
@@ -35,7 +35,7 @@ COPY --from=frontend-builder /app/client/dist ./client/dist
 # S'assurer que le dossier uploads et data existent
 RUN mkdir -p server/uploads server/data
 
-EXPOSE 3001
+EXPOSE 3005
 
 # Lancer l'application
 CMD ["node", "server/index.js"]

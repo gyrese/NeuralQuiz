@@ -173,7 +173,7 @@ docker compose logs -f
 # Attendre ces lignes pour confirmer que tout est prêt :
 # [DATABASE] Connecté à la base de données SQLite.
 # [GEO] Loaded 374 locations from SQLite.
-# [SERVER] HTTP en écoute sur le port 3001
+# [SERVER] HTTP en écoute sur le port 3005
 
 # Test HTTPS
 curl -I https://quiz.mondomaine.fr
@@ -331,11 +331,11 @@ Vérifier :
 
 Caddy réessaie automatiquement — attendre 1-2 minutes après correction DNS.
 
-### `address already in use` sur le port 3001
+### `address already in use` sur le port 3005
 
 ```bash
 # Identifier le process
-lsof -i :3001
+lsof -i :3005
 # Le tuer si nécessaire
 docker compose down
 docker compose up -d

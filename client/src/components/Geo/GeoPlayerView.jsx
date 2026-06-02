@@ -1396,11 +1396,14 @@ function GeoPlayerView() {
                 )}
 
                 {/* Main Valider button */}
-                <div className="absolute bottom-2 left-0 w-full px-4 flex justify-center z-40">
-                    <button 
+                <div
+                    className="absolute bottom-0 left-0 w-full px-4 flex justify-center z-40"
+                    style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+                >
+                    <button
                         className={`w-full max-w-xs py-3.5 rounded-xl border-3 border-on-background font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
-                            guessMarker 
-                                ? 'bg-[#ffe16d] text-on-background hover:shadow-md active:translate-y-px' 
+                            guessMarker
+                                ? 'bg-[#ffe16d] text-on-background hover:shadow-md active:translate-y-px'
                                 : 'bg-[#dee0ff] text-on-background/40 cursor-not-allowed opacity-80'
                         }`}
                         onClick={submitGuess}

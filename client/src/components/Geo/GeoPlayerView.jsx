@@ -1733,9 +1733,7 @@ function GeoPlayerView() {
                             <span className="material-symbols-outlined text-xs flex items-center justify-center h-full">person</span>
                         )}
                     </div>
-                    <span className="font-bold text-base text-[#bd00ff] tracking-tighter italic uppercase">
-                        GEOTRACKR
-                    </span>
+                    <img src="/logo-geotrackr.png" alt="GeoTrackr" className="h-7 w-auto object-contain" />
                 </div>
                 <div className="flex items-center gap-2">
                     <button

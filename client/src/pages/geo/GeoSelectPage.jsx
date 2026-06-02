@@ -22,9 +22,7 @@ function GeoSelectPage() {
 
             <main className="w-full max-w-[480px] relative z-10 text-center">
                 <div className="mb-8">
-                    <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary-container border-[3px] border-on-background mb-6 neo-shadow-sm rotate-3">
-                        <span className="material-symbols-outlined text-[48px] text-on-primary-container">explore</span>
-                    </div>
+                    <img src="/logo-geotrackr.png" alt="GeoTrackr" className="w-36 h-36 object-contain mb-4 mx-auto drop-shadow-lg" />
                     <h1 className="text-5xl font-black font-headline-xl text-on-background tracking-tighter uppercase italic -rotate-1 mb-2">
                         GeoTrackr
                     </h1>

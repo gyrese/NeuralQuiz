@@ -1,11 +1,50 @@
 const drawGameManager = require('../drawGameManager');
 
+const HOST_GRACE_MS = 90_000; // 90s avant suppression de la room si hôte déconnecté
+const drawHostDisconnectTimers = new Map();
+
+// B9 — rate-limit strokes : max 60 strokes/s par socket
+const strokeRateMap = new Map(); // socketId → { count, resetAt }
+function isStrokeAllowed(socketId) {
+    const now = Date.now();
+    const entry = strokeRateMap.get(socketId);
+    if (!entry || now > entry.resetAt) {
+        strokeRateMap.set(socketId, { count: 1, resetAt: now + 1000 });
+        return true;
+    }
+    if (entry.count >= 60) return false;
+    entry.count++;
+    return true;
+}
+
 const canControlDrawGame = (room, socketId) => {
     if (!room) return false;
     if (room.hostId === socketId) return true;
     if (room.remoteIds && room.remoteIds.includes(socketId)) return true;
     return false;
 };
+
+// B2 — timer serveur autoritaire : auto-endRound si le client ne le fait pas
+function setupDrawRoundTimer(io, roomCode, room) {
+    if (room.roundTimer) clearTimeout(room.roundTimer);
+    const delay = (room.timePerRound + 5) * 1000; // +5s de marge
+    room.roundTimer = setTimeout(() => {
+        room.roundTimer = null;
+        const current = drawGameManager.getRoom(roomCode);
+        if (!current || current.gameState !== 'PLAYING') return;
+        console.log(`[DRAW] Timer serveur: auto-end round ${current.currentRound} pour room ${roomCode}`);
+        const result = drawGameManager.endRound(roomCode);
+        if (result.success && !result.alreadyEnded) {
+            io.to(`draw-${roomCode}`).emit('draw-round-ended', {
+                word: result.word,
+                results: result.results,
+                guessersCount: result.guessersCount,
+                currentRound: result.currentRound,
+                totalRounds: result.totalRounds
+            });
+        }
+    }, delay);
+}
 
 module.exports = {
     handleConnection: (io, socket) => {
@@ -162,6 +201,8 @@ module.exports = {
                     hint: result.word.hint
                 });
 
+                // B2 — timer serveur autoritaire
+                setupDrawRoundTimer(io, roomCode, drawGameManager.getRoom(roomCode));
                 console.log(`[DRAW] Game started in room ${roomCode}`);
             } else {
                 callback({ error: result.error });
@@ -206,14 +247,10 @@ module.exports = {
         socket.on('draw-stroke', ({ roomCode, stroke }) => {
             const room = drawGameManager.getRoom(roomCode);
             if (!room) return;
-
-            // Only drawer can draw
             if (drawGameManager.getCurrentDrawerId(roomCode) !== socket.id) return;
-
-            // Store stroke for late joiners
+            // B9 — rate-limit : max 60 strokes/s par socket
+            if (!isStrokeAllowed(socket.id)) return;
             drawGameManager.addStroke(roomCode, stroke);
-
-            // Broadcast to all other players
             socket.to(`draw-${roomCode}`).emit('draw-stroke', stroke);
         });
 
@@ -341,6 +378,8 @@ module.exports = {
                     hint: result.word.hint
                 });
 
+                // B2 — timer serveur pour le nouveau round
+                setupDrawRoundTimer(io, roomCode, drawGameManager.getRoom(roomCode));
                 console.log(`[DRAW] Round ${result.round} started in room ${roomCode}`);
             } else {
                 callback({ error: result.error });
@@ -385,22 +424,32 @@ module.exports = {
         });
 
         socket.on('disconnect', () => {
-            const drawResult = drawGameManager.removePlayer(socket.id);
-            if (drawResult) {
-                if (drawResult.isHost) {
-                    io.to(`draw-${drawResult.roomCode}`).emit('draw-host-disconnected');
-                } else {
-                    io.to(`draw-${drawResult.roomCode}`).emit('draw-player-left', drawGameManager.getPlayersInRoom(drawResult.roomCode));
+            // Nettoyer le rate-limit tracker
+            strokeRateMap.delete(socket.id);
 
-                    // If drawer disconnected mid-round, skip to next round
-                    if (drawResult.wasDrawer && drawResult.room.gameState === 'PLAYING') {
-                        const endResult = drawGameManager.endRound(drawResult.roomCode);
-                        if (endResult.success) {
-                            io.to(`draw-${drawResult.roomCode}`).emit('draw-drawer-left', {
-                                word: endResult.word,
-                                results: endResult.results
-                            });
-                        }
+            const drawResult = drawGameManager.removePlayer(socket.id);
+            if (!drawResult) return;
+
+            if (drawResult.isHost) {
+                // B5 — grace period : 90s avant suppression de la room
+                const timer = setTimeout(() => {
+                    drawHostDisconnectTimers.delete(drawResult.roomCode);
+                    io.to(`draw-${drawResult.roomCode}`).emit('draw-host-disconnected');
+                    drawGameManager.deleteRoom(drawResult.roomCode);
+                    console.log(`[DRAW] Room ${drawResult.roomCode} supprimée après délai de grâce`);
+                }, HOST_GRACE_MS);
+                drawHostDisconnectTimers.set(drawResult.roomCode, timer);
+                console.log(`[DRAW] Hôte déconnecté de ${drawResult.roomCode}, délai de grâce ${HOST_GRACE_MS / 1000}s`);
+            } else {
+                io.to(`draw-${drawResult.roomCode}`).emit('draw-player-left', drawGameManager.getPlayersInRoom(drawResult.roomCode));
+
+                if (drawResult.wasDrawer && drawResult.room.gameState === 'PLAYING') {
+                    const endResult = drawGameManager.endRound(drawResult.roomCode);
+                    if (endResult.success) {
+                        io.to(`draw-${drawResult.roomCode}`).emit('draw-drawer-left', {
+                            word: endResult.word,
+                            results: endResult.results
+                        });
                     }
                 }
             }

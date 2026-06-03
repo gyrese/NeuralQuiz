@@ -267,19 +267,9 @@ function DrawHostView() {
     };
 
     const startGame = () => {
-        console.log('[DRAW] Starting game with players:', players.length, 'roomCode:', roomCode);
-        console.log('[DRAW] Socket connected:', socket.connected, 'socket.id:', socket.id);
-        console.log('[DRAW] Players list:', players);
-        if (players.length < 2) {
-            alert('Minimum 2 joueurs requis');
-            return;
-        }
-        console.log('[DRAW] Emitting draw-start-game event...');
+        if (players.length < 2) return;
         socket.emit('draw-start-game', { roomCode, settings }, (response) => {
-            console.log('[DRAW] Start game response:', response);
-            if (response.error) {
-                alert(response.error);
-            }
+            if (response.error) console.error('[DRAW] Start game error:', response.error);
         });
     };
 
@@ -399,18 +389,6 @@ function DrawHostView() {
                     {players.length < 2 && (
                         <p className="text-muted mt-2">Minimum 2 joueurs requis ({players.length}/2)</p>
                     )}
-                    {/* DEBUG: Test button to check if clicks work */}
-                    <button
-                        style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#333', color: 'white', border: 'none', borderRadius: '8px' }}
-                        onClick={() => {
-                            console.log('[DEBUG] Test button clicked!');
-                            console.log('[DEBUG] players:', players);
-                            console.log('[DEBUG] roomCode:', roomCode);
-                            console.log('[DEBUG] socket.connected:', socket.connected);
-                        }}
-                    >
-                        🔧 Debug Info
-                    </button>
                 </div>
             </div>
         );
@@ -513,6 +491,16 @@ function DrawHostView() {
                 <div className="draw-next-countdown">
                     <div className="draw-next-countdown-text">Prochain tour dans</div>
                     <div className="draw-next-countdown-number">{nextRoundCountdown}</div>
+                    <button
+                        className="draw-btn draw-btn-secondary"
+                        style={{ marginTop: '0.75rem', fontSize: '0.85rem', padding: '0.4rem 1.2rem' }}
+                        onClick={() => {
+                            if (countdownRef.current) clearInterval(countdownRef.current);
+                            nextRound();
+                        }}
+                    >
+                        ⏭️ Passer maintenant
+                    </button>
                 </div>
             </div>
         );

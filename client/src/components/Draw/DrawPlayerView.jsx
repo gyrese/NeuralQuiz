@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import './DrawStyles.css';
 
+// Avatars partagés avec GeoTrackr (60 webp)
+const ALL_AVATARS = Array.from({ length: 60 }, (_, i) => `/avatars/avatar_${i + 1}.webp`);
+
 // Drawing colors available
 const COLORS = [
     { name: 'black', value: '#000000' },
@@ -22,7 +25,7 @@ function DrawPlayerView() {
     const { roomCode: urlRoomCode } = useParams();
     // Connection state
     const [playerName, setPlayerName] = useState('');
-    const [avatar, setAvatar] = useState('🎨');
+    const [avatar, setAvatar] = useState(ALL_AVATARS[0]);
     const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [isJoined, setIsJoined] = useState(false);
     const [error, setError] = useState('');
@@ -469,22 +472,23 @@ function DrawPlayerView() {
 
                     <div style={{ marginBottom: '1.5rem' }}>
                         <label style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '0.5rem', display: 'block' }}>Ton avatar</label>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            {['🎨', '🖌️', '✏️', '🖍️', '🎭', '🌟', '🔥', '💎', '🦄', '🐱', '🐶', '🦊'].map(emoji => (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem', maxHeight: 200, overflowY: 'auto', padding: '0.25rem' }}>
+                            {ALL_AVATARS.map(url => (
                                 <button
-                                    key={emoji}
-                                    onClick={() => setAvatar(emoji)}
+                                    key={url}
+                                    onClick={() => setAvatar(url)}
                                     style={{
-                                        width: 50,
-                                        height: 50,
-                                        fontSize: '1.5rem',
-                                        border: avatar === emoji ? '3px solid var(--draw-secondary)' : '2px solid rgba(255,255,255,0.2)',
-                                        borderRadius: 10,
-                                        background: avatar === emoji ? 'rgba(78, 205, 196, 0.2)' : 'rgba(255,255,255,0.05)',
-                                        cursor: 'pointer'
+                                        width: '100%',
+                                        aspectRatio: '1',
+                                        padding: 2,
+                                        border: avatar === url ? '3px solid var(--draw-secondary)' : '2px solid rgba(255,255,255,0.15)',
+                                        borderRadius: 8,
+                                        background: avatar === url ? 'rgba(78,205,196,0.25)' : 'rgba(255,255,255,0.05)',
+                                        cursor: 'pointer',
+                                        overflow: 'hidden'
                                     }}
                                 >
-                                    {emoji}
+                                    <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 5 }} />
                                 </button>
                             ))}
                         </div>
@@ -511,8 +515,8 @@ function DrawPlayerView() {
         return (
             <div className="draw-player-view" style={{ justifyContent: 'center', alignItems: 'center' }}>
                 <div className="text-center">
-                    <div className="draw-player-avatar" style={{ width: 100, height: 100, fontSize: '3rem', margin: '0 auto 1rem' }}>
-                        {avatar}
+                    <div className="draw-player-avatar" style={{ width: 100, height: 100, margin: '0 auto 1rem', borderRadius: '50%', overflow: 'hidden', border: '3px solid var(--draw-secondary)' }}>
+                        <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                     <h2 style={{ color: 'white' }}>{playerName}</h2>
                     <p style={{ color: 'var(--draw-secondary)' }}>Salon: {roomCode}</p>

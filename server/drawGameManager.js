@@ -5,10 +5,38 @@
 
 const { getRandomWord, getCategories } = require('./drawWords');
 
+const CANVAS_HISTORY_MAX = 500; // B8 — limite mémoire
+
 class DrawGameManager {
     constructor() {
         this.rooms = new Map(); // Map<roomCode, DrawRoom>
+        // B5 — nettoyage périodique des rooms mortes (toutes les 10 min)
+        setInterval(() => this.cleanupRooms(), 10 * 60 * 1000);
         console.log('[DRAW] Draw Up game manager initialized');
+    }
+
+    cleanupRooms() {
+        const now = Date.now();
+        const GAME_END_TTL = 30 * 60 * 1000; // 30 min après GAME_END
+        const STALE_TTL    = 90 * 60 * 1000; // 1h30 sans activité
+        for (const [code, room] of this.rooms) {
+            if (room.gameState === 'GAME_END' && room.gameEndTime && (now - room.gameEndTime) > GAME_END_TTL) {
+                this.rooms.delete(code);
+                console.log(`[DRAW] Cleanup: room ${code} supprimée (GAME_END)`);
+                continue;
+            }
+            const ref = room.roundStartTime || 0;
+            const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
+            if (activePlayers.length === 0 && (now - ref) > STALE_TTL) {
+                this.rooms.delete(code);
+                console.log(`[DRAW] Cleanup: room ${code} supprimée (stale)`);
+            }
+        }
+    }
+
+    deleteRoom(roomCode) {
+        this.rooms.delete(roomCode);
+        console.log(`[DRAW] Room ${roomCode} deleted`);
     }
 
     generateRoomCode() {
@@ -297,10 +325,13 @@ class DrawGameManager {
         return matrix[b.length][a.length];
     }
 
-    // Add drawing stroke to history (for new joiners)
+    // Add drawing stroke to history — B8 limité à CANVAS_HISTORY_MAX
     addStroke(roomCode, stroke) {
         const room = this.rooms.get(roomCode);
         if (!room) return;
+        if (room.canvasHistory.length >= CANVAS_HISTORY_MAX) {
+            room.canvasHistory.shift(); // retire le plus vieux
+        }
         room.canvasHistory.push(stroke);
     }
 

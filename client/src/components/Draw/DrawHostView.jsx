@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
 import { QRCodeSVG } from 'qrcode.react';
@@ -6,16 +6,11 @@ import './DrawStyles.css';
 
 function DrawHostView() {
     const navigate = useNavigate();
-    const [gameState, setGameState] = useState('CREATING'); // CREATING, LOBBY, PLAYING, ROUND_END, GAME_END
+    const [gameState, setGameState] = useState('CREATING');
     const [roomCode, setRoomCode] = useState('');
     const [players, setPlayers] = useState([]);
-    const [settings, setSettings] = useState({
-        roundsPerPlayer: 2,
-        timePerRound: 90,
-        categories: ['all']
-    });
+    const [settings, setSettings] = useState({ roundsPerPlayer: 2, timePerRound: 90, categories: ['all'] });
 
-    // Game state
     const [currentRound, setCurrentRound] = useState(0);
     const [totalRounds, setTotalRounds] = useState(0);
     const [currentDrawerId, setCurrentDrawerId] = useState(null);
@@ -31,16 +26,18 @@ function DrawHostView() {
     const [finalResults, setFinalResults] = useState([]);
     const [awards, setAwards] = useState([]);
     const [nextRoundCountdown, setNextRoundCountdown] = useState(0);
+    const [copied, setCopied] = useState(false);
 
-    // Canvas refs
     const canvasRef = useRef(null);
     const canvasContextRef = useRef(null);
-
-    // Timer interval ref
     const timerRef = useRef(null);
     const countdownRef = useRef(null);
 
-    // Create room on mount
+    useEffect(() => {
+        document.body.classList.add('pop-culture-theme');
+        return () => document.body.classList.remove('pop-culture-theme');
+    }, []);
+
     useEffect(() => {
         socket.emit('draw-create-room', { settings }, (response) => {
             if (response.roomCode) {
@@ -48,23 +45,15 @@ function DrawHostView() {
                 setGameState('LOBBY');
             }
         });
-
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
             if (countdownRef.current) clearInterval(countdownRef.current);
         };
     }, []);
 
-    // Socket event listeners
     useEffect(() => {
-        const handlePlayerJoined = (playerList) => {
-            console.log('[DRAW HOST] Players updated:', playerList);
-            setPlayers(playerList);
-        };
-
-        const handlePlayerLeft = (playerList) => {
-            setPlayers(playerList);
-        };
+        const handlePlayerJoined = (list) => setPlayers(list);
+        const handlePlayerLeft = (list) => setPlayers(list);
 
         const handleGameStarted = (data) => {
             setGameState('PLAYING');
@@ -98,53 +87,27 @@ function DrawHostView() {
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleStroke = (stroke) => {
-            drawStroke(stroke);
-        };
-
-        const handleClear = () => {
-            clearCanvas();
-        };
+        const handleStroke = (stroke) => drawStroke(stroke);
+        const handleClear = () => clearCanvas();
 
         const handlePlayerGuessed = (data) => {
             setGuessedPlayers(prev => new Set([...prev, data.playerId]));
-            setGuessFeed(prev => [{
-                type: 'correct',
-                playerName: data.playerName,
-                rank: data.rank,
-                points: data.points,
-                id: Date.now()
-            }, ...prev]);
+            setGuessFeed(prev => [{ type: 'correct', playerName: data.playerName, rank: data.rank, points: data.points, id: Date.now() }, ...prev]);
         };
-
         const handleCloseGuess = (data) => {
-            setGuessFeed(prev => [{
-                type: 'close',
-                playerName: data.playerName,
-                id: Date.now()
-            }, ...prev]);
+            setGuessFeed(prev => [{ type: 'close', playerName: data.playerName, id: Date.now() }, ...prev]);
         };
-
-        const handleAllGuessed = () => {
-            // Everyone guessed, end round early
-            endRound();
-        };
+        const handleAllGuessed = () => endRound();
 
         const handleRoundEnded = (data) => {
             setGameState('ROUND_END');
             setRevealedWord(data.word);
             setRoundResults(data.results);
             if (timerRef.current) clearInterval(timerRef.current);
-
-            // Start next round countdown
             setNextRoundCountdown(8);
             countdownRef.current = setInterval(() => {
                 setNextRoundCountdown(prev => {
-                    if (prev <= 1) {
-                        clearInterval(countdownRef.current);
-                        nextRound();
-                        return 0;
-                    }
+                    if (prev <= 1) { clearInterval(countdownRef.current); nextRound(); return 0; }
                     return prev - 1;
                 });
             }, 1000);
@@ -158,18 +121,8 @@ function DrawHostView() {
             if (countdownRef.current) clearInterval(countdownRef.current);
         };
 
-        const handleWordSkipped = (data) => {
-            setWordCategory(data.wordCategory);
-            setWordLength(data.wordLength);
-            clearCanvas();
-        };
-
-        const handleGameRestarted = () => {
-            setGameState('LOBBY');
-            setCurrentRound(0);
-            setGuessedPlayers(new Set());
-            setGuessFeed([]);
-        };
+        const handleWordSkipped = (data) => { setWordCategory(data.wordCategory); setWordLength(data.wordLength); clearCanvas(); };
+        const handleGameRestarted = () => { setGameState('LOBBY'); setCurrentRound(0); setGuessedPlayers(new Set()); setGuessFeed([]); };
 
         socket.on('draw-player-joined', handlePlayerJoined);
         socket.on('draw-player-left', handlePlayerLeft);
@@ -202,14 +155,12 @@ function DrawHostView() {
         };
     }, [roomCode]);
 
-    // Initialize canvas
     useEffect(() => {
         if (canvasRef.current && (gameState === 'PLAYING' || gameState === 'ROUND_END')) {
             const canvas = canvasRef.current;
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width;
             canvas.height = rect.height;
-
             const ctx = canvas.getContext('2d');
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -221,39 +172,27 @@ function DrawHostView() {
 
     const startTimer = (duration, startTime) => {
         if (timerRef.current) clearInterval(timerRef.current);
-
-        const updateTimer = () => {
+        const update = () => {
             const elapsed = (Date.now() - startTime) / 1000;
             const remaining = Math.max(0, duration - elapsed);
             setTimer(Math.ceil(remaining));
-
-            if (remaining <= 0) {
-                clearInterval(timerRef.current);
-                endRound();
-            }
+            if (remaining <= 0) { clearInterval(timerRef.current); endRound(); }
         };
-
-        updateTimer();
-        timerRef.current = setInterval(updateTimer, 1000);
+        update();
+        timerRef.current = setInterval(update, 1000);
     };
 
     const drawStroke = (stroke) => {
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
-
         ctx.strokeStyle = stroke.color;
         ctx.lineWidth = stroke.size;
-
         ctx.beginPath();
-        stroke.points.forEach((point, index) => {
-            const x = point.x * canvas.width;
-            const y = point.y * canvas.height;
-            if (index === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
+        stroke.points.forEach((pt, i) => {
+            const x = pt.x * canvas.width;
+            const y = pt.y * canvas.height;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         });
         ctx.stroke();
     };
@@ -273,311 +212,423 @@ function DrawHostView() {
         });
     };
 
-    const endRound = () => {
-        socket.emit('draw-end-round', { roomCode }, (response) => {
-            if (response.error) {
-                console.error(response.error);
-            }
-        });
+    const endRound = () => socket.emit('draw-end-round', { roomCode }, (r) => { if (r.error) console.error(r.error); });
+    const nextRound = () => socket.emit('draw-next-round', { roomCode }, (r) => { if (r.error) console.error(r.error); });
+    const restartGame = () => socket.emit('draw-restart-game', { roomCode }, (r) => { if (r.success) setGameState('LOBBY'); });
+
+    const getSortedPlayers = () => [...players].sort((a, b) => b.score - a.score);
+    const timerPct = settings.timePerRound > 0 ? (timer / settings.timePerRound) * 100 : 0;
+    const timerClass = timer <= 10 ? 'timer-danger' : timer <= 30 ? 'timer-warning' : '';
+
+    const copyCode = () => {
+        navigator.clipboard?.writeText(roomCode).catch(() => {});
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
-    const nextRound = () => {
-        socket.emit('draw-next-round', { roomCode }, (response) => {
-            if (response.error) {
-                console.error(response.error);
-            }
-        });
-    };
+    const joinUrl = `${window.location.origin}/draw/play/${roomCode}`;
 
-    const restartGame = () => {
-        socket.emit('draw-restart-game', { roomCode }, (response) => {
-            if (response.success) {
-                setGameState('LOBBY');
-            }
-        });
-    };
-
-    const getWordBlanks = () => {
-        if (!wordLength) return '';
-        return '_ '.repeat(wordLength).trim();
-    };
-
-    const getTimerClass = () => {
-        if (timer <= 10) return 'draw-timer danger';
-        if (timer <= 30) return 'draw-timer warning';
-        return 'draw-timer';
-    };
-
-    const getSortedPlayers = () => {
-        return [...players].sort((a, b) => b.score - a.score);
-    };
-
-    // Get join URL
-    const joinUrl = `${window.location.origin}?code=${roomCode}&game=draw`;
-
-    // LOBBY STATE
-    if (gameState === 'LOBBY') {
+    // ── CREATING ──────────────────────────────────────────────────────
+    if (gameState === 'CREATING') {
         return (
-            <div className="draw-lobby">
-                <button className="btn btn-outline-secondary position-absolute" style={{ top: 20, left: 20 }} onClick={() => navigate('/draw')}>
-                    ← Retour
-                </button>
-
-                <h1 className="draw-title">🎨 DRAW UP</h1>
-                <p className="draw-subtitle">Le jeu du dessin en temps réel</p>
-
-                <div className="text-center">
-                    <div className="draw-room-code">
-                        <div className="draw-room-code-label">Code du salon</div>
-                        <div className="draw-room-code-value">{roomCode}</div>
-                    </div>
-                </div>
-
-                <div className="text-center mb-4">
-                    <div className="draw-qr-container">
-                        <QRCodeSVG value={joinUrl} size={150} />
-                    </div>
-                    <div className="draw-join-url">{joinUrl}</div>
-                </div>
-
-                <div className="draw-players-grid">
-                    {players.map(player => (
-                        <div key={player.id} className="draw-player-card">
-                            <div className="draw-player-avatar">
-                                {player.avatar || '👤'}
-                            </div>
-                            <div className="draw-player-name">{player.name}</div>
-                        </div>
-                    ))}
-                    {players.length === 0 && (
-                        <div className="text-center text-muted" style={{ gridColumn: '1 / -1' }}>
-                            En attente de joueurs...
-                        </div>
-                    )}
-                </div>
-
-                <div className="draw-settings">
-                    <h3>⚙️ Paramètres</h3>
-
-                    <div className="draw-setting-row">
-                        <span className="draw-setting-label">Tours par joueur</span>
-                        <div className="draw-setting-value">
-                            <button className="draw-setting-btn" onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.max(1, s.roundsPerPlayer - 1) }))}>−</button>
-                            <span className="draw-setting-number">{settings.roundsPerPlayer}</span>
-                            <button className="draw-setting-btn" onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.min(5, s.roundsPerPlayer + 1) }))}>+</button>
-                        </div>
-                    </div>
-
-                    <div className="draw-setting-row">
-                        <span className="draw-setting-label">Temps par tour (sec)</span>
-                        <div className="draw-setting-value">
-                            <button className="draw-setting-btn" onClick={() => setSettings(s => ({ ...s, timePerRound: Math.max(30, s.timePerRound - 15) }))}>−</button>
-                            <span className="draw-setting-number">{settings.timePerRound}</span>
-                            <button className="draw-setting-btn" onClick={() => setSettings(s => ({ ...s, timePerRound: Math.min(180, s.timePerRound + 15) }))}>+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="text-center">
-                    <button
-                        className="draw-start-btn"
-                        onClick={startGame}
-                        disabled={players.length < 2}
-                    >
-                        🎨 Lancer la Partie
-                    </button>
-                    {players.length < 2 && (
-                        <p className="text-muted mt-2">Minimum 2 joueurs requis ({players.length}/2)</p>
-                    )}
+            <div className="min-h-screen flex items-center justify-center bg-pattern">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 text-center">
+                    <div className="text-4xl font-black text-on-background uppercase italic mb-4">🎨 DrawUp</div>
+                    <div className="text-secondary font-bold uppercase text-sm">Création du salon...</div>
                 </div>
             </div>
         );
     }
 
-    // PLAYING STATE
-    if (gameState === 'PLAYING') {
+    // ── LOBBY ─────────────────────────────────────────────────────────
+    if (gameState === 'LOBBY') {
         return (
-            <div className="draw-game-container">
-                <div className="draw-main-area">
-                    <div className="draw-header">
-                        <div className="draw-round-info">
-                            Round <span className="draw-round-number">{currentRound}</span> / {totalRounds}
-                        </div>
-                        <div className="draw-word-hint">
-                            <span className="draw-category-badge">{wordCategory}</span>
-                            <span className="draw-word-blanks">{getWordBlanks()}</span>
-                        </div>
-                        <div className={getTimerClass()}>
-                            {timer}
-                        </div>
-                    </div>
+            <div className="min-h-screen flex flex-col p-4 bg-pattern text-on-background relative overflow-auto">
+                <div className="pop-dots"></div>
 
-                    <div className="draw-canvas-container">
-                        <div className="draw-drawer-banner">
-                            🎨 <span className="drawer-name">{drawerName}</span> dessine...
-                        </div>
-                        <canvas ref={canvasRef} className="draw-canvas" />
+                {/* Header */}
+                <div className="relative z-10 flex items-center justify-between mb-4">
+                    <button onClick={() => navigate('/draw')} className="text-[10px] font-black text-secondary uppercase tracking-wide flex items-center gap-1 hover:text-primary transition-colors">
+                        <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
+                    </button>
+                    <div className="bg-secondary text-white font-black text-sm uppercase italic px-4 py-1.5 border-[3px] border-on-background rounded-full neo-shadow-sm">
+                        🎨 DrawUp
                     </div>
+                    <div className="w-16" />
                 </div>
 
-                <div className="draw-sidebar">
-                    <div className="draw-leaderboard">
-                        <h3>🏆 Classement</h3>
-                        <div className="draw-leaderboard-list">
-                            {getSortedPlayers().map((player, index) => (
-                                <div
-                                    key={player.id}
-                                    className={`draw-leaderboard-item ${guessedPlayers.has(player.id) ? 'guessed' : ''} ${player.id === currentDrawerId ? 'drawing' : ''}`}
-                                >
-                                    <div className={`draw-leaderboard-rank ${index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : ''}`}>
-                                        {index + 1}
-                                    </div>
-                                    <span className="draw-leaderboard-name">{player.name}</span>
-                                    <span className="draw-leaderboard-score">{player.score}</span>
-                                    <span className="draw-leaderboard-status">
-                                        {player.id === currentDrawerId ? '🎨' : guessedPlayers.has(player.id) ? '✅' : '💭'}
-                                    </span>
-                                </div>
-                            ))}
+                <div className="relative z-10 w-full max-w-2xl mx-auto flex flex-col gap-4">
+                    {/* Code + QR */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-5 neo-shadow flex flex-col sm:flex-row items-center gap-5">
+                        <div className="flex-1 text-center sm:text-left">
+                            <div className="text-[10px] font-black uppercase text-secondary tracking-wider mb-1">Code du salon</div>
+                            <div className="text-6xl font-black text-on-background tracking-widest uppercase select-all leading-none mb-3">
+                                {roomCode}
+                            </div>
+                            <button
+                                onClick={copyCode}
+                                className="flex items-center gap-1.5 bg-[#dee0ff] text-on-background font-black text-[11px] uppercase px-3 py-1.5 border-2 border-on-background rounded-lg hover:bg-[#ffe16d] transition-colors neo-shadow-sm"
+                            >
+                                <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'content_copy'}</span>
+                                {copied ? 'Copié !' : 'Copier'}
+                            </button>
+                        </div>
+                        <div className="bg-white border-[3px] border-on-background rounded-lg p-2 neo-shadow-sm">
+                            <QRCodeSVG value={joinUrl} size={110} />
                         </div>
                     </div>
 
-                    <div className="draw-guesses-feed">
-                        <h3>💬 Dernières réponses</h3>
-                        {guessFeed.slice(0, 10).map(guess => (
-                            <div key={guess.id} className={`draw-guess-item ${guess.type}`}>
-                                {guess.type === 'correct' ? (
-                                    <>✅ <span className="draw-guess-name">{guess.playerName}</span> a trouvé ! (+{guess.points} pts)</>
+                    {/* Players */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
+                        <div className="flex items-center justify-between mb-3 border-b-2 border-on-background pb-2">
+                            <h2 className="text-xs font-black uppercase text-secondary">Joueurs ({players.length})</h2>
+                            <span className="material-symbols-outlined text-sm text-secondary animate-pulse">groups</span>
+                        </div>
+                        {players.length === 0 ? (
+                            <p className="text-[11px] text-secondary font-bold italic text-center py-3">En attente de joueurs...</p>
+                        ) : (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {players.map(p => (
+                                    <div key={p.id} className="flex flex-col items-center gap-1 bg-[#fbf8ff] border-2 border-on-background/20 rounded-lg p-2">
+                                        <div className="w-10 h-10 rounded-full border-2 border-on-background overflow-hidden">
+                                            {p.avatar?.startsWith('/') ? (
+                                                <img src={p.avatar} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-xl bg-[#dee0ff]">{p.avatar || '👤'}</div>
+                                            )}
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase truncate w-full text-center">{p.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Settings */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
+                        <div className="flex items-center gap-2 mb-3 border-b-2 border-on-background pb-2">
+                            <span className="material-symbols-outlined text-sm text-secondary">tune</span>
+                            <h2 className="text-xs font-black uppercase text-secondary">Paramètres</h2>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <div className="text-[9px] font-black uppercase text-secondary/80 mb-1">Tours / joueur</div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.max(1, s.roundsPerPlayer - 1) }))}
+                                        className="w-8 h-8 bg-[#ffc2eb] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">−</button>
+                                    <span className="font-black text-lg text-on-background min-w-[2rem] text-center">{settings.roundsPerPlayer}</span>
+                                    <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.min(5, s.roundsPerPlayer + 1) }))}
+                                        className="w-8 h-8 bg-[#ffc2eb] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">+</button>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[9px] font-black uppercase text-secondary/80 mb-1">Temps / tour</div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.max(30, s.timePerRound - 15) }))}
+                                        className="w-8 h-8 bg-[#dee0ff] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">−</button>
+                                    <span className="font-black text-lg text-on-background min-w-[3rem] text-center">{settings.timePerRound}s</span>
+                                    <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.min(180, s.timePerRound + 15) }))}
+                                        className="w-8 h-8 bg-[#dee0ff] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Start */}
+                    <button
+                        onClick={startGame}
+                        disabled={players.length < 2}
+                        className="w-full bg-[#ffe16d] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#161a33] transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-px active:shadow-none"
+                    >
+                        <span className="material-symbols-outlined">play_arrow</span>
+                        {players.length < 2 ? `Minimum 2 joueurs (${players.length}/2)` : '🎨 Lancer la Partie'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ── PLAYING ───────────────────────────────────────────────────────
+    if (gameState === 'PLAYING') {
+        const guessersCount = guessedPlayers.size;
+        const nonDrawers = players.filter(p => p.id !== currentDrawerId).length;
+
+        return (
+            <div className="h-screen flex flex-col bg-[#fbf8ff] overflow-hidden pop-culture-theme">
+                {/* Header */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
+                    <div className="bg-secondary text-white font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
+                        🎨 DrawUp
+                    </div>
+                    <div className="bg-[#dee0ff] text-on-background font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
+                        Manche {currentRound}/{totalRounds}
+                    </div>
+
+                    {/* Word blanks */}
+                    <div className="flex-1 flex items-center justify-center gap-1 flex-wrap">
+                        <span className="text-[10px] font-black uppercase text-secondary mr-1">{wordCategory}</span>
+                        {Array.from({ length: wordLength }).map((_, i) => (
+                            <div key={i} className="w-5 h-0.5 bg-on-background rounded-full" />
+                        ))}
+                        <span className="text-[9px] text-on-background/50 ml-1">({wordLength} lettres)</span>
+                    </div>
+
+                    {/* Timer */}
+                    <div className={`flex flex-col items-center ${timerClass}`}>
+                        <span className="font-black text-2xl leading-none text-on-background tabular-nums">{timer}</span>
+                        <div className="w-16 h-1.5 bg-on-background/10 rounded-full overflow-hidden mt-1">
+                            <div
+                                className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#ffe16d]'}`}
+                                style={{ width: `${timerPct}%` }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Score fin de manche */}
+                    <button onClick={endRound} className="bg-[#ffc2eb] text-on-background font-black text-[9px] uppercase px-2 py-1.5 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#ffe16d] transition-colors active:translate-y-px">
+                        ⏹ Terminer
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex flex-1 min-h-0 gap-3 p-3">
+                    {/* Canvas area */}
+                    <div className="flex-1 flex flex-col min-w-0 gap-2">
+                        <div className="bg-[#dee0ff] border-[3px] border-on-background rounded-xl px-4 py-2 flex items-center gap-2 neo-shadow-sm">
+                            <div className="w-7 h-7 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#fbf8ff]">
+                                {players.find(p => p.id === currentDrawerId)?.avatar?.startsWith('/') ? (
+                                    <img src={players.find(p => p.id === currentDrawerId)?.avatar} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                    <>🔥 <span className="draw-guess-name">{guess.playerName}</span> est très proche !</>
+                                    <div className="w-full h-full flex items-center justify-center text-sm">
+                                        {players.find(p => p.id === currentDrawerId)?.avatar || '🎨'}
+                                    </div>
                                 )}
+                            </div>
+                            <span className="font-black text-xs uppercase text-on-background">
+                                <span className="text-secondary">{drawerName}</span> dessine...
+                            </span>
+                            <div className="ml-auto text-[10px] font-black text-on-background/60">
+                                {guessersCount}/{nonDrawers} ont trouvé
+                            </div>
+                        </div>
+                        <div className="flex-1 min-h-0 bg-white border-[3px] border-on-background rounded-xl overflow-hidden neo-shadow">
+                            <canvas ref={canvasRef} className="draw-canvas" />
+                        </div>
+                    </div>
+
+                    {/* Sidebar */}
+                    <div className="w-56 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+                        {/* Leaderboard */}
+                        <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow">
+                            <h3 className="text-[10px] font-black uppercase text-secondary mb-2 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">leaderboard</span> Classement
+                            </h3>
+                            <div className="flex flex-col gap-1.5">
+                                {getSortedPlayers().map((p, i) => (
+                                    <div key={p.id} className={`flex items-center gap-1.5 p-1.5 rounded-lg border-2 text-[10px] ${
+                                        p.id === currentDrawerId
+                                            ? 'border-secondary bg-secondary/10'
+                                            : guessedPlayers.has(p.id)
+                                                ? 'border-[#ffe16d] bg-[#ffe16d]/20'
+                                                : 'border-on-background/20 bg-[#fbf8ff]'
+                                    }`}>
+                                        <span className="font-black text-on-background w-4 text-center">{i + 1}</span>
+                                        <div className="w-5 h-5 rounded-full border border-on-background/30 overflow-hidden flex-shrink-0 bg-[#dee0ff]">
+                                            {p.avatar?.startsWith('/') ? (
+                                                <img src={p.avatar} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[9px]">{p.avatar || '👤'}</div>
+                                            )}
+                                        </div>
+                                        <span className="flex-1 font-bold truncate text-on-background">{p.name}</span>
+                                        <span className="font-black text-on-background">{p.score}</span>
+                                        <span className="text-sm">{p.id === currentDrawerId ? '🎨' : guessedPlayers.has(p.id) ? '✅' : '💭'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Guess feed */}
+                        <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow flex-1">
+                            <h3 className="text-[10px] font-black uppercase text-secondary mb-2 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">chat</span> Réponses
+                            </h3>
+                            <div className="flex flex-col gap-1.5 overflow-y-auto max-h-48">
+                                {guessFeed.slice(0, 12).map(g => (
+                                    <div key={g.id} className={`text-[9px] p-1.5 rounded-lg border ${
+                                        g.type === 'correct'
+                                            ? 'bg-[#ffe16d]/30 border-[#ffe16d] font-black'
+                                            : 'bg-[#ffc2eb]/20 border-[#ffc2eb] font-bold'
+                                    }`}>
+                                        {g.type === 'correct'
+                                            ? `✅ ${g.playerName} a trouvé ! (+${g.points})`
+                                            : `🔥 ${g.playerName} s'approche...`
+                                        }
+                                    </div>
+                                ))}
+                                {guessFeed.length === 0 && (
+                                    <p className="text-[9px] text-on-background/40 italic text-center py-2">En attente...</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ── ROUND END ─────────────────────────────────────────────────────
+    if (gameState === 'ROUND_END') {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-pattern relative overflow-hidden pop-culture-theme">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
+                    {/* Word reveal */}
+                    <div className="bg-[#ffe16d] border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center -rotate-1">
+                        <div className="text-[10px] font-black uppercase text-on-background/70 tracking-wider mb-1">Le mot était</div>
+                        <div className="text-4xl font-black uppercase italic text-on-background tracking-tight">{revealedWord?.word}</div>
+                        <div className="text-[10px] font-bold text-secondary uppercase mt-1">{revealedWord?.category}</div>
+                    </div>
+
+                    {/* Results */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow flex flex-col gap-2">
+                        {roundResults.map(p => (
+                            <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg border-2 ${
+                                p.wasDrawer ? 'border-secondary bg-secondary/10' :
+                                p.guessedThisRound ? 'border-[#ffe16d] bg-[#ffe16d]/20' :
+                                'border-on-background/20 bg-[#fbf8ff]'
+                            }`}>
+                                <div className="w-8 h-8 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#dee0ff]">
+                                    {p.avatar?.startsWith('/') ? (
+                                        <img src={p.avatar} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-base">{p.avatar || '👤'}</div>
+                                    )}
+                                </div>
+                                <span className="flex-1 font-black text-xs uppercase text-on-background">{p.name}</span>
+                                <span className="text-xs font-bold text-on-background/70">
+                                    {p.wasDrawer ? '🎨 Dessinateur' : p.guessedThisRound ? '✅ Trouvé !' : '❌ Pas trouvé'}
+                                </span>
+                                <span className="font-black text-sm text-on-background">{p.score} pts</span>
                             </div>
                         ))}
                     </div>
-                </div>
-            </div>
-        );
-    }
 
-    // ROUND END STATE
-    if (gameState === 'ROUND_END') {
-        return (
-            <div className="draw-round-end">
-                <div className="draw-round-end-word">
-                    <div className="draw-round-end-label">Le mot était</div>
-                    <div className="draw-round-end-answer">{revealedWord?.word}</div>
-                </div>
-
-                <div className="draw-round-results">
-                    {roundResults.map(player => (
-                        <div
-                            key={player.id}
-                            className={`draw-result-card ${player.guessedThisRound ? 'guessed' : ''} ${player.wasDrawer ? 'drawer' : ''}`}
+                    {/* Countdown */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center flex flex-col items-center gap-2">
+                        <div className="text-[10px] font-black uppercase text-secondary tracking-wider">Prochain tour dans</div>
+                        <div className="text-5xl font-black text-on-background">{nextRoundCountdown}</div>
+                        <button
+                            onClick={() => { if (countdownRef.current) clearInterval(countdownRef.current); nextRound(); }}
+                            className="bg-[#ffc2eb] text-on-background font-black text-xs uppercase px-4 py-2 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#ffe16d] transition-colors active:translate-y-px"
                         >
-                            <div className="draw-result-avatar">
-                                {player.avatar || '👤'}
-                            </div>
-                            <div className="draw-result-info">
-                                <div className="draw-result-name">{player.name}</div>
-                                <div className={`draw-result-status ${player.wasDrawer ? 'drawer' : player.guessedThisRound ? 'guessed' : 'missed'}`}>
-                                    {player.wasDrawer ? '🎨 Dessinateur' : player.guessedThisRound ? '✅ Trouvé !' : '❌ Pas trouvé'}
-                                </div>
-                            </div>
-                            <div className="draw-result-score">{player.score}</div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="draw-next-countdown">
-                    <div className="draw-next-countdown-text">Prochain tour dans</div>
-                    <div className="draw-next-countdown-number">{nextRoundCountdown}</div>
-                    <button
-                        className="draw-btn draw-btn-secondary"
-                        style={{ marginTop: '0.75rem', fontSize: '0.85rem', padding: '0.4rem 1.2rem' }}
-                        onClick={() => {
-                            if (countdownRef.current) clearInterval(countdownRef.current);
-                            nextRound();
-                        }}
-                    >
-                        ⏭️ Passer maintenant
-                    </button>
+                            ⏭️ Passer maintenant
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    // GAME END STATE
+    // ── GAME END ──────────────────────────────────────────────────────
     if (gameState === 'GAME_END') {
         const winner = finalResults[0];
         const podium = finalResults.slice(0, 3);
+        const rest = finalResults.slice(3);
 
         return (
-            <div className="draw-game-end">
-                <div className="draw-winner-crown">👑</div>
-                <div className="draw-winner-name">{winner?.name}</div>
-                <div className="draw-winner-score">{winner?.score} points</div>
-
-                <div className="draw-podium">
-                    {podium[1] && (
-                        <div className="draw-podium-item second">
-                            <div className="draw-podium-avatar">{podium[1].avatar || '👤'}</div>
-                            <div className="draw-podium-name">{podium[1].name}</div>
-                            <div className="draw-podium-score">{podium[1].score} pts</div>
-                            <div className="draw-podium-stand">2</div>
-                        </div>
-                    )}
-                    {podium[0] && (
-                        <div className="draw-podium-item first">
-                            <div className="draw-podium-avatar">{podium[0].avatar || '👤'}</div>
-                            <div className="draw-podium-name">{podium[0].name}</div>
-                            <div className="draw-podium-score">{podium[0].score} pts</div>
-                            <div className="draw-podium-stand">1</div>
-                        </div>
-                    )}
-                    {podium[2] && (
-                        <div className="draw-podium-item third">
-                            <div className="draw-podium-avatar">{podium[2].avatar || '👤'}</div>
-                            <div className="draw-podium-name">{podium[2].name}</div>
-                            <div className="draw-podium-score">{podium[2].score} pts</div>
-                            <div className="draw-podium-stand">3</div>
-                        </div>
-                    )}
-                </div>
-
-                {awards.length > 0 && (
-                    <div className="draw-awards">
-                        {awards.map((award, index) => (
-                            <div key={index} className="draw-award">
-                                <div className="draw-award-icon">{award.icon}</div>
-                                <div className="draw-award-title">{award.title}</div>
-                                <div className="draw-award-player">{award.playerName}</div>
-                                <div className="draw-award-value">{award.value}</div>
-                            </div>
-                        ))}
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-pattern relative overflow-hidden pop-culture-theme">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
+                    {/* Winner */}
+                    <div className="bg-[#ffe16d] border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center -rotate-1">
+                        <div className="text-4xl mb-2">👑</div>
+                        <div className="text-2xl font-black uppercase italic text-on-background">{winner?.name}</div>
+                        <div className="text-sm font-bold text-on-background/70 mt-1">{winner?.score} points</div>
                     </div>
-                )}
 
-                <div className="draw-end-buttons">
-                    <button className="draw-btn draw-btn-primary" onClick={restartGame}>
-                        🔄 Rejouer
-                    </button>
-                    <button className="draw-btn draw-btn-secondary" onClick={() => navigate('/')}>
-                        🏠 Menu
-                    </button>
+                    {/* Podium */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
+                        <div className="flex items-end justify-center gap-3">
+                            {/* 2nd */}
+                            {podium[1] && (
+                                <div className="flex flex-col items-center gap-2 flex-1">
+                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#dee0ff]">
+                                        {podium[1].avatar?.startsWith('/') ? <img src={podium[1].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[1].avatar || '👤'}</div>}
+                                    </div>
+                                    <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[1].name}</div>
+                                    <div className="text-xs font-black text-secondary">{podium[1].score} pts</div>
+                                    <div className="bg-[#dee0ff] border-2 border-on-background rounded-t-lg w-full h-12 flex items-center justify-center font-black text-lg neo-shadow-sm">🥈</div>
+                                </div>
+                            )}
+                            {/* 1st */}
+                            {podium[0] && (
+                                <div className="flex flex-col items-center gap-2 flex-1">
+                                    <div className="w-14 h-14 rounded-full border-[3px] border-on-background overflow-hidden bg-[#ffe16d]">
+                                        {podium[0].avatar?.startsWith('/') ? <img src={podium[0].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">{podium[0].avatar || '👤'}</div>}
+                                    </div>
+                                    <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[0].name}</div>
+                                    <div className="text-xs font-black text-secondary">{podium[0].score} pts</div>
+                                    <div className="bg-[#ffe16d] border-2 border-on-background rounded-t-lg w-full h-16 flex items-center justify-center font-black text-xl neo-shadow-sm">🥇</div>
+                                </div>
+                            )}
+                            {/* 3rd */}
+                            {podium[2] && (
+                                <div className="flex flex-col items-center gap-2 flex-1">
+                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#ffc2eb]">
+                                        {podium[2].avatar?.startsWith('/') ? <img src={podium[2].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[2].avatar || '👤'}</div>}
+                                    </div>
+                                    <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[2].name}</div>
+                                    <div className="text-xs font-black text-secondary">{podium[2].score} pts</div>
+                                    <div className="bg-[#ffc2eb] border-2 border-on-background rounded-t-lg w-full h-9 flex items-center justify-center font-black text-base neo-shadow-sm">🥉</div>
+                                </div>
+                            )}
+                        </div>
+                        {rest.length > 0 && (
+                            <div className="mt-3 flex flex-col gap-1 border-t-2 border-on-background/20 pt-3">
+                                {rest.map((p, i) => (
+                                    <div key={p.id} className="flex items-center gap-2 text-[10px]">
+                                        <span className="font-black text-on-background/50 w-4">#{i + 4}</span>
+                                        <span className="flex-1 font-bold text-on-background truncate">{p.name}</span>
+                                        <span className="font-black text-on-background">{p.score} pts</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Awards */}
+                    {awards.length > 0 && (
+                        <div className="grid grid-cols-2 gap-3">
+                            {awards.map((a, i) => (
+                                <div key={i} className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow text-center">
+                                    <div className="text-2xl mb-1">{a.icon}</div>
+                                    <div className="text-[10px] font-black uppercase text-secondary">{a.title}</div>
+                                    <div className="text-xs font-bold text-on-background truncate">{a.playerName}</div>
+                                    <div className="text-[9px] text-on-background/60 font-bold mt-0.5">{a.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Buttons */}
+                    <div className="flex gap-3">
+                        <button onClick={restartGame}
+                            className="flex-1 bg-[#ffe16d] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
+                            🔄 Rejouer
+                        </button>
+                        <button onClick={() => navigate('/')}
+                            className="flex-1 bg-white text-secondary font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
+                            🏠 Menu
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    // CREATING STATE (loading)
-    return (
-        <div className="draw-lobby" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="text-center">
-                <div className="draw-title">🎨 DRAW UP</div>
-                <p className="text-muted">Création du salon...</p>
-            </div>
-        </div>
-    );
+    return null;
 }
 
 export default DrawHostView;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import './DrawStyles.css';
@@ -6,31 +6,30 @@ import './DrawStyles.css';
 // Avatars partagés avec GeoTrackr (60 webp)
 const ALL_AVATARS = Array.from({ length: 60 }, (_, i) => `/avatars/avatar_${i + 1}.webp`);
 
-// Drawing colors available
 const COLORS = [
-    { name: 'black', value: '#000000' },
-    { name: 'red', value: '#e71d36' },
-    { name: 'orange', value: '#ff9f1c' },
-    { name: 'yellow', value: '#ffe66d' },
-    { name: 'green', value: '#00d26a' },
-    { name: 'blue', value: '#4ecdc4' },
-    { name: 'purple', value: '#9b59b6' },
-    { name: 'brown', value: '#8b4513' },
+    { name: 'Noir',   value: '#000000' },
+    { name: 'Rouge',  value: '#e71d36' },
+    { name: 'Orange', value: '#ff9f1c' },
+    { name: 'Jaune',  value: '#ffe66d' },
+    { name: 'Vert',   value: '#00d26a' },
+    { name: 'Bleu',   value: '#4ecdc4' },
+    { name: 'Violet', value: '#9b59b6' },
+    { name: 'Marron', value: '#8b4513' },
+    { name: 'Blanc',  value: '#ffffff' },
 ];
 
-const BRUSH_SIZES = [5, 10, 20, 35];
+const BRUSH_SIZES = [3, 8, 16, 30];
 
 function DrawPlayerView() {
     const navigate = useNavigate();
     const { roomCode: urlRoomCode } = useParams();
-    // Connection state
+
     const [playerName, setPlayerName] = useState('');
     const [avatar, setAvatar] = useState(ALL_AVATARS[0]);
     const [roomCode, setRoomCode] = useState(urlRoomCode || '');
     const [isJoined, setIsJoined] = useState(false);
     const [error, setError] = useState('');
 
-    // Game state
     const [gameState, setGameState] = useState('LOBBY');
     const [isDrawer, setIsDrawer] = useState(false);
     const [currentRound, setCurrentRound] = useState(0);
@@ -40,49 +39,50 @@ function DrawPlayerView() {
     const [wordLength, setWordLength] = useState(0);
     const [myWord, setMyWord] = useState(null);
     const [timer, setTimer] = useState(0);
-    const [roundStartTime, setRoundStartTime] = useState(null);
     const [timePerRound, setTimePerRound] = useState(90);
 
-    // Guessing state
     const [guess, setGuess] = useState('');
     const [hasGuessed, setHasGuessed] = useState(false);
     const [guessResult, setGuessResult] = useState(null);
     const [myScore, setMyScore] = useState(0);
+    const [shakeGuess, setShakeGuess] = useState(false);
 
-    // Drawing state
     const [selectedColor, setSelectedColor] = useState('#000000');
-    const [brushSize, setBrushSize] = useState(10);
+    const [brushSize, setBrushSize] = useState(8);
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentStroke, setCurrentStroke] = useState([]);
 
-    // Round end state
     const [revealedWord, setRevealedWord] = useState(null);
-    const [roundResults, setRoundResults] = useState([]);
     const [finalResults, setFinalResults] = useState([]);
     const [awards, setAwards] = useState([]);
 
-    // Canvas refs
     const canvasRef = useRef(null);
     const canvasContextRef = useRef(null);
     const timerRef = useRef(null);
+    const guessInputRef = useRef(null);
 
     // Load stored session
     useEffect(() => {
         const stored = localStorage.getItem('draw-session');
         if (stored) {
             try {
-                const { name, avatar: storedAvatar, roomCode: storedRoom } = JSON.parse(stored);
+                const { name, avatar: a, roomCode: rc } = JSON.parse(stored);
                 if (name) setPlayerName(name);
-                if (storedAvatar) setAvatar(storedAvatar);
-                // Only use stored room if no initial code provided
-                if (!urlRoomCode && storedRoom) setRoomCode(storedRoom);
-            } catch (e) {
-                console.error('Error parsing stored session:', e);
-            }
+                if (a) setAvatar(a);
+                if (!urlRoomCode && rc) setRoomCode(rc);
+            } catch { /* ignore */ }
         }
     }, [urlRoomCode]);
 
-    // Socket event listeners
+    useEffect(() => {
+        document.body.classList.add('pop-culture-theme');
+        return () => {
+            document.body.classList.remove('pop-culture-theme');
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
+
+    // Socket listeners
     useEffect(() => {
         if (!isJoined) return;
 
@@ -93,7 +93,6 @@ function DrawPlayerView() {
             setDrawerName(data.drawerName);
             setWordCategory(data.wordCategory);
             setWordLength(data.wordLength);
-            setRoundStartTime(data.roundStartTime);
             setTimePerRound(data.timePerRound);
             setIsDrawer(data.drawerId === socket.id);
             setHasGuessed(false);
@@ -103,10 +102,7 @@ function DrawPlayerView() {
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleYourWord = (data) => {
-            setMyWord(data);
-            setIsDrawer(true);
-        };
+        const handleYourWord = (data) => { setMyWord(data); setIsDrawer(true); };
 
         const handleNextRound = (data) => {
             setGameState('PLAYING');
@@ -115,7 +111,7 @@ function DrawPlayerView() {
             setDrawerName(data.drawerName);
             setWordCategory(data.wordCategory);
             setWordLength(data.wordLength);
-            setRoundStartTime(data.roundStartTime);
+            setTimePerRound(data.timePerRound);
             setIsDrawer(data.drawerId === socket.id);
             setHasGuessed(false);
             setGuessResult(null);
@@ -124,27 +120,14 @@ function DrawPlayerView() {
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleStroke = (stroke) => {
-            drawStroke(stroke);
-        };
-
-        const handleClear = () => {
-            clearCanvas();
-        };
-
-        const handleWordSkipped = (data) => {
-            setWordCategory(data.wordCategory);
-            setWordLength(data.wordLength);
-            clearCanvas();
-        };
+        const handleStroke = (stroke) => drawStroke(stroke);
+        const handleClear = () => clearCanvas();
+        const handleWordSkipped = (data) => { setWordCategory(data.wordCategory); setWordLength(data.wordLength); clearCanvas(); };
 
         const handleRoundEnded = (data) => {
             setGameState('ROUND_END');
             setRevealedWord(data.word);
-            setRoundResults(data.results);
             if (timerRef.current) clearInterval(timerRef.current);
-
-            // Update my score
             const me = data.results.find(p => p.id === socket.id);
             if (me) setMyScore(me.score);
         };
@@ -154,7 +137,6 @@ function DrawPlayerView() {
             setFinalResults(data.results);
             setAwards(data.awards || []);
             if (timerRef.current) clearInterval(timerRef.current);
-
             const me = data.results.find(p => p.id === socket.id);
             if (me) setMyScore(me.score);
         };
@@ -168,10 +150,7 @@ function DrawPlayerView() {
             setMyWord(null);
         };
 
-        const handleKicked = () => {
-            setIsJoined(false);
-            setError('Vous avez été expulsé de la partie');
-        };
+        const handleKicked = () => { setIsJoined(false); setError('Vous avez été expulsé de la partie'); };
 
         socket.on('draw-game-started', handleGameStarted);
         socket.on('draw-your-word', handleYourWord);
@@ -198,14 +177,13 @@ function DrawPlayerView() {
         };
     }, [isJoined, roomCode]);
 
-    // Initialize canvas
+    // Init canvas
     useEffect(() => {
         if (canvasRef.current && gameState === 'PLAYING') {
             const canvas = canvasRef.current;
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width;
             canvas.height = rect.height;
-
             const ctx = canvas.getContext('2d');
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -217,52 +195,30 @@ function DrawPlayerView() {
 
     const startTimer = (duration, startTime) => {
         if (timerRef.current) clearInterval(timerRef.current);
-
-        const updateTimer = () => {
+        const update = () => {
             const elapsed = (Date.now() - startTime) / 1000;
-            const remaining = Math.max(0, duration - elapsed);
-            setTimer(Math.ceil(remaining));
+            setTimer(Math.max(0, Math.ceil(duration - elapsed)));
         };
-
-        updateTimer();
-        timerRef.current = setInterval(updateTimer, 1000);
+        update();
+        timerRef.current = setInterval(update, 1000);
     };
 
     const joinRoom = () => {
-        if (!playerName.trim()) {
-            setError('Entrez votre nom');
-            return;
-        }
-        if (!roomCode.trim()) {
-            setError('Entrez le code du salon');
-            return;
-        }
-
-        socket.emit('draw-join-room', {
-            roomCode: roomCode.toUpperCase(),
-            playerName: playerName.trim(),
-            avatar
-        }, (response) => {
+        if (!playerName.trim()) { setError('Entrez votre nom'); return; }
+        if (!roomCode.trim()) { setError('Entrez le code du salon'); return; }
+        socket.emit('draw-join-room', { roomCode: roomCode.toUpperCase(), playerName: playerName.trim(), avatar }, (response) => {
             if (response.error) {
                 setError(response.error);
             } else {
                 setIsJoined(true);
                 setError('');
-                localStorage.setItem('draw-session', JSON.stringify({
-                    name: playerName,
-                    avatar,
-                    roomCode: roomCode.toUpperCase()
-                }));
-
+                localStorage.setItem('draw-session', JSON.stringify({ name: playerName, avatar, roomCode: roomCode.toUpperCase() }));
                 if (response.gameState === 'PLAYING') {
                     setGameState('PLAYING');
                     setCurrentRound(response.currentRound);
                     setIsDrawer(response.currentDrawerId === socket.id);
                     if (response.canvasHistory) {
-                        // Replay canvas history
-                        setTimeout(() => {
-                            response.canvasHistory.forEach(stroke => drawStroke(stroke));
-                        }, 100);
+                        setTimeout(() => response.canvasHistory.forEach(s => drawStroke(s)), 100);
                     }
                 }
             }
@@ -273,19 +229,13 @@ function DrawPlayerView() {
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
-
         ctx.strokeStyle = stroke.color;
         ctx.lineWidth = stroke.size;
-
         ctx.beginPath();
-        stroke.points.forEach((point, index) => {
-            const x = point.x * canvas.width;
-            const y = point.y * canvas.height;
-            if (index === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
+        stroke.points.forEach((pt, i) => {
+            const x = pt.x * canvas.width;
+            const y = pt.y * canvas.height;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         });
         ctx.stroke();
     };
@@ -293,67 +243,49 @@ function DrawPlayerView() {
     const clearCanvas = () => {
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
-        const canvas = canvasRef.current;
         ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     };
 
-    // Drawing handlers
-    const getCanvasCoordinates = (e) => {
+    const getCanvasCoords = (e) => {
         const canvas = canvasRef.current;
         const rect = canvas.getBoundingClientRect();
-
-        let clientX, clientY;
-        if (e.touches) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
+        const src = e.touches ? e.touches[0] : e;
         return {
-            x: (clientX - rect.left) / rect.width,
-            y: (clientY - rect.top) / rect.height
+            x: (src.clientX - rect.left) / rect.width,
+            y: (src.clientY - rect.top) / rect.height
         };
     };
 
     const handleDrawStart = (e) => {
         if (!isDrawer) return;
         e.preventDefault();
-
         setIsDrawing(true);
-        const coords = getCanvasCoordinates(e);
+        const coords = getCanvasCoords(e);
         setCurrentStroke([coords]);
-
-        // Draw point
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
         ctx.strokeStyle = selectedColor;
         ctx.lineWidth = brushSize;
         ctx.beginPath();
         ctx.moveTo(coords.x * canvas.width, coords.y * canvas.height);
-        ctx.lineTo(coords.x * canvas.width, coords.y * canvas.height);
+        ctx.lineTo(coords.x * canvas.width + 0.1, coords.y * canvas.height + 0.1);
         ctx.stroke();
     };
 
     const handleDrawMove = (e) => {
         if (!isDrawing || !isDrawer) return;
         e.preventDefault();
-
-        const coords = getCanvasCoordinates(e);
-        const newStroke = [...currentStroke, coords];
-        setCurrentStroke(newStroke);
-
-        // Draw line segment
+        const coords = getCanvasCoords(e);
+        const prev = currentStroke[currentStroke.length - 1];
+        if (!prev) return;
+        setCurrentStroke(s => [...s, coords]);
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
-        const prevCoords = currentStroke[currentStroke.length - 1];
-
         ctx.strokeStyle = selectedColor;
         ctx.lineWidth = brushSize;
         ctx.beginPath();
-        ctx.moveTo(prevCoords.x * canvas.width, prevCoords.y * canvas.height);
+        ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height);
         ctx.lineTo(coords.x * canvas.width, coords.y * canvas.height);
         ctx.stroke();
     };
@@ -361,227 +293,181 @@ function DrawPlayerView() {
     const handleDrawEnd = () => {
         if (!isDrawing || !isDrawer) return;
         setIsDrawing(false);
-
-        // Send stroke to server
         if (currentStroke.length > 0) {
-            socket.emit('draw-stroke', {
-                roomCode,
-                stroke: {
-                    color: selectedColor,
-                    size: brushSize,
-                    points: currentStroke
-                }
-            });
+            socket.emit('draw-stroke', { roomCode, stroke: { color: selectedColor, size: brushSize, points: currentStroke } });
         }
         setCurrentStroke([]);
     };
 
-    const handleClearCanvas = () => {
-        clearCanvas();
-        socket.emit('draw-clear', { roomCode });
-    };
-
+    const handleClearCanvas = () => { clearCanvas(); socket.emit('draw-clear', { roomCode }); };
     const handleSkipWord = () => {
-        socket.emit('draw-skip-word', { roomCode }, (response) => {
-            if (response.success) {
-                setMyWord({
-                    word: response.word,
-                    category: response.category,
-                    hint: response.hint
-                });
-                clearCanvas();
-            }
+        socket.emit('draw-skip-word', { roomCode }, (r) => {
+            if (r.success) { setMyWord({ word: r.word, category: r.category, hint: r.hint }); clearCanvas(); }
         });
     };
 
-    // Guess submission
     const submitGuess = () => {
         if (!guess.trim() || hasGuessed) return;
-
-        socket.emit('draw-submit-guess', { roomCode, guess: guess.trim() }, (response) => {
-            if (response.correct) {
+        socket.emit('draw-submit-guess', { roomCode, guess: guess.trim() }, (r) => {
+            if (r.correct) {
                 setHasGuessed(true);
-                setGuessResult({
-                    correct: true,
-                    points: response.points,
-                    rank: response.rank
-                });
-                setMyScore(prev => prev + response.points);
-            } else if (response.closeMatch) {
-                setGuessResult({
-                    correct: false,
-                    closeMatch: true,
-                    message: response.message
-                });
-                // Clear after a moment
-                setTimeout(() => setGuessResult(null), 2000);
+                setGuessResult({ correct: true, points: r.points, rank: r.rank });
+                setMyScore(prev => prev + r.points);
+            } else if (r.closeMatch) {
+                setGuessResult({ closeMatch: true, message: r.message });
+                setShakeGuess(true);
+                setTimeout(() => { setShakeGuess(false); setGuessResult(null); }, 1500);
             }
             setGuess('');
         });
     };
 
-    const getWordBlanks = () => {
-        if (!wordLength) return '';
-        return '_ '.repeat(wordLength).trim();
-    };
+    const timerPct = timePerRound > 0 ? (timer / timePerRound) * 100 : 0;
+    const timerClass = timer <= 10 ? 'timer-danger' : timer <= 30 ? 'timer-warning' : '';
 
-    const getTimerClass = () => {
-        if (timer <= 10) return 'draw-timer danger';
-        if (timer <= 30) return 'draw-timer warning';
-        return 'draw-timer';
-    };
-
-    // JOIN SCREEN
+    // ── JOIN ──────────────────────────────────────────────────────────
     if (!isJoined) {
         return (
-            <div className="draw-player-view" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <div style={{ maxWidth: 400, width: '100%', padding: '0 1rem' }}>
-                    <h1 className="draw-title" style={{ fontSize: '2.5rem' }}>🎨 DRAW UP</h1>
-                    <p className="draw-subtitle">Rejoindre une partie</p>
+            <div className="min-h-screen flex items-center justify-center p-4 bg-pattern relative overflow-auto">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 w-full max-w-sm flex flex-col gap-4">
+                    {/* Header */}
+                    <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-secondary border-[3px] border-on-background neo-shadow mb-3">
+                            <span className="text-3xl">🎨</span>
+                        </div>
+                        <h1 className="text-3xl font-black uppercase italic text-on-background">DrawUp</h1>
+                        <p className="text-[10px] font-bold text-secondary uppercase tracking-wider mt-1">Rejoindre une partie</p>
+                    </div>
 
                     {error && (
-                        <div style={{ background: 'rgba(231, 29, 54, 0.2)', border: '1px solid var(--draw-danger)', borderRadius: 10, padding: '0.75rem', marginBottom: '1rem', color: 'var(--draw-danger)', textAlign: 'center' }}>
+                        <div className="bg-[#ffe16d] border-[3px] border-on-background rounded-xl p-3 text-on-background text-xs font-black text-center neo-shadow-sm">
                             {error}
                         </div>
                     )}
 
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '0.5rem', display: 'block' }}>Code du salon</label>
-                        <input
-                            type="text"
-                            className="draw-guess-input"
-                            placeholder="ABCD12"
-                            value={roomCode}
-                            onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                            maxLength={6}
-                            style={{ textAlign: 'center', letterSpacing: 5, fontSize: '1.5rem' }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '0.5rem', display: 'block' }}>Ton pseudo</label>
-                        <input
-                            type="text"
-                            className="draw-guess-input"
-                            placeholder="Ton nom"
-                            value={playerName}
-                            onChange={(e) => setPlayerName(e.target.value)}
-                            maxLength={20}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '0.5rem', display: 'block' }}>Ton avatar</label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem', maxHeight: 200, overflowY: 'auto', padding: '0.25rem' }}>
-                            {ALL_AVATARS.map(url => (
-                                <button
-                                    key={url}
-                                    onClick={() => setAvatar(url)}
-                                    style={{
-                                        width: '100%',
-                                        aspectRatio: '1',
-                                        padding: 2,
-                                        border: avatar === url ? '3px solid var(--draw-secondary)' : '2px solid rgba(255,255,255,0.15)',
-                                        borderRadius: 8,
-                                        background: avatar === url ? 'rgba(78,205,196,0.25)' : 'rgba(255,255,255,0.05)',
-                                        cursor: 'pointer',
-                                        overflow: 'hidden'
-                                    }}
-                                >
-                                    <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 5 }} />
-                                </button>
-                            ))}
+                    {/* Form */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-5 neo-shadow flex flex-col gap-4">
+                        {/* Code */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black uppercase text-secondary tracking-wider">Code du salon</label>
+                            <input
+                                type="text"
+                                className="w-full p-3 border-[3px] border-on-background font-black text-center text-2xl uppercase tracking-[0.3em] focus:outline-none focus:ring-0 bg-[#fbf8ff] rounded-lg placeholder:text-on-background/30"
+                                placeholder="ABCDE1"
+                                value={roomCode}
+                                onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
+                                maxLength={6}
+                                readOnly={!!urlRoomCode}
+                            />
                         </div>
+
+                        {/* Pseudo */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black uppercase text-secondary tracking-wider">Ton pseudo</label>
+                            <input
+                                type="text"
+                                className="w-full p-2.5 border-[3px] border-on-background font-bold text-xs focus:outline-none focus:ring-0 bg-[#fbf8ff] rounded-lg placeholder:text-on-background/30"
+                                placeholder="Picasso"
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                maxLength={20}
+                                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                            />
+                        </div>
+
+                        {/* Avatars */}
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase text-secondary tracking-wider">Avatar</label>
+                            <div className="grid grid-cols-6 gap-1.5 max-h-[180px] overflow-y-auto border-[2px] border-on-background/20 rounded-lg p-1.5 bg-[#fbf8ff]">
+                                {ALL_AVATARS.map((url) => (
+                                    <button
+                                        key={url}
+                                        type="button"
+                                        onClick={() => setAvatar(url)}
+                                        className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                                            avatar === url
+                                                ? 'border-secondary ring-2 ring-secondary scale-105'
+                                                : 'border-on-background/20 hover:border-on-background'
+                                        }`}
+                                    >
+                                        <img src={url} alt="" className="w-full h-full object-cover" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={joinRoom}
+                            className="w-full bg-[#ffe16d] text-on-background font-black py-3.5 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-1px] active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
+                        >
+                            <span className="material-symbols-outlined text-sm">brush</span>
+                            Rejoindre la Partie
+                        </button>
                     </div>
 
-                    <button className="draw-start-btn" onClick={joinRoom} style={{ width: '100%' }}>
-                        Rejoindre
-                    </button>
-
-                    <button
-                        className="draw-btn draw-btn-secondary"
-                        onClick={() => navigate('/draw')}
-                        style={{ width: '100%', marginTop: '1rem' }}
-                    >
-                        ← Retour
+                    <button onClick={() => navigate('/draw')} className="text-[9px] font-black text-secondary uppercase tracking-wide flex items-center justify-center gap-1 mx-auto">
+                        <span className="material-symbols-outlined text-xs">arrow_back</span> Retour
                     </button>
                 </div>
             </div>
         );
     }
 
-    // LOBBY STATE
+    // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="draw-player-view" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <div className="text-center">
-                    <div className="draw-player-avatar" style={{ width: 100, height: 100, margin: '0 auto 1rem', borderRadius: '50%', overflow: 'hidden', border: '3px solid var(--draw-secondary)' }}>
-                        <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-pattern relative overflow-hidden">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 flex flex-col items-center gap-5 max-w-xs w-full">
+                    <div className="w-20 h-20 rounded-full border-[3px] border-on-background overflow-hidden neo-shadow">
+                        <img src={avatar} alt="" className="w-full h-full object-cover" />
                     </div>
-                    <h2 style={{ color: 'white' }}>{playerName}</h2>
-                    <p style={{ color: 'var(--draw-secondary)' }}>Salon: {roomCode}</p>
-                    <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: '2rem' }}>
-                        ⏳ En attente du lancement de la partie...
-                    </p>
+                    <div className="text-center">
+                        <div className="text-xl font-black text-on-background uppercase">{playerName}</div>
+                        <div className="text-xs font-bold text-secondary uppercase mt-1">Salon : {roomCode}</div>
+                    </div>
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center w-full">
+                        <span className="material-symbols-outlined text-secondary text-2xl animate-pulse">hourglass_empty</span>
+                        <p className="text-xs font-black text-on-background uppercase mt-2">En attente du lancement...</p>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    // PLAYING STATE - DRAWER VIEW
+    // ── PLAYING — DESSINATEUR ─────────────────────────────────────────
     if (gameState === 'PLAYING' && isDrawer) {
         return (
-            <div className="draw-player-view">
-                <div className="draw-header" style={{ borderRadius: 15, marginBottom: '0.5rem' }}>
-                    <div className="draw-round-info">
-                        Round <span className="draw-round-number">{currentRound}</span> / {totalRounds}
+            <div className="h-screen flex flex-col overflow-hidden bg-animated pop-culture-theme"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                {/* Header */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
+                    <div className={`font-black text-xl tabular-nums ${timerClass}`}>{timer}</div>
+                    <div className="flex-1 h-2 bg-on-background/10 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#ffe16d]'}`}
+                            style={{ width: `${timerPct}%` }} />
                     </div>
-                    <div className={getTimerClass()}>
-                        {timer}
-                    </div>
+                    <div className="text-[10px] font-black text-secondary uppercase">{currentRound}/{totalRounds}</div>
                 </div>
 
+                {/* Word banner */}
                 {myWord && (
-                    <div className="draw-your-word">
-                        <div className="draw-your-word-label">À toi de dessiner :</div>
-                        <div className="draw-your-word-text">{myWord.word}</div>
-                        {myWord.hint && <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>💡 {myWord.hint}</div>}
-                        <button className="draw-skip-btn" onClick={handleSkipWord}>
-                            🔄 Passer ce mot
+                    <div className="px-3 py-2 bg-[#bd00ff] flex-shrink-0 flex items-center justify-between gap-2">
+                        <div>
+                            <div className="text-[9px] font-black uppercase text-white/70">À toi de dessiner :</div>
+                            <div className="text-xl font-black uppercase italic text-white tracking-tight">{myWord.word}</div>
+                            {myWord.hint && <div className="text-[9px] text-white/70 font-bold">💡 {myWord.hint}</div>}
+                        </div>
+                        <button onClick={handleSkipWord}
+                            className="bg-white/20 text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-white/40 active:scale-95 flex-shrink-0">
+                            🔄 Passer
                         </button>
                     </div>
                 )}
 
-                <div className="draw-tools">
-                    {COLORS.map(color => (
-                        <button
-                            key={color.name}
-                            className={`draw-tool-btn draw-color-btn ${color.name} ${selectedColor === color.value ? 'active' : ''}`}
-                            style={{ background: color.value }}
-                            onClick={() => setSelectedColor(color.value)}
-                        />
-                    ))}
-                </div>
-
-                <div className="draw-tools">
-                    {BRUSH_SIZES.map(size => (
-                        <button
-                            key={size}
-                            className={`draw-tool-btn draw-size-btn ${brushSize === size ? 'active' : ''}`}
-                            onClick={() => setBrushSize(size)}
-                        >
-                            {size}
-                        </button>
-                    ))}
-                    <button
-                        className="draw-tool-btn draw-action-btn clear"
-                        onClick={handleClearCanvas}
-                    >
-                        🗑️
-                    </button>
-                </div>
-
-                <div className="draw-canvas-container" style={{ flex: 1 }}>
+                {/* Canvas */}
+                <div className="flex-1 min-h-0 mx-3 my-2 bg-white border-[3px] border-on-background rounded-xl overflow-hidden neo-shadow">
                     <canvas
                         ref={canvasRef}
                         className="draw-canvas"
@@ -594,65 +480,49 @@ function DrawPlayerView() {
                         onTouchEnd={handleDrawEnd}
                     />
                 </div>
-            </div>
-        );
-    }
 
-    // PLAYING STATE - GUESSER VIEW
-    if (gameState === 'PLAYING' && !isDrawer) {
-        return (
-            <div className="draw-player-view">
-                <div className="draw-header" style={{ borderRadius: 15, marginBottom: '0.5rem' }}>
-                    <div className="draw-round-info">
-                        Round <span className="draw-round-number">{currentRound}</span> / {totalRounds}
+                {/* Tools */}
+                <div className="flex-shrink-0 px-3 pb-2 flex flex-col gap-2">
+                    {/* Colors */}
+                    <div className="flex justify-center gap-1.5 bg-white border-[3px] border-on-background rounded-xl p-2 neo-shadow-sm">
+                        {COLORS.map(c => (
+                            <button
+                                key={c.value}
+                                onClick={() => setSelectedColor(c.value)}
+                                className={`w-9 h-9 rounded-full border-[3px] transition-transform active:scale-90 ${
+                                    selectedColor === c.value
+                                        ? 'border-on-background scale-125 shadow-md'
+                                        : 'border-on-background/40 hover:scale-110'
+                                }`}
+                                style={{ backgroundColor: c.value, boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #ccc' : undefined }}
+                                title={c.name}
+                            />
+                        ))}
                     </div>
-                    <div className={getTimerClass()}>
-                        {timer}
-                    </div>
-                </div>
 
-                <div style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>
-                    <span className="draw-category-badge">{wordCategory}</span>
-                    <span className="draw-word-blanks" style={{ marginLeft: '1rem' }}>{getWordBlanks()}</span>
-                    <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                        🎨 {drawerName} dessine...
-                    </p>
-                </div>
-
-                <div className="draw-canvas-viewer" style={{ flex: 1, position: 'relative' }}>
-                    <canvas ref={canvasRef} className="draw-canvas" style={{ pointerEvents: 'none' }} />
-
-                    {hasGuessed && (
-                        <div className="draw-guessed-overlay">
-                            <div className="draw-guessed-icon">✅</div>
-                            <div className="draw-guessed-text">Bien joué !</div>
-                            <div className="draw-guessed-points">+{guessResult?.points} points (#{guessResult?.rank})</div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="draw-guess-container">
-                    {guessResult?.closeMatch && (
-                        <div style={{ color: 'var(--draw-warning)', marginBottom: '0.5rem', textAlign: 'center' }}>
-                            🔥 {guessResult.message}
-                        </div>
-                    )}
-                    <div className="draw-guess-input-wrapper">
-                        <input
-                            type="text"
-                            className={`draw-guess-input ${guessResult?.closeMatch ? 'close-match' : ''}`}
-                            placeholder="Tape ta réponse..."
-                            value={guess}
-                            onChange={(e) => setGuess(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && submitGuess()}
-                            disabled={hasGuessed}
-                        />
+                    {/* Sizes + actions */}
+                    <div className="flex items-center justify-center gap-2 bg-white border-[3px] border-on-background rounded-xl p-2 neo-shadow-sm">
+                        {BRUSH_SIZES.map(size => (
+                            <button
+                                key={size}
+                                onClick={() => setBrushSize(size)}
+                                className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-colors active:scale-95 ${
+                                    brushSize === size
+                                        ? 'border-on-background bg-[#ffe16d]'
+                                        : 'border-on-background/30 bg-[#fbf8ff] hover:bg-[#dee0ff]'
+                                }`}
+                            >
+                                <div className="rounded-full bg-on-background"
+                                    style={{ width: Math.min(size * 0.7, 22), height: Math.min(size * 0.7, 22) }} />
+                            </button>
+                        ))}
+                        <div className="w-px h-6 bg-on-background/20" />
                         <button
-                            className="draw-guess-submit"
-                            onClick={submitGuess}
-                            disabled={hasGuessed || !guess.trim()}
+                            onClick={handleClearCanvas}
+                            className="w-10 h-10 rounded-lg border-2 border-on-background/30 bg-[#ffc2eb] flex items-center justify-center hover:bg-[#ff9f9f] active:scale-95 transition-colors"
+                            title="Effacer tout"
                         >
-                            ✓
+                            <span className="material-symbols-outlined text-base text-on-background">delete</span>
                         </button>
                     </div>
                 </div>
@@ -660,63 +530,165 @@ function DrawPlayerView() {
         );
     }
 
-    // ROUND END STATE
-    if (gameState === 'ROUND_END') {
+    // ── PLAYING — DEVINEUR ────────────────────────────────────────────
+    if (gameState === 'PLAYING' && !isDrawer) {
         return (
-            <div className="draw-player-view" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <div className="draw-round-end-word" style={{ marginBottom: '2rem' }}>
-                    <div className="draw-round-end-label">Le mot était</div>
-                    <div className="draw-round-end-answer" style={{ fontSize: '2.5rem' }}>{revealedWord?.word}</div>
+            <div className="h-screen flex flex-col overflow-hidden bg-animated pop-culture-theme"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                {/* Header */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
+                    <div className={`font-black text-xl tabular-nums ${timerClass}`}>{timer}</div>
+                    <div className="flex-1 h-2 bg-on-background/10 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#ffe16d]'}`}
+                            style={{ width: `${timerPct}%` }} />
+                    </div>
+                    <div className="text-[10px] font-black text-secondary uppercase">{currentRound}/{totalRounds}</div>
+                    <div className="font-black text-sm text-on-background">{myScore} pts</div>
                 </div>
 
-                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: '1.5rem', textAlign: 'center', marginBottom: '1rem' }}>
-                    <div style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem' }}>Ton score</div>
-                    <div style={{ color: 'var(--draw-accent)', fontSize: '3rem', fontWeight: 900 }}>{myScore}</div>
+                {/* Drawer info + word blanks */}
+                <div className="flex items-center justify-center gap-3 px-3 py-2 bg-[#dee0ff] border-b-2 border-on-background/20 flex-shrink-0">
+                    <div className="text-[10px] font-bold text-on-background">
+                        🎨 <span className="font-black text-secondary">{drawerName}</span> dessine...
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap justify-center">
+                        <span className="text-[9px] font-black uppercase bg-secondary text-white px-2 py-0.5 rounded-full">{wordCategory}</span>
+                        {Array.from({ length: wordLength }).map((_, i) => (
+                            <div key={i} className="w-4 h-0.5 bg-on-background rounded-full" />
+                        ))}
+                        <span className="text-[9px] text-on-background/50">({wordLength})</span>
+                    </div>
                 </div>
 
-                <p style={{ color: 'rgba(255,255,255,0.5)' }}>Prochain tour bientôt...</p>
+                {/* Canvas */}
+                <div className={`flex-1 min-h-0 mx-3 my-2 bg-white border-[3px] border-on-background rounded-xl overflow-hidden neo-shadow relative draw-canvas-viewer ${hasGuessed ? 'opacity-80' : ''}`}>
+                    <canvas ref={canvasRef} className="draw-canvas" />
+                    {hasGuessed && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#ffe16d]/80 backdrop-blur-sm">
+                            <div className="text-4xl mb-2">✅</div>
+                            <div className="text-xl font-black uppercase italic text-on-background">Bravo !</div>
+                            <div className="text-sm font-black text-on-background mt-1">
+                                +{guessResult?.points} pts — #{guessResult?.rank}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Guess input */}
+                {!hasGuessed && (
+                    <div className="flex-shrink-0 px-3 pb-2">
+                        {guessResult?.closeMatch && (
+                            <div className="text-center text-[10px] font-black text-[#ff9f1c] uppercase mb-1 animate-pulse">
+                                🔥 Très proche ! Vérifie l'orthographe
+                            </div>
+                        )}
+                        <div className={`flex gap-2 bg-white border-[3px] border-on-background rounded-xl p-2 neo-shadow ${shakeGuess ? 'shake-input border-[#ff9f1c]' : ''}`}>
+                            <input
+                                ref={guessInputRef}
+                                type="text"
+                                className="flex-1 p-2 text-sm font-bold text-on-background bg-[#fbf8ff] border-2 border-on-background/20 rounded-lg focus:outline-none focus:border-secondary placeholder:text-on-background/40"
+                                placeholder="Tape ta réponse..."
+                                value={guess}
+                                onChange={(e) => setGuess(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
+                                disabled={hasGuessed}
+                                autoComplete="off"
+                            />
+                            <button
+                                onClick={submitGuess}
+                                disabled={hasGuessed || !guess.trim()}
+                                className="bg-[#ffe16d] text-on-background font-black px-4 py-2 border-[3px] border-on-background rounded-lg shadow-[2px_2px_0px_0px_#161a33] active:shadow-none active:translate-y-px transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
 
-    // GAME END STATE
+    // ── ROUND END ─────────────────────────────────────────────────────
+    if (gameState === 'ROUND_END') {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-pattern relative overflow-hidden pop-culture-theme">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 w-full max-w-xs flex flex-col items-center gap-4">
+                    <div className="bg-[#ffe16d] border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center w-full -rotate-1">
+                        <div className="text-[9px] font-black uppercase text-on-background/70 tracking-wider">Le mot était</div>
+                        <div className="text-4xl font-black uppercase italic text-on-background">{revealedWord?.word}</div>
+                    </div>
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center w-full">
+                        <div className="text-[10px] font-black uppercase text-secondary tracking-wider mb-1">Ton score</div>
+                        <div className="text-5xl font-black text-on-background">{myScore}</div>
+                        <div className="text-[10px] text-on-background/50 font-bold mt-1">points</div>
+                    </div>
+                    <p className="text-[10px] font-black uppercase text-secondary tracking-wider animate-pulse">
+                        Prochain tour bientôt...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // ── GAME END ──────────────────────────────────────────────────────
     if (gameState === 'GAME_END') {
         const myRank = finalResults.findIndex(p => p.id === socket.id) + 1;
         const winner = finalResults[0];
+        const medals = ['🥇', '🥈', '🥉'];
 
         return (
-            <div className="draw-player-view" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <div className="text-center">
-                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
-                        {myRank === 1 ? '🏆' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🎨'}
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-pattern relative overflow-auto">
+                <div className="pop-dots"></div>
+                <div className="relative z-10 w-full max-w-xs flex flex-col gap-4">
+                    {/* My result */}
+                    <div className={`border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center -rotate-1 ${
+                        myRank === 1 ? 'bg-[#ffe16d]' : myRank === 2 ? 'bg-[#dee0ff]' : myRank === 3 ? 'bg-[#ffc2eb]' : 'bg-white'
+                    }`}>
+                        <div className="text-4xl mb-2">{medals[myRank - 1] || '🎨'}</div>
+                        <div className="text-2xl font-black uppercase italic text-on-background">
+                            {myRank === 1 ? 'Victoire !' : `#${myRank}`}
+                        </div>
+                        <div className="text-3xl font-black text-on-background mt-1">{myScore} pts</div>
+                        {myRank !== 1 && (
+                            <div className="text-[10px] font-bold text-on-background/60 mt-1">
+                                Vainqueur : <span className="font-black text-secondary">{winner?.name}</span>
+                            </div>
+                        )}
                     </div>
 
-                    <div style={{ fontSize: '1.5rem', color: 'white', marginBottom: '0.5rem' }}>
-                        Tu es <span style={{ color: 'var(--draw-secondary)', fontWeight: 700 }}>#{myRank}</span>
+                    {/* Full ranking */}
+                    <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow">
+                        <div className="text-[10px] font-black uppercase text-secondary mb-2 tracking-wider">Classement final</div>
+                        <div className="flex flex-col gap-1.5">
+                            {finalResults.map((p, i) => (
+                                <div key={p.id} className={`flex items-center gap-2 p-1.5 rounded-lg border-2 text-xs ${
+                                    p.id === socket.id ? 'border-secondary bg-secondary/10 font-black' : 'border-on-background/10 bg-[#fbf8ff] font-bold'
+                                }`}>
+                                    <span className="w-6 text-center font-black">{medals[i] || `#${i + 1}`}</span>
+                                    <span className="flex-1 truncate text-on-background">{p.name}</span>
+                                    <span className="font-black text-on-background">{p.score} pts</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
-                    <div style={{ fontSize: '3rem', fontWeight: 900, color: 'var(--draw-accent)' }}>
-                        {myScore} pts
-                    </div>
-
-                    {myRank === 1 && (
-                        <div style={{ marginTop: '1rem', fontSize: '1.2rem', color: 'var(--draw-success)' }}>
-                            🎉 Tu as gagné !
+                    {/* Awards */}
+                    {awards.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2">
+                            {awards.map((a, i) => (
+                                <div key={i} className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow text-center">
+                                    <div className="text-2xl mb-1">{a.icon}</div>
+                                    <div className="text-[9px] font-black uppercase text-secondary">{a.title}</div>
+                                    <div className="text-[10px] font-bold text-on-background truncate">{a.playerName}</div>
+                                </div>
+                            ))}
                         </div>
                     )}
 
-                    {myRank !== 1 && (
-                        <div style={{ marginTop: '1rem', color: 'rgba(255,255,255,0.6)' }}>
-                            Vainqueur : <span style={{ color: 'var(--draw-primary)' }}>{winner?.name}</span>
-                        </div>
-                    )}
-
-                    <button
-                        className="draw-btn draw-btn-secondary"
-                        onClick={() => navigate('/')}
-                        style={{ marginTop: '2rem' }}
-                    >
-                        🏠 Menu
+                    <button onClick={() => navigate('/')}
+                        className="w-full bg-[#ffe16d] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-1px] active:translate-y-px active:shadow-none transition-all text-sm uppercase tracking-wide flex items-center justify-center gap-2">
+                        🏠 Retour au menu
                     </button>
                 </div>
             </div>

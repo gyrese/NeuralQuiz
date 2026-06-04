@@ -35,8 +35,8 @@ function DrawHostView() {
     const countdownRef = useRef(null);
 
     useEffect(() => {
-        document.body.classList.add('pop-culture-theme');
-        return () => document.body.classList.remove('pop-culture-theme');
+        document.body.classList.add('comic-theme');
+        return () => document.body.classList.remove('comic-theme');
     }, []);
 
     useEffect(() => {
@@ -269,11 +269,10 @@ function DrawHostView() {
     // ── CREATING ──────────────────────────────────────────────────────
     if (gameState === 'CREATING') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-pattern">
-                <div className="pop-dots"></div>
-                <div className="relative z-10 text-center">
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
                     <div className="text-4xl font-black text-on-background uppercase italic mb-4">🎨 DrawUp</div>
-                    <div className="text-secondary font-bold uppercase text-sm">Création du salon...</div>
+                    <div className="text-[#FF3B30] font-bold uppercase text-sm">Création du salon...</div>
                 </div>
             </div>
         );
@@ -282,15 +281,14 @@ function DrawHostView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="min-h-screen flex flex-col p-4 bg-pattern text-on-background relative overflow-auto">
-                <div className="pop-dots"></div>
+            <div className="min-h-screen flex flex-col p-4 text-on-background relative overflow-auto">
 
                 {/* Header */}
                 <div className="relative z-10 flex items-center justify-between mb-4">
-                    <button onClick={() => navigate('/draw')} className="text-[10px] font-black text-secondary uppercase tracking-wide flex items-center gap-1 hover:text-primary transition-colors">
+                    <button onClick={() => navigate('/draw')} className="text-[10px] font-black text-[#FF3B30] uppercase tracking-wide flex items-center gap-1 hover:text-primary transition-colors">
                         <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
                     </button>
-                    <div className="bg-secondary text-white font-black text-sm uppercase italic px-4 py-1.5 border-[3px] border-on-background rounded-full neo-shadow-sm">
+                    <div className="bg-[#FF3B30] text-white font-black text-sm uppercase italic px-4 py-1.5 border-[3px] border-on-background rounded-full neo-shadow-sm">
                         🎨 DrawUp
                     </div>
                     <div className="w-16" />
@@ -300,13 +298,13 @@ function DrawHostView() {
                     {/* Code + QR */}
                     <div className="bg-white border-[3px] border-on-background rounded-xl p-5 neo-shadow flex flex-col sm:flex-row items-center gap-5">
                         <div className="flex-1 text-center sm:text-left">
-                            <div className="text-[10px] font-black uppercase text-secondary tracking-wider mb-1">Code du salon</div>
+                            <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Code du salon</div>
                             <div className="text-6xl font-black text-on-background tracking-widest uppercase select-all leading-none mb-3">
                                 {roomCode}
                             </div>
                             <button
                                 onClick={copyCode}
-                                className="flex items-center gap-1.5 bg-[#dee0ff] text-on-background font-black text-[11px] uppercase px-3 py-1.5 border-2 border-on-background rounded-lg hover:bg-[#ffe16d] transition-colors neo-shadow-sm"
+                                className="flex items-center gap-1.5 bg-[#C2DCFF] text-on-background font-black text-[11px] uppercase px-3 py-1.5 border-2 border-on-background rounded-lg hover:bg-[#FFD60A] transition-colors neo-shadow-sm"
                             >
                                 <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'content_copy'}</span>
                                 {copied ? 'Copié !' : 'Copier'}
@@ -320,20 +318,20 @@ function DrawHostView() {
                     {/* Players */}
                     <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
                         <div className="flex items-center justify-between mb-3 border-b-2 border-on-background pb-2">
-                            <h2 className="text-xs font-black uppercase text-secondary">Joueurs ({players.length})</h2>
-                            <span className="material-symbols-outlined text-sm text-secondary animate-pulse">groups</span>
+                            <h2 className="text-xs font-black uppercase text-[#FF3B30]">Joueurs ({players.length})</h2>
+                            <span className="material-symbols-outlined text-sm text-[#FF3B30] animate-pulse">groups</span>
                         </div>
                         {players.length === 0 ? (
-                            <p className="text-[11px] text-secondary font-bold italic text-center py-3">En attente de joueurs...</p>
+                            <p className="text-[11px] text-[#FF3B30] font-bold italic text-center py-3">En attente de joueurs...</p>
                         ) : (
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                                 {players.map(p => (
-                                    <div key={p.id} className="flex flex-col items-center gap-1 bg-[#fbf8ff] border-2 border-on-background/20 rounded-lg p-2">
+                                    <div key={p.id} className="flex flex-col items-center gap-1 bg-[#FFFBF0] border-2 border-on-background/20 rounded-lg p-2">
                                         <div className="w-10 h-10 rounded-full border-2 border-on-background overflow-hidden">
                                             {p.avatar?.startsWith('/') ? (
                                                 <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xl bg-[#dee0ff]">{p.avatar || '👤'}</div>
+                                                <div className="w-full h-full flex items-center justify-center text-xl bg-[#C2DCFF]">{p.avatar || '👤'}</div>
                                             )}
                                         </div>
                                         <span className="text-[9px] font-black uppercase truncate w-full text-center">{p.name}</span>
@@ -346,28 +344,28 @@ function DrawHostView() {
                     {/* Settings */}
                     <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
                         <div className="flex items-center gap-2 mb-3 border-b-2 border-on-background pb-2">
-                            <span className="material-symbols-outlined text-sm text-secondary">tune</span>
-                            <h2 className="text-xs font-black uppercase text-secondary">Paramètres</h2>
+                            <span className="material-symbols-outlined text-sm text-[#FF3B30]">tune</span>
+                            <h2 className="text-xs font-black uppercase text-[#FF3B30]">Paramètres</h2>
                         </div>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                                <div className="text-[9px] font-black uppercase text-secondary/80 mb-1">Tours / joueur</div>
+                                <div className="text-[9px] font-black uppercase text-[#FF3B30]/80 mb-1">Tours / joueur</div>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.max(1, s.roundsPerPlayer - 1) }))}
-                                        className="w-8 h-8 bg-[#ffc2eb] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">−</button>
+                                        className="w-8 h-8 bg-[#FFE0DC] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">−</button>
                                     <span className="font-black text-lg text-on-background min-w-[2rem] text-center">{settings.roundsPerPlayer}</span>
                                     <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.min(5, s.roundsPerPlayer + 1) }))}
-                                        className="w-8 h-8 bg-[#ffc2eb] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">+</button>
+                                        className="w-8 h-8 bg-[#FFE0DC] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">+</button>
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[9px] font-black uppercase text-secondary/80 mb-1">Temps / tour</div>
+                                <div className="text-[9px] font-black uppercase text-[#FF3B30]/80 mb-1">Temps / tour</div>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.max(30, s.timePerRound - 15) }))}
-                                        className="w-8 h-8 bg-[#dee0ff] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">−</button>
+                                        className="w-8 h-8 bg-[#C2DCFF] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">−</button>
                                     <span className="font-black text-lg text-on-background min-w-[3rem] text-center">{settings.timePerRound}s</span>
                                     <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.min(180, s.timePerRound + 15) }))}
-                                        className="w-8 h-8 bg-[#dee0ff] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#ffe16d] transition-colors neo-shadow-sm active:translate-y-px">+</button>
+                                        className="w-8 h-8 bg-[#C2DCFF] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">+</button>
                                 </div>
                             </div>
                         </div>
@@ -375,11 +373,11 @@ function DrawHostView() {
                         {/* Catégories */}
                         {availableCategories.length > 0 && (
                             <div>
-                                <div className="text-[9px] font-black uppercase text-secondary/80 mb-2 flex items-center justify-between">
+                                <div className="text-[9px] font-black uppercase text-[#FF3B30]/80 mb-2 flex items-center justify-between">
                                     <span>Thèmes de mots</span>
                                     <button
                                         onClick={() => setSettings(s => ({ ...s, categories: ['all'] }))}
-                                        className="text-[8px] font-black text-secondary/60 hover:text-secondary transition-colors"
+                                        className="text-[8px] font-black text-[#FF3B30]/60 hover:text-[#FF3B30] transition-colors"
                                     >
                                         {settings.categories.includes('all') ? '✓ Tous' : 'Tout sélectionner'}
                                     </button>
@@ -394,8 +392,8 @@ function DrawHostView() {
                                                 onClick={() => toggleCategory(key)}
                                                 className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border-2 transition-all active:scale-95 ${
                                                     isActive
-                                                        ? 'border-on-background bg-secondary text-white shadow-[1.5px_1.5px_0px_0px_rgba(22,26,51,1)]'
-                                                        : 'border-on-background/30 bg-[#fbf8ff] text-on-background/60 hover:border-on-background'
+                                                        ? 'border-on-background bg-[#FF3B30] text-white shadow-[1.5px_1.5px_0px_0px_rgba(22,26,51,1)]'
+                                                        : 'border-on-background/30 bg-[#FFFBF0] text-on-background/60 hover:border-on-background'
                                                 }`}
                                             >
                                                 {CATEGORY_LABELS[key] || key}
@@ -411,7 +409,7 @@ function DrawHostView() {
                     <button
                         onClick={startGame}
                         disabled={players.length < 2}
-                        className="w-full bg-[#ffe16d] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#161a33] transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-px active:shadow-none"
+                        className="w-full bg-[#FFD60A] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#161a33] transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-px active:shadow-none"
                     >
                         <span className="material-symbols-outlined">play_arrow</span>
                         {players.length < 2 ? `Minimum 2 joueurs (${players.length}/2)` : '🎨 Lancer la Partie'}
@@ -427,19 +425,19 @@ function DrawHostView() {
         const nonDrawers = players.filter(p => p.id !== currentDrawerId).length;
 
         return (
-            <div className="h-screen flex flex-col bg-[#fbf8ff] overflow-hidden pop-culture-theme">
+            <div className="h-screen flex flex-col overflow-hidden comic-theme">
                 {/* Header */}
                 <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
-                    <div className="bg-secondary text-white font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
+                    <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
                         🎨 DrawUp
                     </div>
-                    <div className="bg-[#dee0ff] text-on-background font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
+                    <div className="bg-[#C2DCFF] text-on-background font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
                         Manche {currentRound}/{totalRounds}
                     </div>
 
                     {/* Word blanks */}
                     <div className="flex-1 flex items-center justify-center gap-1 flex-wrap">
-                        <span className="text-[10px] font-black uppercase text-secondary mr-1">{wordCategory}</span>
+                        <span className="text-[10px] font-black uppercase text-[#FF3B30] mr-1">{wordCategory}</span>
                         {Array.from({ length: wordLength }).map((_, i) => (
                             <div key={i} className="w-5 h-0.5 bg-on-background rounded-full" />
                         ))}
@@ -451,14 +449,14 @@ function DrawHostView() {
                         <span className="font-black text-2xl leading-none text-on-background tabular-nums">{timer}</span>
                         <div className="w-16 h-1.5 bg-on-background/10 rounded-full overflow-hidden mt-1">
                             <div
-                                className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#ffe16d]'}`}
+                                className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
                                 style={{ width: `${timerPct}%` }}
                             />
                         </div>
                     </div>
 
                     {/* Score fin de manche */}
-                    <button onClick={endRound} className="bg-[#ffc2eb] text-on-background font-black text-[9px] uppercase px-2 py-1.5 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#ffe16d] transition-colors active:translate-y-px">
+                    <button onClick={endRound} className="bg-[#FFE0DC] text-on-background font-black text-[9px] uppercase px-2 py-1.5 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#FFD60A] transition-colors active:translate-y-px">
                         ⏹ Terminer
                     </button>
                 </div>
@@ -467,8 +465,8 @@ function DrawHostView() {
                 <div className="flex flex-1 min-h-0 gap-3 p-3">
                     {/* Canvas area */}
                     <div className="flex-1 flex flex-col min-w-0 gap-2">
-                        <div className="bg-[#dee0ff] border-[3px] border-on-background rounded-xl px-4 py-2 flex items-center gap-2 neo-shadow-sm">
-                            <div className="w-7 h-7 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#fbf8ff]">
+                        <div className="bg-[#C2DCFF] border-[3px] border-on-background rounded-xl px-4 py-2 flex items-center gap-2 neo-shadow-sm">
+                            <div className="w-7 h-7 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#FFFBF0]">
                                 {players.find(p => p.id === currentDrawerId)?.avatar?.startsWith('/') ? (
                                     <img src={players.find(p => p.id === currentDrawerId)?.avatar} alt="" className="w-full h-full object-cover" />
                                 ) : (
@@ -478,7 +476,7 @@ function DrawHostView() {
                                 )}
                             </div>
                             <span className="font-black text-xs uppercase text-on-background">
-                                <span className="text-secondary">{drawerName}</span> dessine...
+                                <span className="text-[#FF3B30]">{drawerName}</span> dessine...
                             </span>
                             <div className="ml-auto text-[10px] font-black text-on-background/60">
                                 {guessersCount}/{nonDrawers} ont trouvé
@@ -493,20 +491,20 @@ function DrawHostView() {
                     <div className="w-56 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
                         {/* Leaderboard */}
                         <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow">
-                            <h3 className="text-[10px] font-black uppercase text-secondary mb-2 flex items-center gap-1">
+                            <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-xs">leaderboard</span> Classement
                             </h3>
                             <div className="flex flex-col gap-1.5">
                                 {getSortedPlayers().map((p, i) => (
                                     <div key={p.id} className={`flex items-center gap-1.5 p-1.5 rounded-lg border-2 text-[10px] ${
                                         p.id === currentDrawerId
-                                            ? 'border-secondary bg-secondary/10'
+                                            ? 'border-[#FF3B30] bg-[#FF3B30]/15'
                                             : guessedPlayers.has(p.id)
-                                                ? 'border-[#ffe16d] bg-[#ffe16d]/20'
-                                                : 'border-on-background/20 bg-[#fbf8ff]'
+                                                ? 'border-[#ffe16d] bg-[#FFD60A]/20'
+                                                : 'border-on-background/20 bg-[#FFFBF0]'
                                     }`}>
                                         <span className="font-black text-on-background w-4 text-center">{i + 1}</span>
-                                        <div className="w-5 h-5 rounded-full border border-on-background/30 overflow-hidden flex-shrink-0 bg-[#dee0ff]">
+                                        <div className="w-5 h-5 rounded-full border border-on-background/30 overflow-hidden flex-shrink-0 bg-[#C2DCFF]">
                                             {p.avatar?.startsWith('/') ? (
                                                 <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                             ) : (
@@ -523,15 +521,15 @@ function DrawHostView() {
 
                         {/* Guess feed */}
                         <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow flex-1">
-                            <h3 className="text-[10px] font-black uppercase text-secondary mb-2 flex items-center gap-1">
+                            <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-xs">chat</span> Réponses
                             </h3>
                             <div className="flex flex-col gap-1.5 overflow-y-auto max-h-48">
                                 {guessFeed.slice(0, 12).map(g => (
                                     <div key={g.id} className={`text-[9px] p-1.5 rounded-lg border ${
                                         g.type === 'correct'
-                                            ? 'bg-[#ffe16d]/30 border-[#ffe16d] font-black'
-                                            : 'bg-[#ffc2eb]/20 border-[#ffc2eb] font-bold'
+                                            ? 'bg-[#FFD60A]/30 border-[#ffe16d] font-black'
+                                            : 'bg-[#FFE0DC]/20 border-[#ffc2eb] font-bold'
                                     }`}>
                                         {g.type === 'correct'
                                             ? `✅ ${g.playerName} a trouvé ! (+${g.points})`
@@ -553,25 +551,24 @@ function DrawHostView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-pattern relative overflow-hidden pop-culture-theme">
-                <div className="pop-dots"></div>
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden comic-theme">
                 <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
-                    {/* Word reveal */}
-                    <div className="bg-[#ffe16d] border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center -rotate-1">
-                        <div className="text-[10px] font-black uppercase text-on-background/70 tracking-wider mb-1">Le mot était</div>
-                        <div className="text-4xl font-black uppercase italic text-on-background tracking-tight">{revealedWord?.word}</div>
-                        <div className="text-[10px] font-bold text-secondary uppercase mt-1">{revealedWord?.category}</div>
+                    {/* Word reveal — style bulle BD */}
+                    <div className="bg-[#FF3B30] border-[4px] border-on-background p-5 shadow-[6px_6px_0_#1a1a1a] text-center -rotate-1">
+                        <div className="text-[10px] font-black uppercase text-white/80 tracking-wider mb-1">Le mot était</div>
+                        <div className="text-5xl font-black uppercase italic text-white tracking-tight">{revealedWord?.word}</div>
+                        <div className="text-[10px] font-bold text-white/70 uppercase mt-1">{revealedWord?.category}</div>
                     </div>
 
                     {/* Results */}
                     <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow flex flex-col gap-2">
                         {roundResults.map(p => (
                             <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg border-2 ${
-                                p.wasDrawer ? 'border-secondary bg-secondary/10' :
-                                p.guessedThisRound ? 'border-[#ffe16d] bg-[#ffe16d]/20' :
-                                'border-on-background/20 bg-[#fbf8ff]'
+                                p.wasDrawer ? 'border-[#FF3B30] bg-[#FF3B30]/15' :
+                                p.guessedThisRound ? 'border-[#ffe16d] bg-[#FFD60A]/20' :
+                                'border-on-background/20 bg-[#FFFBF0]'
                             }`}>
-                                <div className="w-8 h-8 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#dee0ff]">
+                                <div className="w-8 h-8 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#C2DCFF]">
                                     {p.avatar?.startsWith('/') ? (
                                         <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
@@ -589,11 +586,11 @@ function DrawHostView() {
 
                     {/* Countdown */}
                     <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center flex flex-col items-center gap-2">
-                        <div className="text-[10px] font-black uppercase text-secondary tracking-wider">Prochain tour dans</div>
+                        <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Prochain tour dans</div>
                         <div className="text-5xl font-black text-on-background">{nextRoundCountdown}</div>
                         <button
                             onClick={() => { if (countdownRef.current) clearInterval(countdownRef.current); nextRound(); }}
-                            className="bg-[#ffc2eb] text-on-background font-black text-xs uppercase px-4 py-2 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#ffe16d] transition-colors active:translate-y-px"
+                            className="bg-[#FFE0DC] text-on-background font-black text-xs uppercase px-4 py-2 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#FFD60A] transition-colors active:translate-y-px"
                         >
                             ⏭️ Passer maintenant
                         </button>
@@ -610,11 +607,10 @@ function DrawHostView() {
         const rest = finalResults.slice(3);
 
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-pattern relative overflow-hidden pop-culture-theme">
-                <div className="pop-dots"></div>
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden comic-theme">
                 <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
                     {/* Winner */}
-                    <div className="bg-[#ffe16d] border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center -rotate-1">
+                    <div className="bg-[#FFD60A] border-[4px] border-on-background p-5 shadow-[6px_6px_0_#1a1a1a] text-center -rotate-1">
                         <div className="text-4xl mb-2">👑</div>
                         <div className="text-2xl font-black uppercase italic text-on-background">{winner?.name}</div>
                         <div className="text-sm font-bold text-on-background/70 mt-1">{winner?.score} points</div>
@@ -626,34 +622,34 @@ function DrawHostView() {
                             {/* 2nd */}
                             {podium[1] && (
                                 <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#dee0ff]">
+                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#C2DCFF]">
                                         {podium[1].avatar?.startsWith('/') ? <img src={podium[1].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[1].avatar || '👤'}</div>}
                                     </div>
                                     <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[1].name}</div>
-                                    <div className="text-xs font-black text-secondary">{podium[1].score} pts</div>
-                                    <div className="bg-[#dee0ff] border-2 border-on-background rounded-t-lg w-full h-12 flex items-center justify-center font-black text-lg neo-shadow-sm">🥈</div>
+                                    <div className="text-xs font-black text-[#FF3B30]">{podium[1].score} pts</div>
+                                    <div className="bg-[#C2DCFF] border-2 border-on-background rounded-t-lg w-full h-12 flex items-center justify-center font-black text-lg neo-shadow-sm">🥈</div>
                                 </div>
                             )}
                             {/* 1st */}
                             {podium[0] && (
                                 <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-14 h-14 rounded-full border-[3px] border-on-background overflow-hidden bg-[#ffe16d]">
+                                    <div className="w-14 h-14 rounded-full border-[3px] border-on-background overflow-hidden bg-[#FFD60A]">
                                         {podium[0].avatar?.startsWith('/') ? <img src={podium[0].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">{podium[0].avatar || '👤'}</div>}
                                     </div>
                                     <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[0].name}</div>
-                                    <div className="text-xs font-black text-secondary">{podium[0].score} pts</div>
-                                    <div className="bg-[#ffe16d] border-2 border-on-background rounded-t-lg w-full h-16 flex items-center justify-center font-black text-xl neo-shadow-sm">🥇</div>
+                                    <div className="text-xs font-black text-[#FF3B30]">{podium[0].score} pts</div>
+                                    <div className="bg-[#FFD60A] border-2 border-on-background rounded-t-lg w-full h-16 flex items-center justify-center font-black text-xl neo-shadow-sm">🥇</div>
                                 </div>
                             )}
                             {/* 3rd */}
                             {podium[2] && (
                                 <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#ffc2eb]">
+                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#FFE0DC]">
                                         {podium[2].avatar?.startsWith('/') ? <img src={podium[2].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[2].avatar || '👤'}</div>}
                                     </div>
                                     <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[2].name}</div>
-                                    <div className="text-xs font-black text-secondary">{podium[2].score} pts</div>
-                                    <div className="bg-[#ffc2eb] border-2 border-on-background rounded-t-lg w-full h-9 flex items-center justify-center font-black text-base neo-shadow-sm">🥉</div>
+                                    <div className="text-xs font-black text-[#FF3B30]">{podium[2].score} pts</div>
+                                    <div className="bg-[#FFE0DC] border-2 border-on-background rounded-t-lg w-full h-9 flex items-center justify-center font-black text-base neo-shadow-sm">🥉</div>
                                 </div>
                             )}
                         </div>
@@ -676,7 +672,7 @@ function DrawHostView() {
                             {awards.map((a, i) => (
                                 <div key={i} className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow text-center">
                                     <div className="text-2xl mb-1">{a.icon}</div>
-                                    <div className="text-[10px] font-black uppercase text-secondary">{a.title}</div>
+                                    <div className="text-[10px] font-black uppercase text-[#FF3B30]">{a.title}</div>
                                     <div className="text-xs font-bold text-on-background truncate">{a.playerName}</div>
                                     <div className="text-[9px] text-on-background/60 font-bold mt-0.5">{a.value}</div>
                                 </div>
@@ -687,11 +683,11 @@ function DrawHostView() {
                     {/* Buttons */}
                     <div className="flex gap-3">
                         <button onClick={restartGame}
-                            className="flex-1 bg-[#ffe16d] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
+                            className="flex-1 bg-[#FFD60A] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
                             🔄 Rejouer
                         </button>
                         <button onClick={() => navigate('/')}
-                            className="flex-1 bg-white text-secondary font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
+                            className="flex-1 bg-white text-[#FF3B30] font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
                             🏠 Menu
                         </button>
                     </div>

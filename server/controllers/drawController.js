@@ -59,6 +59,16 @@ module.exports = {
             console.log(`[DRAW] Room created: ${roomCode} by ${socket.id}`);
         });
 
+        socket.on('draw-get-categories', async (_data, callback) => {
+            try {
+                const { getCategories } = require('../drawWords');
+                const categories = await getCategories();
+                callback({ categories });
+            } catch (err) {
+                callback({ categories: [] });
+            }
+        });
+
         socket.on('draw-join-room', ({ roomCode, playerName, avatar }, callback) => {
             try {
                 const result = drawGameManager.joinRoom(roomCode, socket.id, playerName, avatar);

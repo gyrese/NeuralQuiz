@@ -177,20 +177,34 @@ function DrawPlayerView() {
         };
     }, [isJoined, roomCode]);
 
-    // Init canvas
+    // Init canvas — ResizeObserver pour éviter le canvas étiré sur mobile
     useEffect(() => {
-        if (canvasRef.current && gameState === 'PLAYING') {
-            const canvas = canvasRef.current;
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
+        if (!canvasRef.current || gameState !== 'PLAYING') return;
+        const canvas = canvasRef.current;
+
+        const initCanvas = (w, h) => {
+            if (w < 10 || h < 10) return;
+            canvas.width = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d');
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, w, h);
             canvasContextRef.current = ctx;
-        }
+        };
+
+        const ro = new ResizeObserver(entries => {
+            for (const e of entries) initCanvas(e.contentRect.width, e.contentRect.height);
+        });
+        ro.observe(canvas);
+
+        requestAnimationFrame(() => {
+            const r = canvas.getBoundingClientRect();
+            initCanvas(r.width, r.height);
+        });
+
+        return () => ro.disconnect();
     }, [gameState, isDrawer]);
 
     const startTimer = (duration, startTime) => {
@@ -376,19 +390,19 @@ function DrawPlayerView() {
                             />
                         </div>
 
-                        {/* Avatars */}
+                        {/* Avatars — 30 avatars, 5 colonnes, pas de scroll */}
                         <div className="flex flex-col gap-2">
                             <label className="text-[10px] font-black uppercase text-secondary tracking-wider">Avatar</label>
-                            <div className="grid grid-cols-6 gap-1.5 max-h-[180px] overflow-y-auto border-[2px] border-on-background/20 rounded-lg p-1.5 bg-[#fbf8ff]">
-                                {ALL_AVATARS.map((url) => (
+                            <div className="grid grid-cols-5 gap-2">
+                                {ALL_AVATARS.slice(0, 30).map((url) => (
                                     <button
                                         key={url}
                                         type="button"
                                         onClick={() => setAvatar(url)}
-                                        className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                                        className={`aspect-square rounded-xl overflow-hidden border-[3px] transition-all active:scale-95 ${
                                             avatar === url
-                                                ? 'border-secondary ring-2 ring-secondary scale-105'
-                                                : 'border-on-background/20 hover:border-on-background'
+                                                ? 'border-secondary shadow-[0_0_0_3px_rgba(189,0,255,0.3)] scale-105'
+                                                : 'border-on-background/20 hover:border-secondary/50'
                                         }`}
                                     >
                                         <img src={url} alt="" className="w-full h-full object-cover" />

@@ -27,6 +27,7 @@ function DrawHostView() {
     const [awards, setAwards] = useState([]);
     const [nextRoundCountdown, setNextRoundCountdown] = useState(0);
     const [copied, setCopied] = useState(false);
+    const [availableCategories, setAvailableCategories] = useState([]);
 
     const canvasRef = useRef(null);
     const canvasContextRef = useRef(null);
@@ -44,6 +45,10 @@ function DrawHostView() {
                 setRoomCode(response.roomCode);
                 setGameState('LOBBY');
             }
+        });
+        // Charger les catégories disponibles
+        socket.emit('draw-get-categories', {}, (response) => {
+            if (response.categories) setAvailableCategories(response.categories);
         });
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
@@ -156,18 +161,33 @@ function DrawHostView() {
     }, [roomCode]);
 
     useEffect(() => {
-        if (canvasRef.current && (gameState === 'PLAYING' || gameState === 'ROUND_END')) {
-            const canvas = canvasRef.current;
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
+        if (!canvasRef.current || gameState !== 'PLAYING') return;
+        const canvas = canvasRef.current;
+
+        const initCanvas = (w, h) => {
+            if (w < 10 || h < 10) return;
+            canvas.width = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d');
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, w, h);
             canvasContextRef.current = ctx;
-        }
+        };
+
+        const ro = new ResizeObserver(entries => {
+            for (const e of entries) initCanvas(e.contentRect.width, e.contentRect.height);
+        });
+        ro.observe(canvas);
+
+        // Fallback : forcer après un cycle de layout
+        requestAnimationFrame(() => {
+            const r = canvas.getBoundingClientRect();
+            initCanvas(r.width, r.height);
+        });
+
+        return () => ro.disconnect();
     }, [gameState]);
 
     const startTimer = (duration, startTime) => {
@@ -215,6 +235,24 @@ function DrawHostView() {
     const endRound = () => socket.emit('draw-end-round', { roomCode }, (r) => { if (r.error) console.error(r.error); });
     const nextRound = () => socket.emit('draw-next-round', { roomCode }, (r) => { if (r.error) console.error(r.error); });
     const restartGame = () => socket.emit('draw-restart-game', { roomCode }, (r) => { if (r.success) setGameState('LOBBY'); });
+
+    const CATEGORY_LABELS = {
+        actions: '🏃 Actions', animals: '🐾 Animaux', celebrities: '⭐ Célébrités',
+        expressions: '😄 Expressions', jobs: '💼 Métiers', movies: '🎬 Films',
+        objects_easy: '📦 Objets Facile', objects_medium: '🧩 Objets Moyen',
+        places: '🌍 Lieux', sports: '⚽ Sports',
+    };
+
+    const toggleCategory = (key) => {
+        setSettings(s => {
+            const current = s.categories.filter(c => c !== 'all');
+            if (current.includes(key)) {
+                const next = current.filter(c => c !== key);
+                return { ...s, categories: next.length === 0 ? ['all'] : next };
+            }
+            return { ...s, categories: [...current, key] };
+        });
+    };
 
     const getSortedPlayers = () => [...players].sort((a, b) => b.score - a.score);
     const timerPct = settings.timePerRound > 0 ? (timer / settings.timePerRound) * 100 : 0;
@@ -311,7 +349,7 @@ function DrawHostView() {
                             <span className="material-symbols-outlined text-sm text-secondary">tune</span>
                             <h2 className="text-xs font-black uppercase text-secondary">Paramètres</h2>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
                                 <div className="text-[9px] font-black uppercase text-secondary/80 mb-1">Tours / joueur</div>
                                 <div className="flex items-center gap-2">
@@ -333,6 +371,40 @@ function DrawHostView() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Catégories */}
+                        {availableCategories.length > 0 && (
+                            <div>
+                                <div className="text-[9px] font-black uppercase text-secondary/80 mb-2 flex items-center justify-between">
+                                    <span>Thèmes de mots</span>
+                                    <button
+                                        onClick={() => setSettings(s => ({ ...s, categories: ['all'] }))}
+                                        className="text-[8px] font-black text-secondary/60 hover:text-secondary transition-colors"
+                                    >
+                                        {settings.categories.includes('all') ? '✓ Tous' : 'Tout sélectionner'}
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {availableCategories.map(key => {
+                                        const isAll = settings.categories.includes('all');
+                                        const isActive = isAll || settings.categories.includes(key);
+                                        return (
+                                            <button
+                                                key={key}
+                                                onClick={() => toggleCategory(key)}
+                                                className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border-2 transition-all active:scale-95 ${
+                                                    isActive
+                                                        ? 'border-on-background bg-secondary text-white shadow-[1.5px_1.5px_0px_0px_rgba(22,26,51,1)]'
+                                                        : 'border-on-background/30 bg-[#fbf8ff] text-on-background/60 hover:border-on-background'
+                                                }`}
+                                            >
+                                                {CATEGORY_LABELS[key] || key}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Start */}

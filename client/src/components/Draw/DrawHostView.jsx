@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
 import { QRCodeSVG } from 'qrcode.react';
+import confetti from 'canvas-confetti';
+import { playCountdownSound, playTickSound, playSuccessSound, playFailSound, playWinnerSound } from '../../utils/audio';
 import './DrawStyles.css';
 
 function DrawHostView() {
@@ -29,10 +31,15 @@ function DrawHostView() {
     const [copied, setCopied] = useState(false);
     const [availableCategories, setAvailableCategories] = useState([]);
 
+    const [countdownVal, setCountdownVal] = useState(0);
+    const [drawerLeftWarning, setDrawerLeftWarning] = useState(false);
+
     const canvasRef = useRef(null);
     const canvasContextRef = useRef(null);
     const timerRef = useRef(null);
     const countdownRef = useRef(null);
+    const strokesHistoryRef = useRef([]);
+    const countdownIntervalRef = useRef(null);
 
     useEffect(() => {
         document.body.classList.add('comic-theme');
@@ -53,8 +60,61 @@ function DrawHostView() {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
             if (countdownRef.current) clearInterval(countdownRef.current);
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         };
     }, []);
+
+    const triggerRoundCountdown = () => {
+        setCountdownVal(3);
+        playCountdownSound();
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        let val = 3;
+        countdownIntervalRef.current = setInterval(() => {
+            val--;
+            if (val <= 0) {
+                clearInterval(countdownIntervalRef.current);
+                setCountdownVal(0);
+            } else {
+                setCountdownVal(val);
+                playCountdownSound();
+            }
+        }, 1000);
+    };
+
+    const triggerConfetti = () => {
+        confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.6 }
+        });
+    };
+
+    const triggerPodiumConfetti = () => {
+        playWinnerSound();
+        const end = Date.now() + (5 * 1000);
+        const colors = ['#FFD60A', '#FF3B30', '#C2DCFF', '#FFE0DC'];
+
+        (function frame() {
+            confetti({
+                particleCount: 2,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: colors
+            });
+            confetti({
+                particleCount: 2,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: colors
+            });
+
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+    };
 
     useEffect(() => {
         const handlePlayerJoined = (list) => setPlayers(list);
@@ -72,7 +132,13 @@ function DrawHostView() {
             setTimer(data.timePerRound);
             setGuessedPlayers(new Set());
             setGuessFeed([]);
-            clearCanvas();
+            setDrawerLeftWarning(false);
+            clearCanvas(true);
+            
+            const elapsed = Date.now() - data.roundStartTime;
+            if (elapsed < 3000) {
+                triggerRoundCountdown();
+            }
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
@@ -88,12 +154,24 @@ function DrawHostView() {
             setTimer(data.timePerRound);
             setGuessedPlayers(new Set());
             setGuessFeed([]);
-            clearCanvas();
+            setDrawerLeftWarning(false);
+            clearCanvas(true);
+            
+            const elapsed = Date.now() - data.roundStartTime;
+            if (elapsed < 3000) {
+                triggerRoundCountdown();
+            }
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleStroke = (stroke) => drawStroke(stroke);
-        const handleClear = () => clearCanvas();
+        const handleStroke = (stroke) => drawStroke(stroke, true);
+        const handleClear = () => clearCanvas(true);
+
+        const handleUndoStroke = () => {
+            strokesHistoryRef.current.pop();
+            clearCanvas(false);
+            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+        };
 
         const handlePlayerGuessed = (data) => {
             setGuessedPlayers(prev => new Set([...prev, data.playerId]));
@@ -102,6 +180,9 @@ function DrawHostView() {
         const handleCloseGuess = (data) => {
             setGuessFeed(prev => [{ type: 'close', playerName: data.playerName, id: Date.now() }, ...prev]);
         };
+        const handleIncorrectGuess = (data) => {
+            setGuessFeed(prev => [{ type: 'incorrect', playerName: data.playerName, guess: data.guess, id: Date.now() }, ...prev]);
+        };
         const handleAllGuessed = () => endRound();
 
         const handleRoundEnded = (data) => {
@@ -109,6 +190,21 @@ function DrawHostView() {
             setRevealedWord(data.word);
             setRoundResults(data.results);
             if (timerRef.current) clearInterval(timerRef.current);
+            
+            if (data.drawerLeft) {
+                setDrawerLeftWarning(true);
+                playFailSound();
+            } else {
+                setDrawerLeftWarning(false);
+                const anyoneGuessed = data.results.some(p => !p.wasDrawer && p.guessedThisRound);
+                if (anyoneGuessed) {
+                    playSuccessSound();
+                    triggerConfetti();
+                } else {
+                    playFailSound();
+                }
+            }
+
             setNextRoundCountdown(8);
             countdownRef.current = setInterval(() => {
                 setNextRoundCountdown(prev => {
@@ -124,9 +220,10 @@ function DrawHostView() {
             setAwards(data.awards || []);
             if (timerRef.current) clearInterval(timerRef.current);
             if (countdownRef.current) clearInterval(countdownRef.current);
+            triggerPodiumConfetti();
         };
 
-        const handleWordSkipped = (data) => { setWordCategory(data.wordCategory); setWordLength(data.wordLength); clearCanvas(); };
+        const handleWordSkipped = (data) => { setWordCategory(data.wordCategory); setWordLength(data.wordLength); clearCanvas(true); };
         const handleGameRestarted = () => { setGameState('LOBBY'); setCurrentRound(0); setGuessedPlayers(new Set()); setGuessFeed([]); };
 
         socket.on('draw-player-joined', handlePlayerJoined);
@@ -135,8 +232,10 @@ function DrawHostView() {
         socket.on('draw-next-round', handleNextRound);
         socket.on('draw-stroke', handleStroke);
         socket.on('draw-clear', handleClear);
+        socket.on('draw-undo-stroke', handleUndoStroke);
         socket.on('draw-player-guessed', handlePlayerGuessed);
         socket.on('draw-close-guess', handleCloseGuess);
+        socket.on('draw-incorrect-guess', handleIncorrectGuess);
         socket.on('draw-all-guessed', handleAllGuessed);
         socket.on('draw-round-ended', handleRoundEnded);
         socket.on('draw-game-over', handleGameOver);
@@ -150,8 +249,10 @@ function DrawHostView() {
             socket.off('draw-next-round', handleNextRound);
             socket.off('draw-stroke', handleStroke);
             socket.off('draw-clear', handleClear);
+            socket.off('draw-undo-stroke', handleUndoStroke);
             socket.off('draw-player-guessed', handlePlayerGuessed);
             socket.off('draw-close-guess', handleCloseGuess);
+            socket.off('draw-incorrect-guess', handleIncorrectGuess);
             socket.off('draw-all-guessed', handleAllGuessed);
             socket.off('draw-round-ended', handleRoundEnded);
             socket.off('draw-game-over', handleGameOver);
@@ -177,7 +278,10 @@ function DrawHostView() {
         };
 
         const ro = new ResizeObserver(entries => {
-            for (const e of entries) initCanvas(e.contentRect.width, e.contentRect.height);
+            for (const e of entries) {
+                initCanvas(e.contentRect.width, e.contentRect.height);
+                strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            }
         });
         ro.observe(canvas);
 
@@ -185,6 +289,7 @@ function DrawHostView() {
         requestAnimationFrame(() => {
             const r = canvas.getBoundingClientRect();
             initCanvas(r.width, r.height);
+            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
         });
 
         return () => ro.disconnect();
@@ -192,18 +297,35 @@ function DrawHostView() {
 
     const startTimer = (duration, startTime) => {
         if (timerRef.current) clearInterval(timerRef.current);
+        let lastLoggedTick = -1;
         const update = () => {
             const elapsed = (Date.now() - startTime) / 1000;
             const remaining = Math.max(0, duration - elapsed);
-            setTimer(Math.ceil(remaining));
-            if (remaining <= 0) { clearInterval(timerRef.current); endRound(); }
+            const ceilRemaining = Math.ceil(remaining);
+            setTimer(ceilRemaining);
+            
+            if (ceilRemaining <= 10 && ceilRemaining > 0 && ceilRemaining !== lastLoggedTick) {
+                lastLoggedTick = ceilRemaining;
+                playTickSound();
+            }
+
+            if (remaining <= 0) { 
+                clearInterval(timerRef.current); 
+                endRound(); 
+            }
         };
         update();
         timerRef.current = setInterval(update, 1000);
     };
 
-    const drawStroke = (stroke) => {
+    const drawStroke = (stroke, saveToHistory = true) => {
         if (!canvasContextRef.current || !canvasRef.current) return;
+        if (saveToHistory) {
+            const strokePointsStr = JSON.stringify(stroke.points);
+            if (!strokesHistoryRef.current.some(s => JSON.stringify(s.points) === strokePointsStr)) {
+                strokesHistoryRef.current.push(stroke);
+            }
+        }
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
         ctx.strokeStyle = stroke.color;
@@ -217,12 +339,14 @@ function DrawHostView() {
         ctx.stroke();
     };
 
-    const clearCanvas = () => {
+    const clearCanvas = (clearHistory = true) => {
+        if (clearHistory) {
+            strokesHistoryRef.current = [];
+        }
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
-        const canvas = canvasRef.current;
         ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     };
 
     const startGame = () => {
@@ -425,7 +549,17 @@ function DrawHostView() {
         const nonDrawers = players.filter(p => p.id !== currentDrawerId).length;
 
         return (
-            <div className="h-screen flex flex-col overflow-hidden comic-theme">
+            <div className="h-screen flex flex-col overflow-hidden comic-theme relative">
+                {countdownVal > 0 && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="comic-countdown-container scale-in">
+                            <div className="comic-countdown-text font-black italic text-8xl">
+                                {countdownVal}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
                     <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
@@ -482,8 +616,10 @@ function DrawHostView() {
                                 {guessersCount}/{nonDrawers} ont trouvé
                             </div>
                         </div>
-                        <div className="flex-1 min-h-0 bg-white border-[3px] border-on-background rounded-xl overflow-hidden neo-shadow">
-                            <canvas ref={canvasRef} className="draw-canvas" />
+                        <div className="flex-1 min-h-0 flex items-center justify-center p-2 relative">
+                            <div className="canvas-container-4-3">
+                                <canvas ref={canvasRef} className="draw-canvas" />
+                            </div>
                         </div>
                     </div>
 
@@ -520,20 +656,24 @@ function DrawHostView() {
                         </div>
 
                         {/* Guess feed */}
-                        <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow flex-1">
+                        <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow flex-1 flex flex-col min-h-0">
                             <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-xs">chat</span> Réponses
                             </h3>
-                            <div className="flex flex-col gap-1.5 overflow-y-auto max-h-48">
-                                {guessFeed.slice(0, 12).map(g => (
-                                    <div key={g.id} className={`text-[9px] p-1.5 rounded-lg border ${
+                            <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
+                                {guessFeed.slice(0, 20).map(g => (
+                                    <div key={g.id} className={`text-[10px] p-1.5 rounded-lg border ${
                                         g.type === 'correct'
-                                            ? 'bg-[#FFD60A]/30 border-[#ffe16d] font-black'
-                                            : 'bg-[#FFE0DC]/20 border-[#ffc2eb] font-bold'
+                                            ? 'bg-[#FFD60A]/30 border-[#ffe16d] font-black text-[#161a33]'
+                                            : g.type === 'close'
+                                                ? 'bg-[#FFE0DC]/20 border-[#ffc2eb] font-bold text-[#ff3b30]'
+                                                : 'bg-on-background/5 border-on-background/10 text-on-background/60 font-medium'
                                     }`}>
                                         {g.type === 'correct'
                                             ? `✅ ${g.playerName} a trouvé ! (+${g.points})`
-                                            : `🔥 ${g.playerName} s'approche...`
+                                            : g.type === 'close'
+                                                ? `🔥 ${g.playerName} s'approche...`
+                                                : `${g.playerName}: ${g.guess}`
                                         }
                                     </div>
                                 ))}
@@ -553,6 +693,12 @@ function DrawHostView() {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden comic-theme">
                 <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
+                    {drawerLeftWarning && (
+                        <div className="bg-[#FFE0DC] border-[3px] border-[#FF3B30] text-[#FF3B30] font-black text-sm uppercase p-4 text-center rounded-xl animate-pulse neo-shadow-sm">
+                            ⚠️ Le dessinateur s'est déconnecté ! Passage au tour suivant...
+                        </div>
+                    )}
+
                     {/* Word reveal — style bulle BD */}
                     <div className="bg-[#FF3B30] border-[4px] border-on-background p-5 shadow-[6px_6px_0_#1a1a1a] text-center -rotate-1">
                         <div className="text-[10px] font-black uppercase text-white/80 tracking-wider mb-1">Le mot était</div>
@@ -592,7 +738,7 @@ function DrawHostView() {
                             onClick={() => { if (countdownRef.current) clearInterval(countdownRef.current); nextRound(); }}
                             className="bg-[#FFE0DC] text-on-background font-black text-xs uppercase px-4 py-2 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#FFD60A] transition-colors active:translate-y-px"
                         >
-                            ⏭️ Passer maintenant
+                            ⏭ Passer maintenant
                         </button>
                     </div>
                 </div>

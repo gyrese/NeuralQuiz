@@ -66,3 +66,36 @@ body.comic-theme {
     50%  { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
+
+/* ── Centered Canvas 4:3 Aspect Ratio Container ───────── */
+.canvas-container-4-3 {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    width: 100%;
+    max-height: 100%;
+    margin: auto;
+    background: white;
+    border: 3px solid #161a33;
+    border-radius: 12px;
+    box-shadow: 4px 4px 0px 0px #161a33;
+    overflow: hidden;
+}
+
+/* Comic Countdown Pop Animation */
+.comic-countdown-container {
+    animation: comicPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    text-align: center;
+}
+
+@keyframes comicPop {
+    0% { transform: scale(0) rotate(-15deg); }
+    70% { transform: scale(1.1) rotate(5deg); }
+    100% { transform: scale(1) rotate(-2deg); }
+}
+
+.comic-countdown-text {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    color: #FFD60A;
+    -webkit-text-stroke: 4px #161a33;
+    text-shadow: 6px 6px 0px #161a33;
+}

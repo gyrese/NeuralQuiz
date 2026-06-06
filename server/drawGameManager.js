@@ -65,8 +65,10 @@ class DrawGameManager {
             gameState: 'LOBBY',    // LOBBY, PLAYING, ROUND_END, GAME_END
             currentRound: 0,
             currentDrawerIndex: 0,
+            currentDrawerId: null, // Stable drawer ID for the active round
             currentWord: null,     // { word, category, hint }
             drawOrder: [],         // Array of player IDs in draw order
+            drawQueue: [],         // Pre-calculated queue of drawers for rounds
             totalRounds: 0,        // Will be calculated when game starts
             timePerRound: settings.timePerRound || defaultSettings.timePerRound,
             roundStartTime: null,
@@ -108,10 +110,13 @@ class DrawGameManager {
 
             room.players.set(playerId, playerData);
 
-            // Update drawOrder if player was in it
+            // Update drawOrder and drawQueue if player was in it
             const drawOrderIndex = room.drawOrder.indexOf(existingPlayerId);
             if (drawOrderIndex !== -1) {
                 room.drawOrder[drawOrderIndex] = playerId;
+            }
+            if (room.drawQueue) {
+                room.drawQueue = room.drawQueue.map(id => id === existingPlayerId ? playerId : id);
             }
 
             console.log(`[DRAW] Player ${playerName} reconnected to room ${roomCode}`);
@@ -122,8 +127,10 @@ class DrawGameManager {
                 reconnected: true,
                 gameState: room.gameState,
                 currentRound: room.currentRound,
+                totalRounds: room.totalRounds,
                 currentWord: room.currentWord,
                 currentDrawerId: this.getCurrentDrawerId(roomCode),
+                currentDrawerName: room.players.get(this.getCurrentDrawerId(roomCode))?.name || '',
                 isDrawer: this.getCurrentDrawerId(roomCode) === playerId,
                 roundStartTime: room.roundStartTime,
                 timePerRound: room.timePerRound,
@@ -160,8 +167,10 @@ class DrawGameManager {
             lateJoin: isLateJoin,
             gameState: room.gameState,
             currentRound: room.currentRound,
+            totalRounds: room.totalRounds,
             currentWord: isLateJoin ? { category: room.currentWord?.category, wordLength: room.currentWord?.word.length } : null,
             currentDrawerId: this.getCurrentDrawerId(roomCode),
+            currentDrawerName: room.players.get(this.getCurrentDrawerId(roomCode))?.name || '',
             roundStartTime: room.roundStartTime,
             timePerRound: room.timePerRound,
             canvasHistory: room.canvasHistory
@@ -170,8 +179,8 @@ class DrawGameManager {
 
     getCurrentDrawerId(roomCode) {
         const room = this.rooms.get(roomCode);
-        if (!room || room.drawOrder.length === 0) return null;
-        return room.drawOrder[room.currentDrawerIndex % room.drawOrder.length];
+        if (!room) return null;
+        return room.currentDrawerId || null;
     }
 
     async startGame(roomCode) {
@@ -181,11 +190,18 @@ class DrawGameManager {
 
         // Shuffle draw order
         room.drawOrder = this.shuffleArray([...room.players.keys()]);
-        room.totalRounds = room.drawOrder.length * room.settings.roundsPerPlayer;
+        
+        // Generate drawQueue by repeating drawOrder roundsPerPlayer times
+        room.drawQueue = [];
+        for (let i = 0; i < room.settings.roundsPerPlayer; i++) {
+            room.drawQueue.push(...room.drawOrder);
+        }
+        room.totalRounds = room.drawQueue.length;
 
         room.gameState = 'PLAYING';
         room.currentRound = 1;
         room.currentDrawerIndex = 0;
+        room.currentDrawerId = room.drawQueue[0];
 
         // Get first word
         const wordData = await getRandomWord(room.settings.categories);
@@ -194,7 +210,7 @@ class DrawGameManager {
         room.canvasHistory = [];
         room.guessedThisRound = new Set();
 
-        const drawerId = this.getCurrentDrawerId(roomCode);
+        const drawerId = room.currentDrawerId;
 
         console.log(`[DRAW] Game started in room ${roomCode}. DrawerIndex: ${room.currentDrawerIndex}, DrawOrder: ${JSON.stringify(room.drawOrder)}, First drawer: ${room.players.get(drawerId)?.name}`);
 
@@ -402,7 +418,6 @@ class DrawGameManager {
         if (!room) return { error: 'Salon introuvable' };
 
         room.currentRound++;
-        room.currentDrawerIndex++;
 
         // Check if game over
         if (room.currentRound > room.totalRounds) {
@@ -431,15 +446,16 @@ class DrawGameManager {
 
         // Prepare next round
         room.gameState = 'PLAYING';
+        room.currentDrawerId = room.drawQueue[room.currentRound - 1];
         const wordData = await getRandomWord(room.settings.categories);
         room.currentWord = wordData;
         room.roundStartTime = Date.now();
         room.canvasHistory = [];
         room.guessedThisRound = new Set();
 
-        const drawerId = this.getCurrentDrawerId(roomCode);
+        const drawerId = room.currentDrawerId;
 
-        console.log(`[DRAW] Round ${room.currentRound} started. DrawerIndex: ${room.currentDrawerIndex}, DrawOrder: ${JSON.stringify(room.drawOrder)}, Drawer: ${room.players.get(drawerId)?.name}`);
+        console.log(`[DRAW] Round ${room.currentRound} started. DrawerIndex: ${room.currentRound - 1}, DrawOrder: ${JSON.stringify(room.drawOrder)}, Drawer: ${room.players.get(drawerId)?.name}`);
 
         return {
             success: true,
@@ -460,10 +476,12 @@ class DrawGameManager {
         room.gameState = 'LOBBY';
         room.currentRound = 0;
         room.currentDrawerIndex = 0;
+        room.currentDrawerId = null;
         room.currentWord = null;
         room.canvasHistory = [];
         room.guessedThisRound = new Set();
         room.drawOrder = [...room.players.keys()];
+        room.drawQueue = [];
 
         for (const player of room.players.values()) {
             player.score = 0;
@@ -483,6 +501,10 @@ class DrawGameManager {
         if (room.players.has(playerId)) {
             room.players.delete(playerId);
             room.drawOrder = room.drawOrder.filter(id => id !== playerId);
+            if (room.drawQueue) {
+                room.drawQueue = room.drawQueue.filter((id, idx) => id !== playerId || idx < room.currentRound - 1);
+                room.totalRounds = room.drawQueue.length;
+            }
             return { success: true };
         }
         return { error: 'Joueur introuvable' };
@@ -503,6 +525,11 @@ class DrawGameManager {
                     // If current drawer disconnects, we might need to skip
                     const isCurrentDrawer = this.getCurrentDrawerId(code) === playerId;
 
+                    if (room.drawQueue) {
+                        room.drawQueue = room.drawQueue.filter((id, idx) => id !== playerId || idx < room.currentRound - 1);
+                        room.totalRounds = room.drawQueue.length;
+                    }
+
                     return {
                         roomCode: code,
                         room,
@@ -515,6 +542,10 @@ class DrawGameManager {
 
                 room.players.delete(playerId);
                 room.drawOrder = room.drawOrder.filter(id => id !== playerId);
+                if (room.drawQueue) {
+                    room.drawQueue = room.drawQueue.filter(id => id !== playerId);
+                    room.totalRounds = room.drawQueue.length;
+                }
                 return { roomCode: code, room, isHost: false, type: 'left' };
             }
         }

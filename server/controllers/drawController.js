@@ -274,6 +274,16 @@ module.exports = {
             socket.to(`draw-${roomCode}`).emit('draw-clear');
         });
 
+        socket.on('draw-undo', ({ roomCode }) => {
+            const room = drawGameManager.getRoom(roomCode);
+            if (!room) return;
+            if (drawGameManager.getCurrentDrawerId(roomCode) !== socket.id) return;
+            if (room.canvasHistory.length > 0) {
+                room.canvasHistory.pop();
+                io.to(`draw-${roomCode}`).emit('draw-undo-stroke');
+            }
+        });
+
         // Player guesses
         socket.on('draw-submit-guess', ({ roomCode, guess }, callback) => {
             const result = drawGameManager.submitGuess(roomCode, socket.id, guess);
@@ -313,6 +323,11 @@ module.exports = {
                     playerName: player?.name
                 });
             } else {
+                const player = drawGameManager.getRoom(roomCode)?.players.get(socket.id);
+                io.to(`draw-${roomCode}`).emit('draw-incorrect-guess', {
+                    playerName: player?.name,
+                    guess: guess
+                });
                 callback(result);
             }
         });
@@ -456,6 +471,14 @@ module.exports = {
                 if (drawResult.wasDrawer && drawResult.room.gameState === 'PLAYING') {
                     const endResult = drawGameManager.endRound(drawResult.roomCode);
                     if (endResult.success) {
+                        io.to(`draw-${drawResult.roomCode}`).emit('draw-round-ended', {
+                            word: endResult.word,
+                            results: endResult.results,
+                            guessersCount: endResult.guessersCount,
+                            currentRound: endResult.currentRound,
+                            totalRounds: endResult.totalRounds,
+                            drawerLeft: true
+                        });
                         io.to(`draw-${drawResult.roomCode}`).emit('draw-drawer-left', {
                             word: endResult.word,
                             results: endResult.results

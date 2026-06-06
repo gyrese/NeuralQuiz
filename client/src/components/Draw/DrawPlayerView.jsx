@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
+import { playCountdownSound, playSuccessSound, playFailSound, playWinnerSound } from '../../utils/audio';
 import './DrawStyles.css';
 
 // Avatars partagés avec GeoTrackr (60 webp)
@@ -51,6 +52,8 @@ function DrawPlayerView() {
     const [brushSize, setBrushSize] = useState(8);
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentStroke, setCurrentStroke] = useState([]);
+    const [isEraser, setIsEraser] = useState(false);
+    const [countdownVal, setCountdownVal] = useState(0);
 
     const [revealedWord, setRevealedWord] = useState(null);
     const [finalResults, setFinalResults] = useState([]);
@@ -60,25 +63,115 @@ function DrawPlayerView() {
     const canvasContextRef = useRef(null);
     const timerRef = useRef(null);
     const guessInputRef = useRef(null);
+    const strokesHistoryRef = useRef([]);
+    const countdownIntervalRef = useRef(null);
 
-    // Load stored session
+    // Reuse doJoin for mount, manually joining, and silent socket reconnects
+    const doJoin = (code, name, userAvatar, silent = false) => {
+        if (!name.trim() || !code.trim()) return;
+        if (!silent) setError('');
+        
+        socket.emit('draw-join-room', { 
+            roomCode: code.toUpperCase(), 
+            playerName: name.trim(), 
+            avatar: userAvatar 
+        }, (response) => {
+            if (response.error) {
+                if (!silent) {
+                    setError(response.error);
+                    localStorage.removeItem('draw-session');
+                }
+            } else {
+                setIsJoined(true);
+                localStorage.setItem('draw-session', JSON.stringify({ 
+                    name: name.trim(), 
+                    avatar: userAvatar, 
+                    roomCode: code.toUpperCase(), 
+                    isJoined: true 
+                }));
+                
+                if (response.gameState === 'PLAYING') {
+                    setGameState('PLAYING');
+                    setCurrentRound(response.currentRound);
+                    setTotalRounds(response.totalRounds);
+                    setDrawerName(response.currentDrawerName || '');
+                    if (response.currentWord) {
+                        setWordCategory(response.currentWord.category);
+                        setWordLength(response.currentWord.wordLength);
+                    }
+                    setTimePerRound(response.timePerRound);
+                    setIsDrawer(response.currentDrawerId === socket.id);
+                    
+                    if (response.hasGuessed) {
+                        setHasGuessed(true);
+                    }
+                    if (response.myScore !== undefined) {
+                        setMyScore(response.myScore);
+                    }
+
+                    if (response.canvasHistory) {
+                        setTimeout(() => {
+                            clearCanvas(true);
+                            response.canvasHistory.forEach(s => drawStroke(s, true));
+                        }, 100);
+                    }
+                    startTimer(response.timePerRound, response.roundStartTime);
+                } else {
+                    setGameState(response.gameState || 'LOBBY');
+                }
+            }
+        });
+    };
+
+    // Load stored session & handle auto-join on mount
     useEffect(() => {
         const stored = localStorage.getItem('draw-session');
         if (stored) {
             try {
-                const { name, avatar: a, roomCode: rc } = JSON.parse(stored);
-                if (name) setPlayerName(name);
-                if (a) setAvatar(a);
-                if (!urlRoomCode && rc) setRoomCode(rc);
+                const session = JSON.parse(stored);
+                if (session.name) setPlayerName(session.name);
+                if (session.avatar) setAvatar(session.avatar);
+
+                const rc = urlRoomCode || session.roomCode;
+                if (rc) setRoomCode(rc.toUpperCase());
+
+                if (session.isJoined && rc && session.name) {
+                    console.log('[DRAW] Auto-rejoining session on mount...');
+                    doJoin(rc, session.name, session.avatar);
+                }
             } catch { /* ignore */ }
+        } else {
+            if (urlRoomCode) setRoomCode(urlRoomCode.toUpperCase());
         }
     }, [urlRoomCode]);
+
+    // Handle connection/reconnection flow (style GeoTrackr)
+    useEffect(() => {
+        const handleConnect = () => {
+            const stored = localStorage.getItem('draw-session');
+            if (stored) {
+                try {
+                    const session = JSON.parse(stored);
+                    if (session.isJoined && session.roomCode && session.name) {
+                        console.log('[DRAW] Auto-rejoining silently on socket reconnect...');
+                        doJoin(session.roomCode, session.name, session.avatar, true);
+                    }
+                } catch { /* ignore */ }
+            }
+        };
+
+        socket.on('connect', handleConnect);
+        return () => {
+            socket.off('connect', handleConnect);
+        };
+    }, []);
 
     useEffect(() => {
         document.body.classList.add('comic-theme');
         return () => {
             document.body.classList.remove('comic-theme');
             if (timerRef.current) clearInterval(timerRef.current);
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         };
     }, []);
 
@@ -98,7 +191,12 @@ function DrawPlayerView() {
             setHasGuessed(false);
             setGuessResult(null);
             setMyWord(null);
-            clearCanvas();
+            clearCanvas(true);
+            
+            const elapsed = Date.now() - data.roundStartTime;
+            if (elapsed < 3000) {
+                triggerRoundCountdown();
+            }
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
@@ -116,13 +214,29 @@ function DrawPlayerView() {
             setHasGuessed(false);
             setGuessResult(null);
             setMyWord(null);
-            clearCanvas();
+            clearCanvas(true);
+
+            const elapsed = Date.now() - data.roundStartTime;
+            if (elapsed < 3000) {
+                triggerRoundCountdown();
+            }
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleStroke = (stroke) => drawStroke(stroke);
-        const handleClear = () => clearCanvas();
-        const handleWordSkipped = (data) => { setWordCategory(data.wordCategory); setWordLength(data.wordLength); clearCanvas(); };
+        const handleStroke = (stroke) => drawStroke(stroke, true);
+        const handleClear = () => clearCanvas(true);
+        
+        const handleUndoStroke = () => {
+            strokesHistoryRef.current.pop();
+            clearCanvas(false);
+            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+        };
+
+        const handleWordSkipped = (data) => { 
+            setWordCategory(data.wordCategory); 
+            setWordLength(data.wordLength); 
+            clearCanvas(true); 
+        };
 
         const handleRoundEnded = (data) => {
             setGameState('ROUND_END');
@@ -130,6 +244,10 @@ function DrawPlayerView() {
             if (timerRef.current) clearInterval(timerRef.current);
             const me = data.results.find(p => p.id === socket.id);
             if (me) setMyScore(me.score);
+            if (data.drawerLeft) {
+                setError("Le dessinateur s'est déconnecté ! Passage au tour suivant...");
+                setTimeout(() => setError(''), 4000);
+            }
         };
 
         const handleGameOver = (data) => {
@@ -139,6 +257,16 @@ function DrawPlayerView() {
             if (timerRef.current) clearInterval(timerRef.current);
             const me = data.results.find(p => p.id === socket.id);
             if (me) setMyScore(me.score);
+            
+            // Clean draw session on game over
+            const stored = localStorage.getItem('draw-session');
+            if (stored) {
+                try {
+                    const session = JSON.parse(stored);
+                    session.isJoined = false;
+                    localStorage.setItem('draw-session', JSON.stringify(session));
+                } catch {}
+            }
         };
 
         const handleGameRestarted = () => {
@@ -150,13 +278,18 @@ function DrawPlayerView() {
             setMyWord(null);
         };
 
-        const handleKicked = () => { setIsJoined(false); setError('Vous avez été expulsé de la partie'); };
+        const handleKicked = () => { 
+            setIsJoined(false); 
+            setError('Vous avez été expulsé de la partie'); 
+            localStorage.removeItem('draw-session');
+        };
 
         socket.on('draw-game-started', handleGameStarted);
         socket.on('draw-your-word', handleYourWord);
         socket.on('draw-next-round', handleNextRound);
         socket.on('draw-stroke', handleStroke);
         socket.on('draw-clear', handleClear);
+        socket.on('draw-undo-stroke', handleUndoStroke);
         socket.on('draw-word-skipped', handleWordSkipped);
         socket.on('draw-round-ended', handleRoundEnded);
         socket.on('draw-game-over', handleGameOver);
@@ -169,6 +302,7 @@ function DrawPlayerView() {
             socket.off('draw-next-round', handleNextRound);
             socket.off('draw-stroke', handleStroke);
             socket.off('draw-clear', handleClear);
+            socket.off('draw-undo-stroke', handleUndoStroke);
             socket.off('draw-word-skipped', handleWordSkipped);
             socket.off('draw-round-ended', handleRoundEnded);
             socket.off('draw-game-over', handleGameOver);
@@ -176,6 +310,24 @@ function DrawPlayerView() {
             socket.off('draw-kicked', handleKicked);
         };
     }, [isJoined, roomCode]);
+
+    const triggerRoundCountdown = () => {
+        setCountdownVal(3);
+        playCountdownSound();
+        
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        let currentVal = 3;
+        countdownIntervalRef.current = setInterval(() => {
+            currentVal--;
+            if (currentVal <= 0) {
+                clearInterval(countdownIntervalRef.current);
+                setCountdownVal(0);
+            } else {
+                setCountdownVal(currentVal);
+                playCountdownSound();
+            }
+        }, 1000);
+    };
 
     // Init canvas — ResizeObserver pour éviter le canvas étiré sur mobile
     useEffect(() => {
@@ -195,17 +347,21 @@ function DrawPlayerView() {
         };
 
         const ro = new ResizeObserver(entries => {
-            for (const e of entries) initCanvas(e.contentRect.width, e.contentRect.height);
+            for (const e of entries) {
+                initCanvas(e.contentRect.width, e.contentRect.height);
+                strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            }
         });
         ro.observe(canvas);
 
         requestAnimationFrame(() => {
             const r = canvas.getBoundingClientRect();
             initCanvas(r.width, r.height);
+            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
         });
 
         return () => ro.disconnect();
-    }, [gameState, isDrawer]);
+    }, [gameState]);
 
     const startTimer = (duration, startTime) => {
         if (timerRef.current) clearInterval(timerRef.current);
@@ -220,27 +376,17 @@ function DrawPlayerView() {
     const joinRoom = () => {
         if (!playerName.trim()) { setError('Entrez votre nom'); return; }
         if (!roomCode.trim()) { setError('Entrez le code du salon'); return; }
-        socket.emit('draw-join-room', { roomCode: roomCode.toUpperCase(), playerName: playerName.trim(), avatar }, (response) => {
-            if (response.error) {
-                setError(response.error);
-            } else {
-                setIsJoined(true);
-                setError('');
-                localStorage.setItem('draw-session', JSON.stringify({ name: playerName, avatar, roomCode: roomCode.toUpperCase() }));
-                if (response.gameState === 'PLAYING') {
-                    setGameState('PLAYING');
-                    setCurrentRound(response.currentRound);
-                    setIsDrawer(response.currentDrawerId === socket.id);
-                    if (response.canvasHistory) {
-                        setTimeout(() => response.canvasHistory.forEach(s => drawStroke(s)), 100);
-                    }
-                }
-            }
-        });
+        doJoin(roomCode, playerName, avatar);
     };
 
-    const drawStroke = (stroke) => {
+    const drawStroke = (stroke, saveToHistory = true) => {
         if (!canvasContextRef.current || !canvasRef.current) return;
+        if (saveToHistory) {
+            const strokePointsStr = JSON.stringify(stroke.points);
+            if (!strokesHistoryRef.current.some(s => JSON.stringify(s.points) === strokePointsStr)) {
+                strokesHistoryRef.current.push(stroke);
+            }
+        }
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
         ctx.strokeStyle = stroke.color;
@@ -254,7 +400,10 @@ function DrawPlayerView() {
         ctx.stroke();
     };
 
-    const clearCanvas = () => {
+    const clearCanvas = (clearHistory = true) => {
+        if (clearHistory) {
+            strokesHistoryRef.current = [];
+        }
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
         ctx.fillStyle = 'white';
@@ -272,7 +421,7 @@ function DrawPlayerView() {
     };
 
     const handleDrawStart = (e) => {
-        if (!isDrawer) return;
+        if (!isDrawer || countdownVal > 0) return;
         e.preventDefault();
         setIsDrawing(true);
         const coords = getCanvasCoords(e);
@@ -288,7 +437,7 @@ function DrawPlayerView() {
     };
 
     const handleDrawMove = (e) => {
-        if (!isDrawing || !isDrawer) return;
+        if (!isDrawing || !isDrawer || countdownVal > 0) return;
         e.preventDefault();
         const coords = getCanvasCoords(e);
         const prev = currentStroke[currentStroke.length - 1];
@@ -308,25 +457,55 @@ function DrawPlayerView() {
         if (!isDrawing || !isDrawer) return;
         setIsDrawing(false);
         if (currentStroke.length > 0) {
-            socket.emit('draw-stroke', { roomCode, stroke: { color: selectedColor, size: brushSize, points: currentStroke } });
+            const stroke = { color: selectedColor, size: brushSize, points: currentStroke };
+            strokesHistoryRef.current.push(stroke);
+            socket.emit('draw-stroke', { roomCode, stroke });
         }
         setCurrentStroke([]);
     };
 
-    const handleClearCanvas = () => { clearCanvas(); socket.emit('draw-clear', { roomCode }); };
+    const handleClearCanvas = () => { 
+        clearCanvas(true); 
+        socket.emit('draw-clear', { roomCode }); 
+    };
+
+    const handleUndo = () => {
+        if (!isDrawer) return;
+        if (strokesHistoryRef.current.length > 0) {
+            strokesHistoryRef.current.pop();
+            clearCanvas(false);
+            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            socket.emit('draw-undo', { roomCode });
+        }
+    };
+
     const handleSkipWord = () => {
         socket.emit('draw-skip-word', { roomCode }, (r) => {
-            if (r.success) { setMyWord({ word: r.word, category: r.category, hint: r.hint }); clearCanvas(); }
+            if (r.success) { 
+                setMyWord({ word: r.word, category: r.category, hint: r.hint }); 
+                clearCanvas(true); 
+            }
         });
     };
 
     const submitGuess = () => {
-        if (!guess.trim() || hasGuessed) return;
+        if (!guess.trim() || hasGuessed || countdownVal > 0) return;
         socket.emit('draw-submit-guess', { roomCode, guess: guess.trim() }, (r) => {
             if (r.correct) {
                 setHasGuessed(true);
                 setGuessResult({ correct: true, points: r.points, rank: r.rank });
                 setMyScore(prev => prev + r.points);
+                playSuccessSound();
+                
+                // Update score in local storage
+                const stored = localStorage.getItem('draw-session');
+                if (stored) {
+                    try {
+                        const session = JSON.parse(stored);
+                        session.myScore = myScore + r.points;
+                        localStorage.setItem('draw-session', JSON.stringify(session));
+                    } catch {}
+                }
             } else if (r.closeMatch) {
                 setGuessResult({ closeMatch: true, message: r.message });
                 setShakeGuess(true);
@@ -451,14 +630,22 @@ function DrawPlayerView() {
     // ── PLAYING — DESSINATEUR ─────────────────────────────────────────
     if (gameState === 'PLAYING' && isDrawer) {
         return (
-            <div className="h-screen flex flex-col overflow-hidden comic-player-bg"
+            <div className="h-screen flex flex-col overflow-hidden comic-player-bg relative"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                
+                {countdownVal > 0 && (
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FFFBF0]/95 backdrop-blur-sm">
+                        <div className="text-8xl font-black text-[#FF3B30] animate-bounce">{countdownVal}</div>
+                        <div className="text-lg font-black uppercase tracking-wider text-on-background mt-4">Prépare-toi à dessiner !</div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
                     <div className={`font-black text-xl tabular-nums ${timerClass}`}>{timer}</div>
                     <div className="flex-1 h-2 bg-on-background/10 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
-                            style={{ width: `${timerPct}%` }} />
+                             style={{ width: `${timerPct}%` }} />
                     </div>
                     <div className="text-[10px] font-black text-[#FF3B30] uppercase">{currentRound}/{totalRounds}</div>
                 </div>
@@ -479,18 +666,20 @@ function DrawPlayerView() {
                 )}
 
                 {/* Canvas */}
-                <div className="flex-1 min-h-0 mx-3 my-2 bg-white border-[3px] border-on-background rounded-xl overflow-hidden neo-shadow">
-                    <canvas
-                        ref={canvasRef}
-                        className="draw-canvas"
-                        onMouseDown={handleDrawStart}
-                        onMouseMove={handleDrawMove}
-                        onMouseUp={handleDrawEnd}
-                        onMouseLeave={handleDrawEnd}
-                        onTouchStart={handleDrawStart}
-                        onTouchMove={handleDrawMove}
-                        onTouchEnd={handleDrawEnd}
-                    />
+                <div className="flex-1 min-h-0 flex items-center justify-center p-2 relative">
+                    <div className="canvas-container-4-3">
+                        <canvas
+                            ref={canvasRef}
+                            className="draw-canvas"
+                            onMouseDown={handleDrawStart}
+                            onMouseMove={handleDrawMove}
+                            onMouseUp={handleDrawEnd}
+                            onMouseLeave={handleDrawEnd}
+                            onTouchStart={handleDrawStart}
+                            onTouchMove={handleDrawMove}
+                            onTouchEnd={handleDrawEnd}
+                        />
+                    </div>
                 </div>
 
                 {/* Tools */}
@@ -500,12 +689,12 @@ function DrawPlayerView() {
                         {COLORS.map(c => (
                             <button
                                 key={c.value}
-                                onClick={() => setSelectedColor(c.value)}
+                                onClick={() => { setSelectedColor(c.value); setIsEraser(false); }}
                                 className={`w-9 h-9 rounded-full border-[3px] transition-transform active:scale-90 ${
-                                    selectedColor === c.value
+                                    selectedColor === c.value && !isEraser
                                         ? 'border-on-background scale-125 shadow-md'
                                         : 'border-on-background/40 hover:scale-110'
-                                }`}
+                                 }`}
                                 style={{ backgroundColor: c.value, boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #ccc' : undefined }}
                                 title={c.name}
                             />
@@ -517,9 +706,9 @@ function DrawPlayerView() {
                         {BRUSH_SIZES.map(size => (
                             <button
                                 key={size}
-                                onClick={() => setBrushSize(size)}
+                                onClick={() => { setBrushSize(size); setIsEraser(false); }}
                                 className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-colors active:scale-95 ${
-                                    brushSize === size
+                                    brushSize === size && !isEraser
                                         ? 'border-on-background bg-[#FFD60A]'
                                         : 'border-on-background/30 bg-[#FFFBF0] hover:bg-[#C2DCFF]'
                                 }`}
@@ -529,6 +718,35 @@ function DrawPlayerView() {
                             </button>
                         ))}
                         <div className="w-px h-6 bg-on-background/20" />
+                        <button
+                            onClick={() => {
+                                const nextEraser = !isEraser;
+                                setIsEraser(nextEraser);
+                                if (nextEraser) {
+                                    setSelectedColor('#ffffff');
+                                    setBrushSize(30);
+                                } else {
+                                    setSelectedColor('#000000');
+                                    setBrushSize(8);
+                                }
+                            }}
+                            className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center active:scale-95 transition-colors ${
+                                isEraser
+                                    ? 'border-on-background bg-[#FFD60A]'
+                                    : 'border-on-background/30 bg-[#FFFBF0] hover:bg-[#FFE0DC]'
+                            }`}
+                            title="Gomme"
+                        >
+                            <span className="material-symbols-outlined text-base text-on-background">ink_eraser</span>
+                        </button>
+                        <button
+                            onClick={handleUndo}
+                            disabled={strokesHistoryRef.current.length === 0}
+                            className="w-10 h-10 rounded-lg border-2 border-on-background/30 bg-[#C2DCFF] flex items-center justify-center hover:bg-[#99c2ff] active:scale-95 transition-colors disabled:opacity-40 disabled:hover:bg-[#C2DCFF]"
+                            title="Annuler le dernier trait"
+                        >
+                            <span className="material-symbols-outlined text-base text-on-background">undo</span>
+                        </button>
                         <button
                             onClick={handleClearCanvas}
                             className="w-10 h-10 rounded-lg border-2 border-on-background/30 bg-[#FFE0DC] flex items-center justify-center hover:bg-[#ff9f9f] active:scale-95 transition-colors"
@@ -545,14 +763,22 @@ function DrawPlayerView() {
     // ── PLAYING — DEVINEUR ────────────────────────────────────────────
     if (gameState === 'PLAYING' && !isDrawer) {
         return (
-            <div className="h-screen flex flex-col overflow-hidden comic-player-bg"
+            <div className="h-screen flex flex-col overflow-hidden comic-player-bg relative"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+
+                {countdownVal > 0 && (
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FFFBF0]/95 backdrop-blur-sm">
+                        <div className="text-8xl font-black text-[#FF3B30] animate-bounce">{countdownVal}</div>
+                        <div className="text-lg font-black uppercase tracking-wider text-on-background mt-4">Prépare-toi à deviner !</div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
                     <div className={`font-black text-xl tabular-nums ${timerClass}`}>{timer}</div>
                     <div className="flex-1 h-2 bg-on-background/10 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
-                            style={{ width: `${timerPct}%` }} />
+                             style={{ width: `${timerPct}%` }} />
                     </div>
                     <div className="text-[10px] font-black text-[#FF3B30] uppercase">{currentRound}/{totalRounds}</div>
                     <div className="font-black text-sm text-on-background">{myScore} pts</div>
@@ -573,17 +799,19 @@ function DrawPlayerView() {
                 </div>
 
                 {/* Canvas */}
-                <div className={`flex-1 min-h-0 mx-3 my-2 bg-white border-[3px] border-on-background rounded-xl overflow-hidden neo-shadow relative draw-canvas-viewer ${hasGuessed ? 'opacity-80' : ''}`}>
-                    <canvas ref={canvasRef} className="draw-canvas" />
-                    {hasGuessed && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FFD60A]/80 backdrop-blur-sm">
-                            <div className="text-4xl mb-2">✅</div>
-                            <div className="text-xl font-black uppercase italic text-on-background">Bravo !</div>
-                            <div className="text-sm font-black text-on-background mt-1">
-                                +{guessResult?.points} pts — #{guessResult?.rank}
+                <div className="flex-1 min-h-0 flex items-center justify-center p-2 relative">
+                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-80' : ''}`}>
+                        <canvas ref={canvasRef} className="draw-canvas" />
+                        {hasGuessed && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FFD60A]/80 backdrop-blur-sm">
+                                <div className="text-4xl mb-2">✅</div>
+                                <div className="text-xl font-black uppercase italic text-on-background">Bravo !</div>
+                                <div className="text-sm font-black text-on-background mt-1">
+                                    +{guessResult?.points} pts — #{guessResult?.rank}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 {/* Guess input */}
@@ -603,12 +831,12 @@ function DrawPlayerView() {
                                 value={guess}
                                 onChange={(e) => setGuess(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
-                                disabled={hasGuessed}
+                                disabled={hasGuessed || countdownVal > 0}
                                 autoComplete="off"
                             />
                             <button
                                 onClick={submitGuess}
-                                disabled={hasGuessed || !guess.trim()}
+                                disabled={hasGuessed || !guess.trim() || countdownVal > 0}
                                 className="bg-[#FFD60A] text-on-background font-black px-4 py-2 border-[3px] border-on-background rounded-lg shadow-[2px_2px_0px_0px_#161a33] active:shadow-none active:translate-y-px transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>

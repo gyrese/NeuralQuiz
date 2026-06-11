@@ -521,86 +521,94 @@ function DrawPlayerView() {
     // ── JOIN ──────────────────────────────────────────────────────────
     if (!isJoined) {
         return (
-            <div className="min-h-screen flex items-center justify-center p-4 relative overflow-auto">
-                <div className="relative z-10 w-full max-w-sm flex flex-col gap-4">
-                    {/* Header */}
-                    <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#FF3B30] border-[3px] border-on-background neo-shadow mb-3">
-                            <span className="text-3xl">🎨</span>
-                        </div>
-                        <h1 className="text-3xl font-black uppercase italic text-on-background">DrawUp</h1>
-                        <p className="text-[10px] font-bold text-[#FF3B30] uppercase tracking-wider mt-1">Rejoindre une partie</p>
+            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-auto">
+                {/* Simulated status bar */}
+                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
+                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
+                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
                     </div>
+                </div>
 
-                    {error && (
-                        <div className="bg-[#FFD60A] border-[3px] border-on-background rounded-xl p-3 text-on-background text-xs font-black text-center neo-shadow-sm">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Form */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-5 neo-shadow flex flex-col gap-4">
-                        {/* Code */}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Code du salon</label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border-[3px] border-on-background font-black text-center text-2xl uppercase tracking-[0.3em] focus:outline-none focus:ring-0 bg-[#FFFBF0] rounded-lg placeholder:text-on-background/30"
-                                placeholder="ABCDE1"
-                                value={roomCode}
-                                onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
-                                maxLength={6}
-                                readOnly={!!urlRoomCode}
-                            />
-                        </div>
-
-                        {/* Pseudo */}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Ton pseudo</label>
-                            <input
-                                type="text"
-                                className="w-full p-2.5 border-[3px] border-on-background font-bold text-xs focus:outline-none focus:ring-0 bg-[#FFFBF0] rounded-lg placeholder:text-on-background/30"
-                                placeholder="Picasso"
-                                value={playerName}
-                                onChange={(e) => setPlayerName(e.target.value)}
-                                maxLength={20}
-                                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
-                            />
-                        </div>
-
-                        {/* Avatars — 30 avatars, 5 colonnes, pas de scroll */}
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Avatar</label>
-                            <div className="grid grid-cols-5 gap-2">
-                                {ALL_AVATARS.slice(0, 30).map((url) => (
-                                    <button
-                                        key={url}
-                                        type="button"
-                                        onClick={() => setAvatar(url)}
-                                        className={`aspect-square rounded-xl overflow-hidden border-[3px] transition-all active:scale-95 ${
-                                            avatar === url
-                                                ? 'border-[#FF3B30] shadow-[0_0_0_3px_rgba(189,0,255,0.3)] scale-105'
-                                                : 'border-on-background/20 hover:border-[#FF3B30]/50'
-                                        }`}
-                                    >
-                                        <img src={url} alt="" className="w-full h-full object-cover" />
-                                    </button>
-                                ))}
+                <div className="flex-1 flex items-center justify-center p-4 relative">
+                    <div className="relative z-10 w-full max-w-sm flex flex-col gap-4">
+                        {/* Header */}
+                        <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FF3B30] border-[3px] border-[#161a33] shadow-[3px_3px_0px_0px_#161a33] mb-3">
+                                <span className="text-3xl">🎨</span>
                             </div>
+                            <h1 className="text-4xl font-black uppercase italic text-[#161a33] tracking-tight">DrawUp</h1>
+                            <p className="text-[10px] font-black text-[#FF3B30] uppercase tracking-widest mt-1">Rejoindre une partie</p>
                         </div>
 
-                        <button
-                            onClick={joinRoom}
-                            className="w-full bg-[#FFD60A] text-on-background font-black py-3.5 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-1px] active:translate-y-px active:shadow-none transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
-                        >
-                            <span className="material-symbols-outlined text-sm">brush</span>
-                            Rejoindre la Partie
+                        {error && (
+                            <div className="bg-[#FFD60A] border-[3px] border-[#161a33] rounded-xl p-3 text-[#161a33] text-xs font-black text-center shadow-[3px_3px_0px_0px_#161a33]">
+                                {error}
+                            </div>
+                        )}
+
+                        {/* Form */}
+                        <div className="sk-box p-6 flex flex-col gap-4">
+                            {/* Code */}
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Code du salon</label>
+                                <input
+                                    type="text"
+                                    className="sk-input text-center text-2xl uppercase tracking-[0.3em] font-black placeholder:text-[#161a33]/30"
+                                    placeholder="ABCDE1"
+                                    value={roomCode}
+                                    onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
+                                    maxLength={6}
+                                    readOnly={!!urlRoomCode}
+                                />
+                            </div>
+
+                            {/* Pseudo */}
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Ton pseudo</label>
+                                <input
+                                    type="text"
+                                    className="sk-input text-xs"
+                                    placeholder="Picasso"
+                                    value={playerName}
+                                    onChange={(e) => setPlayerName(e.target.value)}
+                                    maxLength={20}
+                                    onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                                />
+                            </div>
+
+                            {/* Avatars */}
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Avatar</label>
+                                <div className="grid grid-cols-5 gap-2 max-h-[140px] overflow-y-auto p-1 border-2 border-[#161a33]/15 rounded-xl bg-[#FFFBF0]">
+                                    {ALL_AVATARS.slice(0, 30).map((url) => (
+                                        <button
+                                            key={url}
+                                            type="button"
+                                            onClick={() => setAvatar(url)}
+                                            className={`aspect-square sk-ava ${avatar === url ? 'active' : ''}`}
+                                            style={{ width: '100%', height: 'auto' }}
+                                        >
+                                            <img src={url} alt="" className="w-full h-full object-cover" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={joinRoom}
+                                className="sk-btn sk-btn-warning w-full py-3.5 flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-base">brush</span>
+                                Rejoindre la Partie
+                            </button>
+                        </div>
+
+                        <button onClick={() => navigate('/draw')} className="sk-btn sk-btn-secondary py-2 flex items-center justify-center gap-1 mx-auto text-xs">
+                            <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
                         </button>
                     </div>
-
-                    <button onClick={() => navigate('/draw')} className="text-[9px] font-black text-[#FF3B30] uppercase tracking-wide flex items-center justify-center gap-1 mx-auto">
-                        <span className="material-symbols-outlined text-xs">arrow_back</span> Retour
-                    </button>
                 </div>
             </div>
         );
@@ -609,18 +617,29 @@ function DrawPlayerView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-                <div className="relative z-10 flex flex-col items-center gap-5 max-w-xs w-full">
-                    <div className="w-20 h-20 rounded-full border-[3px] border-on-background overflow-hidden neo-shadow">
-                        <img src={avatar} alt="" className="w-full h-full object-cover" />
+            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-hidden">
+                {/* Simulated status bar */}
+                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
+                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
+                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
                     </div>
-                    <div className="text-center">
-                        <div className="text-xl font-black text-on-background uppercase">{playerName}</div>
-                        <div className="text-xs font-bold text-[#FF3B30] uppercase mt-1">Salon : {roomCode}</div>
-                    </div>
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center w-full">
-                        <span className="material-symbols-outlined text-[#FF3B30] text-2xl animate-pulse">hourglass_empty</span>
-                        <p className="text-xs font-black text-on-background uppercase mt-2">En attente du lancement...</p>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+                    <div className="relative z-10 flex flex-col items-center gap-5 max-w-xs w-full">
+                        <div className="w-24 h-24 sk-ava">
+                            <img src={avatar} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="text-center">
+                            <h2 className="text-2xl sk-h text-[#161a33]">{playerName}</h2>
+                            <div className="text-xs font-black text-[#FF3B30] uppercase mt-1">Salon : {roomCode}</div>
+                        </div>
+                        <div className="sk-box p-6 text-center w-full bg-white flex flex-col items-center justify-center gap-2">
+                            <span className="material-symbols-outlined text-[#FF3B30] text-3xl animate-pulse">hourglass_empty</span>
+                            <p className="text-sm font-black text-[#161a33] uppercase">En attente du lancement...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -630,43 +649,52 @@ function DrawPlayerView() {
     // ── PLAYING — DESSINATEUR ─────────────────────────────────────────
     if (gameState === 'PLAYING' && isDrawer) {
         return (
-            <div className="h-screen flex flex-col overflow-hidden comic-player-bg relative"
+            <div className="h-screen flex flex-col overflow-hidden bg-[#FFFBF0] relative"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
                 
                 {countdownVal > 0 && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FFFBF0]/95 backdrop-blur-sm">
                         <div className="text-8xl font-black text-[#FF3B30] animate-bounce">{countdownVal}</div>
-                        <div className="text-lg font-black uppercase tracking-wider text-on-background mt-4">Prépare-toi à dessiner !</div>
+                        <div className="text-lg font-black uppercase tracking-wider text-[#161a33] mt-4">Prépare-toi à dessiner !</div>
                     </div>
                 )}
 
+                {/* Simulated status bar */}
+                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
+                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
+                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+                    </div>
+                </div>
+
                 {/* Header */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
-                    <div className={`font-black text-xl tabular-nums ${timerClass}`}>{timer}</div>
-                    <div className="flex-1 h-2 bg-on-background/10 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
+                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-3 border-[#161a33] flex-shrink-0">
+                    <div className={`font-black text-xl tabular-nums ${timerClass} text-[#161a33]`}>{timer}</div>
+                    <div className="flex-1 h-3 bg-[#161a33]/10 border-2 border-[#161a33] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#FF3B30]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
                              style={{ width: `${timerPct}%` }} />
                     </div>
-                    <div className="text-[10px] font-black text-[#FF3B30] uppercase">{currentRound}/{totalRounds}</div>
+                    <div className="sk-pill sk-pill-blue py-1 px-3 text-[10px]">{currentRound}/{totalRounds}</div>
                 </div>
 
                 {/* Word banner */}
                 {myWord && (
-                    <div className="px-3 py-2 bg-[#FF3B30] flex-shrink-0 flex items-center justify-between gap-2">
+                    <div className="px-4 py-2.5 bg-[#FF3B30] border-b-3 border-[#161a33] flex-shrink-0 flex items-center justify-between gap-2">
                         <div>
-                            <div className="text-[9px] font-black uppercase text-white/70">À toi de dessiner :</div>
+                            <div className="text-[9px] font-black uppercase text-white/80">À toi de dessiner :</div>
                             <div className="text-xl font-black uppercase italic text-white tracking-tight">{myWord.word}</div>
-                            {myWord.hint && <div className="text-[9px] text-white/70 font-bold">💡 {myWord.hint}</div>}
+                            {myWord.hint && <div className="text-[9px] text-white/80 font-bold">💡 {myWord.hint}</div>}
                         </div>
                         <button onClick={handleSkipWord}
-                            className="bg-white/20 text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-white/40 active:scale-95 flex-shrink-0">
+                            className="sk-btn sk-btn-warning text-[10px] py-1 px-2.5 flex-shrink-0">
                             🔄 Passer
                         </button>
                     </div>
                 )}
 
                 {/* Canvas */}
-                <div className="flex-1 min-h-0 flex items-center justify-center p-2 relative">
+                <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
                     <div className="canvas-container-4-3">
                         <canvas
                             ref={canvasRef}
@@ -683,17 +711,17 @@ function DrawPlayerView() {
                 </div>
 
                 {/* Tools */}
-                <div className="flex-shrink-0 px-3 pb-2 flex flex-col gap-2">
+                <div className="flex-shrink-0 px-3 pb-3 flex flex-col gap-2">
                     {/* Colors */}
-                    <div className="flex justify-center gap-1.5 bg-white border-[3px] border-on-background rounded-xl p-2 neo-shadow-sm">
+                    <div className="sk-box p-2 flex justify-center gap-1.5 bg-white">
                         {COLORS.map(c => (
                             <button
                                 key={c.value}
                                 onClick={() => { setSelectedColor(c.value); setIsEraser(false); }}
-                                className={`w-9 h-9 rounded-full border-[3px] transition-transform active:scale-90 ${
+                                className={`w-8 h-8 rounded-full border-2 border-[#161a33] transition-transform duration-100 ${
                                     selectedColor === c.value && !isEraser
-                                        ? 'border-on-background scale-125 shadow-md'
-                                        : 'border-on-background/40 hover:scale-110'
+                                        ? 'scale-125 shadow-[2px_2px_0px_0px_#161a33]'
+                                        : 'hover:scale-110'
                                  }`}
                                 style={{ backgroundColor: c.value, boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #ccc' : undefined }}
                                 title={c.name}
@@ -702,22 +730,22 @@ function DrawPlayerView() {
                     </div>
 
                     {/* Sizes + actions */}
-                    <div className="flex items-center justify-center gap-2 bg-white border-[3px] border-on-background rounded-xl p-2 neo-shadow-sm">
+                    <div className="sk-box p-2.5 flex items-center justify-center gap-2 bg-white">
                         {BRUSH_SIZES.map(size => (
                             <button
                                 key={size}
                                 onClick={() => { setBrushSize(size); setIsEraser(false); }}
-                                className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-colors active:scale-95 ${
+                                className={`w-9 h-9 rounded-lg border-2 border-[#161a33] flex items-center justify-center transition-colors ${
                                     brushSize === size && !isEraser
-                                        ? 'border-on-background bg-[#FFD60A]'
-                                        : 'border-on-background/30 bg-[#FFFBF0] hover:bg-[#C2DCFF]'
+                                        ? 'bg-[#FFD60A]'
+                                        : 'bg-[#FFFBF0] hover:bg-[#C2DCFF]'
                                 }`}
                             >
-                                <div className="rounded-full bg-on-background"
-                                    style={{ width: Math.min(size * 0.7, 22), height: Math.min(size * 0.7, 22) }} />
+                                <div className="rounded-full bg-[#161a33]"
+                                    style={{ width: Math.min(size * 0.7, 20), height: Math.min(size * 0.7, 20) }} />
                             </button>
                         ))}
-                        <div className="w-px h-6 bg-on-background/20" />
+                        <div className="w-0.5 h-6 bg-[#161a33]/20" />
                         <button
                             onClick={() => {
                                 const nextEraser = !isEraser;
@@ -730,29 +758,31 @@ function DrawPlayerView() {
                                     setBrushSize(8);
                                 }
                             }}
-                            className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center active:scale-95 transition-colors ${
+                            className={`w-9 h-9 rounded-lg border-2 border-[#161a33] flex items-center justify-center transition-colors ${
                                 isEraser
-                                    ? 'border-on-background bg-[#FFD60A]'
-                                    : 'border-on-background/30 bg-[#FFFBF0] hover:bg-[#FFE0DC]'
-                            }`}
+                                    ? 'bg-[#FFD60A]'
+                                    : 'bg-[#FFFBF0] hover:bg-[#FFE0DC]'
+                             }`}
                             title="Gomme"
                         >
-                            <span className="material-symbols-outlined text-base text-on-background">ink_eraser</span>
+                            <span className="material-symbols-outlined text-base text-[#161a33]">ink_eraser</span>
                         </button>
                         <button
                             onClick={handleUndo}
                             disabled={strokesHistoryRef.current.length === 0}
-                            className="w-10 h-10 rounded-lg border-2 border-on-background/30 bg-[#C2DCFF] flex items-center justify-center hover:bg-[#99c2ff] active:scale-95 transition-colors disabled:opacity-40 disabled:hover:bg-[#C2DCFF]"
-                            title="Annuler le dernier trait"
+                            className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center disabled:opacity-40"
+                            title="Annuler"
+                            style={{ boxShadow: '2px 2px 0px 0px #161a33' }}
                         >
-                            <span className="material-symbols-outlined text-base text-on-background">undo</span>
+                            <span className="material-symbols-outlined text-base">undo</span>
                         </button>
                         <button
                             onClick={handleClearCanvas}
-                            className="w-10 h-10 rounded-lg border-2 border-on-background/30 bg-[#FFE0DC] flex items-center justify-center hover:bg-[#ff9f9f] active:scale-95 transition-colors"
+                            className="sk-btn sk-btn-danger w-9 h-9 p-0 flex items-center justify-center"
                             title="Effacer tout"
+                            style={{ boxShadow: '2px 2px 0px 0px #161a33' }}
                         >
-                            <span className="material-symbols-outlined text-base text-on-background">delete</span>
+                            <span className="material-symbols-outlined text-base">delete</span>
                         </button>
                     </div>
                 </div>
@@ -763,50 +793,59 @@ function DrawPlayerView() {
     // ── PLAYING — DEVINEUR ────────────────────────────────────────────
     if (gameState === 'PLAYING' && !isDrawer) {
         return (
-            <div className="h-screen flex flex-col overflow-hidden comic-player-bg relative"
+            <div className="h-screen flex flex-col overflow-hidden bg-[#FFFBF0] relative"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
                 {countdownVal > 0 && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FFFBF0]/95 backdrop-blur-sm">
                         <div className="text-8xl font-black text-[#FF3B30] animate-bounce">{countdownVal}</div>
-                        <div className="text-lg font-black uppercase tracking-wider text-on-background mt-4">Prépare-toi à deviner !</div>
+                        <div className="text-lg font-black uppercase tracking-wider text-[#161a33] mt-4">Prépare-toi à deviner !</div>
                     </div>
                 )}
 
+                {/* Simulated status bar */}
+                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
+                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
+                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+                    </div>
+                </div>
+
                 {/* Header */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
-                    <div className={`font-black text-xl tabular-nums ${timerClass}`}>{timer}</div>
-                    <div className="flex-1 h-2 bg-on-background/10 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
+                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-3 border-[#161a33] flex-shrink-0">
+                    <div className={`font-black text-xl tabular-nums ${timerClass} text-[#161a33]`}>{timer}</div>
+                    <div className="flex-1 h-3 bg-[#161a33]/10 border-2 border-[#161a33] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#FF3B30]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
                              style={{ width: `${timerPct}%` }} />
                     </div>
-                    <div className="text-[10px] font-black text-[#FF3B30] uppercase">{currentRound}/{totalRounds}</div>
-                    <div className="font-black text-sm text-on-background">{myScore} pts</div>
+                    <div className="sk-pill sk-pill-blue py-1 px-3 text-[10px]">{currentRound}/{totalRounds}</div>
+                    <div className="font-black text-sm text-[#161a33]">{myScore} pts</div>
                 </div>
 
                 {/* Drawer info + word blanks */}
-                <div className="flex items-center justify-center gap-3 px-3 py-2 bg-[#C2DCFF] border-b-2 border-on-background/20 flex-shrink-0">
-                    <div className="text-[10px] font-bold text-on-background">
+                <div className="flex items-center justify-center gap-3 px-4 py-2.5 bg-[#C2DCFF] border-b-3 border-[#161a33] flex-shrink-0">
+                    <div className="text-[10px] font-bold text-[#161a33]">
                         🎨 <span className="font-black text-[#FF3B30]">{drawerName}</span> dessine...
                     </div>
-                    <div className="flex items-center gap-1 flex-wrap justify-center">
-                        <span className="text-[9px] font-black uppercase bg-[#FF3B30] text-white px-2 py-0.5 rounded-full">{wordCategory}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                        <span className="sk-pill sk-pill-active py-0.5 px-2.5 text-[9px]">{wordCategory}</span>
                         {Array.from({ length: wordLength }).map((_, i) => (
-                            <div key={i} className="w-4 h-0.5 bg-on-background rounded-full" />
+                            <div key={i} className="w-3.5 h-1 bg-[#161a33] rounded-full" />
                         ))}
-                        <span className="text-[9px] text-on-background/50">({wordLength})</span>
+                        <span className="text-[9px] font-black text-[#161a33]/50">({wordLength})</span>
                     </div>
                 </div>
 
                 {/* Canvas */}
-                <div className="flex-1 min-h-0 flex items-center justify-center p-2 relative">
-                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-80' : ''}`}>
+                <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
+                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-85' : ''}`}>
                         <canvas ref={canvasRef} className="draw-canvas" />
                         {hasGuessed && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FFD60A]/80 backdrop-blur-sm">
-                                <div className="text-4xl mb-2">✅</div>
-                                <div className="text-xl font-black uppercase italic text-on-background">Bravo !</div>
-                                <div className="text-sm font-black text-on-background mt-1">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FFD60A]/85 backdrop-blur-sm">
+                                <div className="text-5xl mb-2 animate-bounce">✅</div>
+                                <h3 className="text-3xl sk-h text-[#161a33]">Bravo !</h3>
+                                <div className="sk-pill sk-pill-active py-1 px-4 text-xs mt-2">
                                     +{guessResult?.points} pts — #{guessResult?.rank}
                                 </div>
                             </div>
@@ -816,17 +855,17 @@ function DrawPlayerView() {
 
                 {/* Guess input */}
                 {!hasGuessed && (
-                    <div className="flex-shrink-0 px-3 pb-2">
+                    <div className="flex-shrink-0 px-3 pb-3">
                         {guessResult?.closeMatch && (
-                            <div className="text-center text-[10px] font-black text-[#ff9f1c] uppercase mb-1 animate-pulse">
+                            <div className="text-center text-[10px] font-black text-[#ff9f1c] uppercase mb-1.5 animate-pulse">
                                 🔥 Très proche ! Vérifie l'orthographe
                             </div>
                         )}
-                        <div className={`flex gap-2 bg-white border-[3px] border-on-background rounded-xl p-2 neo-shadow ${shakeGuess ? 'shake-input border-[#ff9f1c]' : ''}`}>
+                        <div className={`sk-box p-2.5 flex gap-2 bg-white ${shakeGuess ? 'shake-input border-[#ff9f1c]' : ''}`}>
                             <input
                                 ref={guessInputRef}
                                 type="text"
-                                className="flex-1 p-2 text-sm font-bold text-on-background bg-[#FFFBF0] border-2 border-on-background/20 rounded-lg focus:outline-none focus:border-[#FF3B30] placeholder:text-on-background/40"
+                                className="sk-input flex-1 py-2 text-sm"
                                 placeholder="Tape ta réponse..."
                                 value={guess}
                                 onChange={(e) => setGuess(e.target.value)}
@@ -837,9 +876,9 @@ function DrawPlayerView() {
                             <button
                                 onClick={submitGuess}
                                 disabled={hasGuessed || !guess.trim() || countdownVal > 0}
-                                className="bg-[#FFD60A] text-on-background font-black px-4 py-2 border-[3px] border-on-background rounded-lg shadow-[2px_2px_0px_0px_#161a33] active:shadow-none active:translate-y-px transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="sk-btn sk-btn-warning py-2.5 px-4 flex items-center justify-center"
                             >
-                                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                             </button>
                         </div>
                     </div>
@@ -851,20 +890,31 @@ function DrawPlayerView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden comic-theme">
-                <div className="relative z-10 w-full max-w-xs flex flex-col items-center gap-4">
-                    <div className="bg-[#FF3B30] border-[4px] border-on-background p-5 shadow-[5px_5px_0_#1a1a1a] text-center w-full -rotate-1">
-                        <div className="text-[9px] font-black uppercase text-white/80 tracking-wider">Le mot était</div>
-                        <div className="text-4xl font-black uppercase italic text-white">{revealedWord?.word}</div>
+            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-hidden">
+                {/* Simulated status bar */}
+                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
+                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
+                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
                     </div>
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center w-full">
-                        <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Ton score</div>
-                        <div className="text-5xl font-black text-on-background">{myScore}</div>
-                        <div className="text-[10px] text-on-background/50 font-bold mt-1">points</div>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+                    <div className="relative z-10 w-full max-w-xs flex flex-col items-center gap-4">
+                        <div className="bg-[#FF3B30] border-3 border-[#161a33] rounded-xl p-5 shadow-[4px_4px_0_#161a33] text-center w-full -rotate-1">
+                            <div className="text-[9px] font-black uppercase text-white/80 tracking-wider">Le mot était</div>
+                            <h2 className="text-3xl sk-h text-white">{revealedWord?.word}</h2>
+                        </div>
+                        <div className="sk-box p-5 text-center w-full bg-white">
+                            <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Ton score</div>
+                            <div className="text-5xl font-black text-[#161a33]">{myScore}</div>
+                            <div className="text-[10px] text-[#161a33]/50 font-bold mt-1">points</div>
+                        </div>
+                        <p className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider animate-pulse mt-2">
+                            Prochain tour bientôt...
+                        </p>
                     </div>
-                    <p className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider animate-pulse">
-                        Prochain tour bientôt...
-                    </p>
                 </div>
             </div>
         );
@@ -877,57 +927,68 @@ function DrawPlayerView() {
         const medals = ['🥇', '🥈', '🥉'];
 
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-auto comic-theme">
-                <div className="relative z-10 w-full max-w-xs flex flex-col gap-4">
-                    {/* My result */}
-                    <div className={`border-[3px] border-on-background rounded-xl p-5 neo-shadow text-center -rotate-1 ${
-                        myRank === 1 ? 'bg-[#FFD60A]' : myRank === 2 ? 'bg-[#C2DCFF]' : myRank === 3 ? 'bg-[#FFE0DC]' : 'bg-white'
-                    }`}>
-                        <div className="text-4xl mb-2">{medals[myRank - 1] || '🎨'}</div>
-                        <div className="text-2xl font-black uppercase italic text-on-background">
-                            {myRank === 1 ? 'Victoire !' : `#${myRank}`}
+            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-auto">
+                {/* Simulated status bar */}
+                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
+                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
+                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+                    <div className="relative z-10 w-full max-w-xs flex flex-col gap-4">
+                        {/* My result */}
+                        <div className={`border-3 border-[#161a33] rounded-xl p-5 shadow-[4px_4px_0_#161a33] text-center -rotate-1 ${
+                            myRank === 1 ? 'bg-[#FFD60A]' : myRank === 2 ? 'bg-[#C2DCFF]' : myRank === 3 ? 'bg-[#FFE0DC]' : 'bg-white'
+                        }`}>
+                            <div className="text-4xl mb-2">{medals[myRank - 1] || '🎨'}</div>
+                            <h2 className="text-2xl sk-h text-[#161a33]">
+                                {myRank === 1 ? 'Victoire !' : `#${myRank}`}
+                            </h2>
+                            <div className="text-3xl font-black text-[#161a33] mt-1">{myScore} pts</div>
+                            {myRank !== 1 && (
+                                <div className="text-[10px] font-bold text-[#161a33]/60 mt-1">
+                                    Vainqueur : <span className="font-black text-[#FF3B30]">{winner?.name}</span>
+                                </div>
+                            )}
                         </div>
-                        <div className="text-3xl font-black text-on-background mt-1">{myScore} pts</div>
-                        {myRank !== 1 && (
-                            <div className="text-[10px] font-bold text-on-background/60 mt-1">
-                                Vainqueur : <span className="font-black text-[#FF3B30]">{winner?.name}</span>
+
+                        {/* Full ranking */}
+                        <div className="sk-box p-4 bg-white">
+                            <div className="text-[10px] font-black uppercase text-[#FF3B30] mb-2.5 tracking-wider">Classement final</div>
+                            <div className="flex flex-col gap-1.5">
+                                {finalResults.map((p, i) => (
+                                    <div key={p.id} className={`flex items-center gap-2 p-1.5 rounded-lg border-2 text-xs ${
+                                        p.id === socket.id ? 'border-[#FF3B30] bg-[#FF3B30]/10 font-black' : 'border-[#161a33]/10 bg-[#FFFBF0] font-bold'
+                                    }`}>
+                                        <span className="w-6 text-center font-black text-[#161a33]">{medals[i] || `#${i + 1}`}</span>
+                                        <span className="flex-1 truncate text-[#161a33]">{p.name}</span>
+                                        <span className="font-black text-[#161a33]">{p.score} pts</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Awards */}
+                        {awards.length > 0 && (
+                            <div className="grid grid-cols-2 gap-2">
+                                {awards.map((a, i) => (
+                                    <div key={i} className="sk-box p-3 text-center bg-white">
+                                        <div className="text-2xl mb-1">{a.icon}</div>
+                                        <div className="text-[9px] font-black uppercase text-[#FF3B30]">{a.title}</div>
+                                        <div className="text-[10px] font-bold text-[#161a33] truncate">{a.playerName}</div>
+                                    </div>
+                                ))}
                             </div>
                         )}
+
+                        <button onClick={() => navigate('/')}
+                            className="sk-btn sk-btn-warning w-full py-3 flex items-center justify-center gap-2 text-xs">
+                            🏠 Retour au menu
+                        </button>
                     </div>
-
-                    {/* Full ranking */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow">
-                        <div className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 tracking-wider">Classement final</div>
-                        <div className="flex flex-col gap-1.5">
-                            {finalResults.map((p, i) => (
-                                <div key={p.id} className={`flex items-center gap-2 p-1.5 rounded-lg border-2 text-xs ${
-                                    p.id === socket.id ? 'border-[#FF3B30] bg-[#FF3B30]/10 font-black' : 'border-on-background/10 bg-[#FFFBF0] font-bold'
-                                }`}>
-                                    <span className="w-6 text-center font-black">{medals[i] || `#${i + 1}`}</span>
-                                    <span className="flex-1 truncate text-on-background">{p.name}</span>
-                                    <span className="font-black text-on-background">{p.score} pts</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Awards */}
-                    {awards.length > 0 && (
-                        <div className="grid grid-cols-2 gap-2">
-                            {awards.map((a, i) => (
-                                <div key={i} className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow text-center">
-                                    <div className="text-2xl mb-1">{a.icon}</div>
-                                    <div className="text-[9px] font-black uppercase text-[#FF3B30]">{a.title}</div>
-                                    <div className="text-[10px] font-bold text-on-background truncate">{a.playerName}</div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <button onClick={() => navigate('/')}
-                        className="w-full bg-[#FFD60A] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-1px] active:translate-y-px active:shadow-none transition-all text-sm uppercase tracking-wide flex items-center justify-center gap-2">
-                        🏠 Retour au menu
-                    </button>
                 </div>
             </div>
         );

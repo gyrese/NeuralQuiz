@@ -405,103 +405,110 @@ function DrawHostView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="min-h-screen flex flex-col p-4 text-on-background relative overflow-auto">
+            <div className="min-h-screen flex flex-col p-4 text-[#161a33] relative overflow-auto">
 
                 {/* Header */}
                 <div className="relative z-10 flex items-center justify-between mb-4">
-                    <button onClick={() => navigate('/draw')} className="text-[10px] font-black text-[#FF3B30] uppercase tracking-wide flex items-center gap-1 hover:text-primary transition-colors">
+                    <button onClick={() => navigate('/draw')} className="sk-btn sk-btn-secondary py-1.5 px-3 text-[10px] flex items-center gap-1">
                         <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
                     </button>
-                    <div className="bg-[#FF3B30] text-white font-black text-sm uppercase italic px-4 py-1.5 border-[3px] border-on-background rounded-full neo-shadow-sm">
+                    <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-4 py-1.5 border-3 border-[#161a33] rounded-full shadow-[3px_3px_0px_0px_#161a33]">
                         🎨 DrawUp
                     </div>
                     <div className="w-16" />
                 </div>
 
-                <div className="relative z-10 w-full max-w-2xl mx-auto flex flex-col gap-4">
-                    {/* Code + QR */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-5 neo-shadow flex flex-col sm:flex-row items-center gap-5">
-                        <div className="flex-1 text-center sm:text-left">
-                            <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Code du salon</div>
-                            <div className="text-6xl font-black text-on-background tracking-widest uppercase select-all leading-none mb-3">
-                                {roomCode}
+                <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col gap-4">
+                    {/* Split-screen: Code + QR vs Players */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Code + QR (Left panel) */}
+                        <div className="sk-box p-5 bg-white flex flex-col items-center justify-center text-center gap-4">
+                            <div className="w-full">
+                                <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Code du salon</div>
+                                <div className="text-6xl font-black text-[#161a33] tracking-widest uppercase select-all leading-none mb-3">
+                                    {roomCode}
+                                </div>
+                                <button
+                                    onClick={copyCode}
+                                    className="sk-btn sk-btn-secondary text-[11px] py-1.5 px-3 mx-auto flex items-center gap-1.5"
+                                >
+                                    <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'content_copy'}</span>
+                                    {copied ? 'Copié !' : 'Copier'}
+                                </button>
                             </div>
-                            <button
-                                onClick={copyCode}
-                                className="flex items-center gap-1.5 bg-[#C2DCFF] text-on-background font-black text-[11px] uppercase px-3 py-1.5 border-2 border-on-background rounded-lg hover:bg-[#FFD60A] transition-colors neo-shadow-sm"
-                            >
-                                <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'content_copy'}</span>
-                                {copied ? 'Copié !' : 'Copier'}
-                            </button>
+                            <div className="border-3 border-[#161a33] rounded-xl p-3 bg-white shadow-[3px_3px_0px_0px_#161a33]">
+                                <QRCodeSVG value={joinUrl} size={130} />
+                            </div>
+                            <div className="text-[10px] font-bold text-[#161a33]/60">Scanne le QR Code pour rejoindre sur mobile</div>
                         </div>
-                        <div className="bg-white border-[3px] border-on-background rounded-lg p-2 neo-shadow-sm">
-                            <QRCodeSVG value={joinUrl} size={110} />
-                        </div>
-                    </div>
 
-                    {/* Players */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
-                        <div className="flex items-center justify-between mb-3 border-b-2 border-on-background pb-2">
-                            <h2 className="text-xs font-black uppercase text-[#FF3B30]">Joueurs ({players.length})</h2>
-                            <span className="material-symbols-outlined text-sm text-[#FF3B30] animate-pulse">groups</span>
-                        </div>
-                        {players.length === 0 ? (
-                            <p className="text-[11px] text-[#FF3B30] font-bold italic text-center py-3">En attente de joueurs...</p>
-                        ) : (
-                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {players.map(p => (
-                                    <div key={p.id} className="flex flex-col items-center gap-1 bg-[#FFFBF0] border-2 border-on-background/20 rounded-lg p-2">
-                                        <div className="w-10 h-10 rounded-full border-2 border-on-background overflow-hidden">
-                                            {p.avatar?.startsWith('/') ? (
-                                                <img src={p.avatar} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xl bg-[#C2DCFF]">{p.avatar || '👤'}</div>
-                                            )}
+                        {/* Players (Right panel) */}
+                        <div className="sk-box p-5 bg-white flex flex-col">
+                            <div className="flex items-center justify-between mb-3 border-b-3 border-[#161a33] pb-2">
+                                <h2 className="text-xs font-black uppercase text-[#FF3B30]">Les Artistes ({players.length})</h2>
+                                <span className="material-symbols-outlined text-base text-[#FF3B30] animate-pulse">groups</span>
+                            </div>
+                            {players.length === 0 ? (
+                                <div className="flex-1 flex flex-col items-center justify-center py-8">
+                                    <p className="text-xs text-[#FF3B30] font-bold italic animate-pulse">En attente de joueurs...</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-2 overflow-y-auto max-h-[260px] p-1">
+                                    {players.map(p => (
+                                        <div key={p.id} className="flex flex-col items-center gap-1 bg-[#FFFBF0] border-2 border-[#161a33]/20 rounded-xl p-2.5">
+                                            <div className="w-12 h-12 sk-ava">
+                                                {p.avatar?.startsWith('/') ? (
+                                                    <img src={p.avatar} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xl bg-[#C2DCFF]">{p.avatar || '👤'}</div>
+                                                )}
+                                            </div>
+                                            <span className="text-[9px] font-black uppercase truncate w-full text-center text-[#161a33]">{p.name}</span>
                                         </div>
-                                        <span className="text-[9px] font-black uppercase truncate w-full text-center">{p.name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Settings */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
-                        <div className="flex items-center gap-2 mb-3 border-b-2 border-on-background pb-2">
+                    {/* Settings & Word categories */}
+                    <div className="sk-box p-5 bg-white flex flex-col gap-4">
+                        <div className="flex items-center gap-2 mb-1 border-b-3 border-[#161a33] pb-2">
                             <span className="material-symbols-outlined text-sm text-[#FF3B30]">tune</span>
-                            <h2 className="text-xs font-black uppercase text-[#FF3B30]">Paramètres</h2>
+                            <h2 className="text-xs font-black uppercase text-[#FF3B30]">Paramètres de la partie</h2>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <div className="text-[9px] font-black uppercase text-[#FF3B30]/80 mb-1">Tours / joueur</div>
-                                <div className="flex items-center gap-2">
+                                <div className="text-[10px] font-black uppercase text-[#FF3B30]/80 mb-2">Manches par joueur</div>
+                                <div className="flex items-center gap-3">
                                     <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.max(1, s.roundsPerPlayer - 1) }))}
-                                        className="w-8 h-8 bg-[#FFE0DC] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">−</button>
-                                    <span className="font-black text-lg text-on-background min-w-[2rem] text-center">{settings.roundsPerPlayer}</span>
+                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">-</button>
+                                    <span className="font-black text-xl text-[#161a33] min-w-[2rem] text-center">{settings.roundsPerPlayer}</span>
                                     <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.min(5, s.roundsPerPlayer + 1) }))}
-                                        className="w-8 h-8 bg-[#FFE0DC] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">+</button>
+                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">+</button>
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[9px] font-black uppercase text-[#FF3B30]/80 mb-1">Temps / tour</div>
-                                <div className="flex items-center gap-2">
+                                <div className="text-[10px] font-black uppercase text-[#FF3B30]/80 mb-2">Temps par manche</div>
+                                <div className="flex items-center gap-3">
                                     <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.max(30, s.timePerRound - 15) }))}
-                                        className="w-8 h-8 bg-[#C2DCFF] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">−</button>
-                                    <span className="font-black text-lg text-on-background min-w-[3rem] text-center">{settings.timePerRound}s</span>
+                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">-</button>
+                                    <span className="font-black text-xl text-[#161a33] min-w-[4rem] text-center">{settings.timePerRound}s</span>
                                     <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.min(180, s.timePerRound + 15) }))}
-                                        className="w-8 h-8 bg-[#C2DCFF] border-2 border-on-background rounded-lg font-black text-sm flex items-center justify-center hover:bg-[#FFD60A] transition-colors neo-shadow-sm active:translate-y-px">+</button>
+                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">+</button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Catégories */}
+                        {/* Word Categories */}
                         {availableCategories.length > 0 && (
-                            <div>
-                                <div className="text-[9px] font-black uppercase text-[#FF3B30]/80 mb-2 flex items-center justify-between">
+                            <div className="mt-2">
+                                <div className="text-[10px] font-black uppercase text-[#FF3B30]/80 mb-2.5 flex items-center justify-between">
                                     <span>Thèmes de mots</span>
                                     <button
                                         onClick={() => setSettings(s => ({ ...s, categories: ['all'] }))}
-                                        className="text-[8px] font-black text-[#FF3B30]/60 hover:text-[#FF3B30] transition-colors"
+                                        className="text-[9px] font-black text-[#FF3B30]/60 hover:text-[#FF3B30] transition-colors"
                                     >
                                         {settings.categories.includes('all') ? '✓ Tous' : 'Tout sélectionner'}
                                     </button>
@@ -514,11 +521,7 @@ function DrawHostView() {
                                             <button
                                                 key={key}
                                                 onClick={() => toggleCategory(key)}
-                                                className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border-2 transition-all active:scale-95 ${
-                                                    isActive
-                                                        ? 'border-on-background bg-[#FF3B30] text-white shadow-[1.5px_1.5px_0px_0px_rgba(22,26,51,1)]'
-                                                        : 'border-on-background/30 bg-[#FFFBF0] text-on-background/60 hover:border-on-background'
-                                                }`}
+                                                className={`sk-pill ${isActive ? 'sk-pill-active' : ''}`}
                                             >
                                                 {CATEGORY_LABELS[key] || key}
                                             </button>
@@ -529,13 +532,13 @@ function DrawHostView() {
                         )}
                     </div>
 
-                    {/* Start */}
+                    {/* Start Button */}
                     <button
                         onClick={startGame}
                         disabled={players.length < 2}
-                        className="w-full bg-[#FFD60A] text-on-background font-black py-4 border-[3px] border-on-background rounded-xl shadow-[4px_4px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#161a33] transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-px active:shadow-none"
+                        className="sk-btn sk-btn-primary w-full py-4 text-sm mt-2 flex items-center justify-center gap-2"
                     >
-                        <span className="material-symbols-outlined">play_arrow</span>
+                        <span className="material-symbols-outlined text-base">play_arrow</span>
                         {players.length < 2 ? `Minimum 2 joueurs (${players.length}/2)` : '🎨 Lancer la Partie'}
                     </button>
                 </div>
@@ -549,10 +552,10 @@ function DrawHostView() {
         const nonDrawers = players.filter(p => p.id !== currentDrawerId).length;
 
         return (
-            <div className="h-screen flex flex-col overflow-hidden comic-theme relative">
+            <div className="h-screen flex flex-col overflow-hidden bg-[#FFFBF0] relative">
                 {countdownVal > 0 && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                        <div className="comic-countdown-container scale-in">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#161a33]/40 backdrop-blur-sm">
+                        <div className="comic-countdown-container">
                             <div className="comic-countdown-text font-black italic text-8xl">
                                 {countdownVal}
                             </div>
@@ -561,36 +564,36 @@ function DrawHostView() {
                 )}
 
                 {/* Header */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-[3px] border-on-background flex-shrink-0">
-                    <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
+                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-3 border-[#161a33] flex-shrink-0">
+                    <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-3 py-1.5 border-3 border-[#161a33] rounded-full shadow-[2px_2px_0px_0px_#161a33]">
                         🎨 DrawUp
                     </div>
-                    <div className="bg-[#C2DCFF] text-on-background font-black text-xs uppercase px-3 py-1 rounded-full border-2 border-on-background">
+                    <div className="bg-[#C2DCFF] text-[#161a33] font-black text-xs uppercase px-3 py-1.5 border-3 border-[#161a33] rounded-full shadow-[2px_2px_0px_0px_#161a33]">
                         Manche {currentRound}/{totalRounds}
                     </div>
 
                     {/* Word blanks */}
-                    <div className="flex-1 flex items-center justify-center gap-1 flex-wrap">
-                        <span className="text-[10px] font-black uppercase text-[#FF3B30] mr-1">{wordCategory}</span>
+                    <div className="flex-1 flex items-center justify-center gap-1.5 flex-wrap">
+                        <span className="sk-pill sk-pill-active py-0.5 px-2.5 text-[10px] mr-1">{wordCategory}</span>
                         {Array.from({ length: wordLength }).map((_, i) => (
-                            <div key={i} className="w-5 h-0.5 bg-on-background rounded-full" />
+                            <div key={i} className="w-5 h-1 bg-[#161a33] rounded-full" />
                         ))}
-                        <span className="text-[9px] text-on-background/50 ml-1">({wordLength} lettres)</span>
+                        <span className="text-[10px] font-black text-[#161a33]/50 ml-1">({wordLength} lettres)</span>
                     </div>
 
                     {/* Timer */}
-                    <div className={`flex flex-col items-center ${timerClass}`}>
-                        <span className="font-black text-2xl leading-none text-on-background tabular-nums">{timer}</span>
-                        <div className="w-16 h-1.5 bg-on-background/10 rounded-full overflow-hidden mt-1">
+                    <div className={`flex flex-col items-center ${timerClass} text-[#161a33]`}>
+                        <span className="font-black text-2xl leading-none tabular-nums">{timer}</span>
+                        <div className="w-16 h-2 bg-[#161a33]/10 border-2 border-[#161a33] rounded-full overflow-hidden mt-1">
                             <div
-                                className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#e71d36]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
+                                className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#FF3B30]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
                                 style={{ width: `${timerPct}%` }}
                             />
                         </div>
                     </div>
 
-                    {/* Score fin de manche */}
-                    <button onClick={endRound} className="bg-[#FFE0DC] text-on-background font-black text-[9px] uppercase px-2 py-1.5 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#FFD60A] transition-colors active:translate-y-px">
+                    {/* End round manually */}
+                    <button onClick={endRound} className="sk-btn sk-btn-danger py-1.5 px-3 text-[10px] flex items-center gap-1">
                         ⏹ Terminer
                     </button>
                 </div>
@@ -599,8 +602,8 @@ function DrawHostView() {
                 <div className="flex flex-1 min-h-0 gap-3 p-3">
                     {/* Canvas area */}
                     <div className="flex-1 flex flex-col min-w-0 gap-2">
-                        <div className="bg-[#C2DCFF] border-[3px] border-on-background rounded-xl px-4 py-2 flex items-center gap-2 neo-shadow-sm">
-                            <div className="w-7 h-7 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#FFFBF0]">
+                        <div className="sk-box px-4 py-2 bg-[#C2DCFF] flex items-center gap-2" style={{ borderRadius: '12px', boxShadow: '3px 3px 0px 0px #161a33' }}>
+                            <div className="w-7 h-7 sk-ava">
                                 {players.find(p => p.id === currentDrawerId)?.avatar?.startsWith('/') ? (
                                     <img src={players.find(p => p.id === currentDrawerId)?.avatar} alt="" className="w-full h-full object-cover" />
                                 ) : (
@@ -609,10 +612,10 @@ function DrawHostView() {
                                     </div>
                                 )}
                             </div>
-                            <span className="font-black text-xs uppercase text-on-background">
+                            <span className="font-black text-xs uppercase text-[#161a33]">
                                 <span className="text-[#FF3B30]">{drawerName}</span> dessine...
                             </span>
-                            <div className="ml-auto text-[10px] font-black text-on-background/60">
+                            <div className="ml-auto sk-pill sk-pill-yellow py-0.5 px-2.5 text-[9px]">
                                 {guessersCount}/{nonDrawers} ont trouvé
                             </div>
                         </div>
@@ -624,31 +627,31 @@ function DrawHostView() {
                     </div>
 
                     {/* Sidebar */}
-                    <div className="w-56 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+                    <div className="w-60 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
                         {/* Leaderboard */}
-                        <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow">
+                        <div className="sk-box p-3 bg-white flex flex-col">
                             <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-xs">leaderboard</span> Classement
                             </h3>
-                            <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[200px] p-0.5">
                                 {getSortedPlayers().map((p, i) => (
                                     <div key={p.id} className={`flex items-center gap-1.5 p-1.5 rounded-lg border-2 text-[10px] ${
                                         p.id === currentDrawerId
                                             ? 'border-[#FF3B30] bg-[#FF3B30]/15'
                                             : guessedPlayers.has(p.id)
-                                                ? 'border-[#ffe16d] bg-[#FFD60A]/20'
-                                                : 'border-on-background/20 bg-[#FFFBF0]'
+                                                ? 'border-[#00D26A] bg-[#00D26A]/15'
+                                                : 'border-[#161a33]/15 bg-[#FFFBF0]'
                                     }`}>
-                                        <span className="font-black text-on-background w-4 text-center">{i + 1}</span>
-                                        <div className="w-5 h-5 rounded-full border border-on-background/30 overflow-hidden flex-shrink-0 bg-[#C2DCFF]">
+                                        <span className="font-black text-[#161a33] w-4 text-center">{i + 1}</span>
+                                        <div className="w-5 h-5 sk-ava">
                                             {p.avatar?.startsWith('/') ? (
                                                 <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-[9px]">{p.avatar || '👤'}</div>
                                             )}
                                         </div>
-                                        <span className="flex-1 font-bold truncate text-on-background">{p.name}</span>
-                                        <span className="font-black text-on-background">{p.score}</span>
+                                        <span className="flex-1 font-bold truncate text-[#161a33]">{p.name}</span>
+                                        <span className="font-black text-[#161a33]">{p.score}</span>
                                         <span className="text-sm">{p.id === currentDrawerId ? '🎨' : guessedPlayers.has(p.id) ? '✅' : '💭'}</span>
                                     </div>
                                 ))}
@@ -656,18 +659,18 @@ function DrawHostView() {
                         </div>
 
                         {/* Guess feed */}
-                        <div className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow flex-1 flex flex-col min-h-0">
+                        <div className="sk-box p-3 bg-white flex-1 flex flex-col min-h-0">
                             <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-xs">chat</span> Réponses
                             </h3>
-                            <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
+                            <div className="flex flex-col gap-1.5 overflow-y-auto flex-1 p-0.5">
                                 {guessFeed.slice(0, 20).map(g => (
-                                    <div key={g.id} className={`text-[10px] p-1.5 rounded-lg border ${
+                                    <div key={g.id} className={`text-[10px] p-1.5 rounded-lg border-2 ${
                                         g.type === 'correct'
-                                            ? 'bg-[#FFD60A]/30 border-[#ffe16d] font-black text-[#161a33]'
+                                            ? 'bg-[#00D26A]/15 border-[#00D26A] font-black text-[#161a33]'
                                             : g.type === 'close'
-                                                ? 'bg-[#FFE0DC]/20 border-[#ffc2eb] font-bold text-[#ff3b30]'
-                                                : 'bg-on-background/5 border-on-background/10 text-on-background/60 font-medium'
+                                                ? 'bg-[#FFD60A]/15 border-[#FFD60A] font-bold text-[#FF3B30]'
+                                                : 'bg-[#161a33]/5 border-[#161a33]/10 text-[#161a33]/70 font-medium'
                                     }`}>
                                         {g.type === 'correct'
                                             ? `✅ ${g.playerName} a trouvé ! (+${g.points})`
@@ -678,7 +681,7 @@ function DrawHostView() {
                                     </div>
                                 ))}
                                 {guessFeed.length === 0 && (
-                                    <p className="text-[9px] text-on-background/40 italic text-center py-2">En attente...</p>
+                                    <p className="text-[9px] text-[#161a33]/40 italic text-center py-2">En attente...</p>
                                 )}
                             </div>
                         </div>
@@ -691,52 +694,52 @@ function DrawHostView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden comic-theme">
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-[#FFFBF0]">
                 <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
                     {drawerLeftWarning && (
-                        <div className="bg-[#FFE0DC] border-[3px] border-[#FF3B30] text-[#FF3B30] font-black text-sm uppercase p-4 text-center rounded-xl animate-pulse neo-shadow-sm">
+                        <div className="bg-[#FFE0DC] border-3 border-[#FF3B30] text-[#FF3B30] font-black text-sm uppercase p-4 text-center rounded-xl animate-pulse shadow-[3px_3px_0px_0px_#FF3B30]">
                             ⚠️ Le dessinateur s'est déconnecté ! Passage au tour suivant...
                         </div>
                     )}
 
                     {/* Word reveal — style bulle BD */}
-                    <div className="bg-[#FF3B30] border-[4px] border-on-background p-5 shadow-[6px_6px_0_#1a1a1a] text-center -rotate-1">
+                    <div className="bg-[#FF3B30] border-4 border-[#161a33] p-6 shadow-[6px_6px_0_#161a33] text-center -rotate-1 rounded-xl">
                         <div className="text-[10px] font-black uppercase text-white/80 tracking-wider mb-1">Le mot était</div>
-                        <div className="text-5xl font-black uppercase italic text-white tracking-tight">{revealedWord?.word}</div>
-                        <div className="text-[10px] font-bold text-white/70 uppercase mt-1">{revealedWord?.category}</div>
+                        <h2 className="text-5xl sk-h text-white tracking-tight">{revealedWord?.word}</h2>
+                        <div className="sk-pill sk-pill-yellow py-0.5 px-3 text-[10px] mt-2">{revealedWord?.category}</div>
                     </div>
 
                     {/* Results */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow flex flex-col gap-2">
+                    <div className="sk-box p-4 bg-white flex flex-col gap-2">
                         {roundResults.map(p => (
-                            <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg border-2 ${
+                            <div key={p.id} className={`flex items-center gap-3 p-2 rounded-xl border-2 ${
                                 p.wasDrawer ? 'border-[#FF3B30] bg-[#FF3B30]/15' :
-                                p.guessedThisRound ? 'border-[#ffe16d] bg-[#FFD60A]/20' :
-                                'border-on-background/20 bg-[#FFFBF0]'
+                                p.guessedThisRound ? 'border-[#00D26A] bg-[#00D26A]/15' :
+                                'border-[#161a33]/15 bg-[#FFFBF0]'
                             }`}>
-                                <div className="w-8 h-8 rounded-full border-2 border-on-background overflow-hidden flex-shrink-0 bg-[#C2DCFF]">
+                                <div className="w-8 h-8 sk-ava">
                                     {p.avatar?.startsWith('/') ? (
                                         <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-base">{p.avatar || '👤'}</div>
                                     )}
                                 </div>
-                                <span className="flex-1 font-black text-xs uppercase text-on-background">{p.name}</span>
-                                <span className="text-xs font-bold text-on-background/70">
+                                <span className="flex-1 font-black text-xs uppercase text-[#161a33]">{p.name}</span>
+                                <span className="text-xs font-bold text-[#161a33]/70">
                                     {p.wasDrawer ? '🎨 Dessinateur' : p.guessedThisRound ? '✅ Trouvé !' : '❌ Pas trouvé'}
                                 </span>
-                                <span className="font-black text-sm text-on-background">{p.score} pts</span>
+                                <span className="font-black text-sm text-[#161a33]">{p.score} pts</span>
                             </div>
                         ))}
                     </div>
 
                     {/* Countdown */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow text-center flex flex-col items-center gap-2">
+                    <div className="sk-box p-5 bg-white text-center flex flex-col items-center gap-2">
                         <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Prochain tour dans</div>
-                        <div className="text-5xl font-black text-on-background">{nextRoundCountdown}</div>
+                        <div className="text-5xl font-black text-[#161a33]">{nextRoundCountdown}</div>
                         <button
                             onClick={() => { if (countdownRef.current) clearInterval(countdownRef.current); nextRound(); }}
-                            className="bg-[#FFE0DC] text-on-background font-black text-xs uppercase px-4 py-2 border-2 border-on-background rounded-lg neo-shadow-sm hover:bg-[#FFD60A] transition-colors active:translate-y-px"
+                            className="sk-btn sk-btn-warning text-xs py-2 px-4"
                         >
                             ⏭ Passer maintenant
                         </button>
@@ -753,59 +756,59 @@ function DrawHostView() {
         const rest = finalResults.slice(3);
 
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden comic-theme">
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-[#FFFBF0]">
                 <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
                     {/* Winner */}
-                    <div className="bg-[#FFD60A] border-[4px] border-on-background p-5 shadow-[6px_6px_0_#1a1a1a] text-center -rotate-1">
+                    <div className="bg-[#FFD60A] border-4 border-[#161a33] p-5 shadow-[6px_6px_0_#161a33] text-center -rotate-1 rounded-xl">
                         <div className="text-4xl mb-2">👑</div>
-                        <div className="text-2xl font-black uppercase italic text-on-background">{winner?.name}</div>
-                        <div className="text-sm font-bold text-on-background/70 mt-1">{winner?.score} points</div>
+                        <h2 className="text-2xl sk-h text-[#161a33]">{winner?.name}</h2>
+                        <div className="text-sm font-bold text-[#161a33]/70 mt-1">{winner?.score} points de génie</div>
                     </div>
 
                     {/* Podium */}
-                    <div className="bg-white border-[3px] border-on-background rounded-xl p-4 neo-shadow">
+                    <div className="sk-box p-5 bg-white">
                         <div className="flex items-end justify-center gap-3">
                             {/* 2nd */}
                             {podium[1] && (
                                 <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#C2DCFF]">
+                                    <div className="w-12 h-12 sk-ava bg-[#C2DCFF]">
                                         {podium[1].avatar?.startsWith('/') ? <img src={podium[1].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[1].avatar || '👤'}</div>}
                                     </div>
-                                    <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[1].name}</div>
+                                    <div className="text-[10px] font-black uppercase text-[#161a33] text-center truncate w-full">{podium[1].name}</div>
                                     <div className="text-xs font-black text-[#FF3B30]">{podium[1].score} pts</div>
-                                    <div className="bg-[#C2DCFF] border-2 border-on-background rounded-t-lg w-full h-12 flex items-center justify-center font-black text-lg neo-shadow-sm">🥈</div>
+                                    <div className="bg-[#C2DCFF] border-3 border-[#161a33] rounded-t-xl w-full h-14 flex items-center justify-center font-black text-lg shadow-[2px_2px_0px_0px_#161a33]">🥈</div>
                                 </div>
                             )}
                             {/* 1st */}
                             {podium[0] && (
                                 <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-14 h-14 rounded-full border-[3px] border-on-background overflow-hidden bg-[#FFD60A]">
+                                    <div className="w-14 h-14 sk-ava bg-[#FFD60A]">
                                         {podium[0].avatar?.startsWith('/') ? <img src={podium[0].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">{podium[0].avatar || '👤'}</div>}
                                     </div>
-                                    <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[0].name}</div>
+                                    <div className="text-[10px] font-black uppercase text-[#161a33] text-center truncate w-full">{podium[0].name}</div>
                                     <div className="text-xs font-black text-[#FF3B30]">{podium[0].score} pts</div>
-                                    <div className="bg-[#FFD60A] border-2 border-on-background rounded-t-lg w-full h-16 flex items-center justify-center font-black text-xl neo-shadow-sm">🥇</div>
+                                    <div className="bg-[#FFD60A] border-3 border-[#161a33] rounded-t-xl w-full h-18 flex items-center justify-center font-black text-xl shadow-[2px_2px_0px_0px_#161a33]">🥇</div>
                                 </div>
                             )}
                             {/* 3rd */}
                             {podium[2] && (
                                 <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-12 h-12 rounded-full border-[3px] border-on-background overflow-hidden bg-[#FFE0DC]">
+                                    <div className="w-12 h-12 sk-ava bg-[#FFE0DC]">
                                         {podium[2].avatar?.startsWith('/') ? <img src={podium[2].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[2].avatar || '👤'}</div>}
                                     </div>
-                                    <div className="text-[10px] font-black uppercase text-center truncate w-full">{podium[2].name}</div>
+                                    <div className="text-[10px] font-black uppercase text-[#161a33] text-center truncate w-full">{podium[2].name}</div>
                                     <div className="text-xs font-black text-[#FF3B30]">{podium[2].score} pts</div>
-                                    <div className="bg-[#FFE0DC] border-2 border-on-background rounded-t-lg w-full h-9 flex items-center justify-center font-black text-base neo-shadow-sm">🥉</div>
+                                    <div className="bg-[#FFE0DC] border-3 border-[#161a33] rounded-t-xl w-full h-10 flex items-center justify-center font-black text-base shadow-[2px_2px_0px_0px_#161a33]">🥉</div>
                                 </div>
                             )}
                         </div>
                         {rest.length > 0 && (
-                            <div className="mt-3 flex flex-col gap-1 border-t-2 border-on-background/20 pt-3">
+                            <div className="mt-4 flex flex-col gap-1 border-t-3 border-[#161a33]/20 pt-3">
                                 {rest.map((p, i) => (
-                                    <div key={p.id} className="flex items-center gap-2 text-[10px]">
-                                        <span className="font-black text-on-background/50 w-4">#{i + 4}</span>
-                                        <span className="flex-1 font-bold text-on-background truncate">{p.name}</span>
-                                        <span className="font-black text-on-background">{p.score} pts</span>
+                                    <div key={p.id} className="flex items-center gap-2 text-[10px] text-[#161a33]">
+                                        <span className="font-black text-[#161a33]/50 w-4">#{i + 4}</span>
+                                        <span className="flex-1 font-bold truncate">{p.name}</span>
+                                        <span className="font-black">{p.score} pts</span>
                                     </div>
                                 ))}
                             </div>
@@ -816,11 +819,11 @@ function DrawHostView() {
                     {awards.length > 0 && (
                         <div className="grid grid-cols-2 gap-3">
                             {awards.map((a, i) => (
-                                <div key={i} className="bg-white border-[3px] border-on-background rounded-xl p-3 neo-shadow text-center">
+                                <div key={i} className="sk-box p-3 bg-white text-center flex flex-col items-center">
                                     <div className="text-2xl mb-1">{a.icon}</div>
                                     <div className="text-[10px] font-black uppercase text-[#FF3B30]">{a.title}</div>
-                                    <div className="text-xs font-bold text-on-background truncate">{a.playerName}</div>
-                                    <div className="text-[9px] text-on-background/60 font-bold mt-0.5">{a.value}</div>
+                                    <div className="text-xs font-bold text-[#161a33] truncate">{a.playerName}</div>
+                                    <div className="text-[9px] text-[#161a33]/60 font-bold mt-0.5">{a.value}</div>
                                 </div>
                             ))}
                         </div>
@@ -829,11 +832,11 @@ function DrawHostView() {
                     {/* Buttons */}
                     <div className="flex gap-3">
                         <button onClick={restartGame}
-                            className="flex-1 bg-[#FFD60A] text-on-background font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
+                            className="sk-btn sk-btn-primary flex-1 py-3 text-xs flex items-center justify-center gap-1">
                             🔄 Rejouer
                         </button>
                         <button onClick={() => navigate('/')}
-                            className="flex-1 bg-white text-[#FF3B30] font-black py-3 border-[3px] border-on-background rounded-xl shadow-[3px_3px_0px_0px_#161a33] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#161a33] transition-all text-xs uppercase tracking-wide flex items-center justify-center gap-1 active:translate-y-px active:shadow-none">
+                            className="sk-btn sk-btn-secondary flex-1 py-3 text-xs flex items-center justify-center gap-1">
                             🏠 Menu
                         </button>
                     </div>

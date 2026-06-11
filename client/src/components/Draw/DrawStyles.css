@@ -1,21 +1,167 @@
-/* DrawUp — Canvas & Animations uniquement.
-   Layout, couleurs et typographie → Tailwind. */
+/* ── Thème Comic Book / Sketch ───────────────────────── */
+/* Font 'Archivo' is loaded via <link> in index.html */
 
-/* ── Thème Comic Book ────────────────────────────────── */
-/* Fond crème + trame halftone (comme une page de BD imprimée) */
 body.comic-theme {
-    background-color: #FFFBF0;
-    background-image: radial-gradient(circle, rgba(0,0,0,0.14) 1.5px, transparent 1.5px);
-    background-size: 14px 14px;
+    font-family: 'Archivo', sans-serif !important;
+    background-color: #FFFBF0 !important;
+    background-image: 
+        linear-gradient(rgba(22, 26, 51, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 26, 51, 0.05) 1px, transparent 1px) !important;
+    background-size: 20px 20px !important;
     min-height: 100vh;
 }
 
-/* Fond crème pour les vues plein-écran (dessinateur / devineur) */
 .comic-player-bg {
-    background-color: #FFFBF0;
-    background-image: radial-gradient(circle, rgba(255,59,48,0.07) 1.5px, transparent 1.5px);
-    background-size: 12px 12px;
+    background-color: #FFFBF0 !important;
+    background-image: 
+        linear-gradient(rgba(22, 26, 51, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 26, 51, 0.05) 1px, transparent 1px) !important;
+    background-size: 16px 16px !important;
 }
+
+/* ── Design System Sketch (sk-) ──────────────────────── */
+/* All sk-* classes use !important on visual properties to
+   override Tailwind Preflight resets (border-style: solid → none,
+   box-shadow reset, etc.)                                       */
+
+body.comic-theme .sk-box {
+    background: #ffffff !important;
+    border: 3px solid #161a33 !important;
+    border-radius: 16px !important;
+    box-shadow: 6px 6px 0px 0px #161a33 !important;
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+
+body.comic-theme .sk-h {
+    font-family: 'Archivo', sans-serif !important;
+    font-weight: 900 !important;
+    text-transform: uppercase;
+    color: #161a33;
+    letter-spacing: -0.02em;
+}
+
+body.comic-theme .sk-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Archivo', sans-serif !important;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 3px solid #161a33 !important;
+    border-radius: 12px !important;
+    box-shadow: 4px 4px 0px 0px #161a33 !important;
+    transition: all 0.1s ease;
+    cursor: pointer;
+    user-select: none;
+    text-decoration: none;
+    padding: 10px 18px;
+    font-size: 0.85rem;
+}
+body.comic-theme .sk-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px #161a33 !important;
+}
+body.comic-theme .sk-btn:active {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0px 0px #161a33 !important;
+}
+body.comic-theme .sk-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: 4px 4px 0px 0px #161a33 !important;
+}
+
+body.comic-theme .sk-btn-primary {
+    background-color: #00D26A !important;
+    color: #ffffff !important;
+}
+body.comic-theme .sk-btn-secondary {
+    background-color: #C2DCFF !important;
+    color: #161a33 !important;
+}
+body.comic-theme .sk-btn-danger {
+    background-color: #FF3B30 !important;
+    color: #ffffff !important;
+}
+body.comic-theme .sk-btn-warning {
+    background-color: #FFD60A !important;
+    color: #161a33 !important;
+}
+body.comic-theme .sk-btn-white {
+    background-color: #ffffff !important;
+    color: #161a33 !important;
+}
+
+body.comic-theme .sk-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 9999px !important;
+    border: 2.5px solid #161a33 !important;
+    box-shadow: 2.5px 2.5px 0px 0px #161a33 !important;
+    background-color: #ffffff !important;
+    color: #161a33;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+body.comic-theme .sk-pill-active {
+    background-color: #FF3B30 !important;
+    color: #ffffff !important;
+}
+body.comic-theme .sk-pill-yellow {
+    background-color: #FFD60A !important;
+    color: #161a33 !important;
+}
+body.comic-theme .sk-pill-blue {
+    background-color: #C2DCFF !important;
+    color: #161a33 !important;
+}
+
+body.comic-theme .sk-ava {
+    border-radius: 50% !important;
+    border: 3px solid #161a33 !important;
+    box-shadow: 3.5px 3.5px 0px 0px #161a33 !important;
+    background-color: #ffffff !important;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+body.comic-theme .sk-ava:hover {
+    transform: scale(1.06);
+}
+body.comic-theme .sk-ava.active {
+    border-color: #FF3B30 !important;
+    box-shadow: 0px 0px 0px 3px rgba(255, 59, 48, 0.4) !important;
+}
+
+body.comic-theme .sk-input {
+    width: 100%;
+    font-family: 'Archivo', sans-serif !important;
+    font-weight: 700;
+    border: 3px solid #161a33 !important;
+    border-radius: 12px !important;
+    background-color: #ffffff !important;
+    color: #161a33;
+    box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.08), 3px 3px 0px 0px #161a33 !important;
+    outline: none;
+    transition: all 0.2s ease;
+    padding: 10px 14px;
+}
+body.comic-theme .sk-input:focus {
+    border-color: #FF3B30 !important;
+    box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.08), 3px 3px 0px 0px #FF3B30 !important;
+}
+
 
 /* ── Canvas ─────────────────────────────────────────── */
 .draw-canvas {
@@ -75,9 +221,9 @@ body.comic-theme {
     max-height: 100%;
     margin: auto;
     background: white;
-    border: 3px solid #161a33;
-    border-radius: 12px;
-    box-shadow: 4px 4px 0px 0px #161a33;
+    border: 3px solid #161a33 !important;
+    border-radius: 12px !important;
+    box-shadow: 4px 4px 0px 0px #161a33 !important;
     overflow: hidden;
 }
 

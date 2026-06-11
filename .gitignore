@@ -10,3 +10,9 @@ server/uploads/*
 .claude/
 .vscode/
 *.log
+
+# Temporary / Build directories
+scratch/
+client/dist-test/
+testdesign/
+

@@ -8,9 +8,9 @@ services:
     image: neural-quiz-app:latest
     restart: unless-stopped
     ports:
-      - "3007:3007"
+      - "3005:3005"
     environment:
-      - PORT=3007
+      - PORT=3005
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD requis dans .env}
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET requis dans .env}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}

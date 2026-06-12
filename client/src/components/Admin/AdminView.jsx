@@ -3,15 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import QuizEditor from './QuizEditor';
 import DrawAdmin from './DrawAdmin';
 import GeoAdmin from './GeoAdmin';
-import AperoAdmin from '../Apero/AperoAdmin';
+import ColorAdmin from './ColorAdmin';
 import Login from './Login';
 
-const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api`;
+const isHttps = window.location.protocol === 'https:';
+const serverPort = isHttps ? 3443 : 3005;
+const API_URL = import.meta.env.VITE_SERVER_URL 
+    ? `${import.meta.env.VITE_SERVER_URL}/api`
+    : (!import.meta.env.DEV ? '/api' : `${window.location.protocol}//${window.location.hostname}:${serverPort}/api`);
 
 function AdminView() {
     const navigate = useNavigate();
     const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
-    const [activeTab, setActiveTab] = useState('quizzes'); // 'quizzes', 'geo', 'draw', 'apero'
+    const [activeTab, setActiveTab] = useState('quizzes'); // 'quizzes', 'geo', 'draw', 'color'
 
     // Quiz State
     const [quizzes, setQuizzes] = useState([]);
@@ -77,8 +81,8 @@ function AdminView() {
             return <GeoAdmin />;
         }
 
-        if (activeTab === 'apero') {
-            return <AperoAdmin />;
+        if (activeTab === 'color') {
+            return <ColorAdmin />;
         }
 
         // Quizzes Tab
@@ -131,28 +135,40 @@ function AdminView() {
                 </div>
                 <div className="btn-group">
                     <button
-                        className={`btn ${activeTab === 'quizzes' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        className="btn"
                         onClick={() => { setActiveTab('quizzes'); setEditingQuiz(null); }}
+                        style={activeTab === 'quizzes'
+                            ? { background: '#00ff41', color: '#000', borderColor: '#00ff41' }
+                            : { background: 'transparent', color: '#00ff41', borderColor: '#00ff41' }}
                     >
                         🧠 NEURAL QUIZ
                     </button>
                     <button
-                        className={`btn ${activeTab === 'geo' ? 'btn-success' : 'btn-outline-success'}`}
+                        className="btn"
                         onClick={() => setActiveTab('geo')}
+                        style={activeTab === 'geo'
+                            ? { background: '#00dbde', color: '#000', borderColor: '#00dbde' }
+                            : { background: 'transparent', color: '#00dbde', borderColor: '#00dbde' }}
                     >
                         🌍 GEO TRACKR
                     </button>
                     <button
-                        className={`btn ${activeTab === 'draw' ? 'btn-info' : 'btn-outline-info'}`}
+                        className="btn"
                         onClick={() => setActiveTab('draw')}
+                        style={activeTab === 'draw'
+                            ? { background: '#ff6b9d', color: '#000', borderColor: '#ff6b9d' }
+                            : { background: 'transparent', color: '#ff6b9d', borderColor: '#ff6b9d' }}
                     >
-                        🎨 DRAW UP
+                        ✏️ DRAW UP
                     </button>
                     <button
-                        className={`btn ${activeTab === 'apero' ? 'btn-warning' : 'btn-outline-warning'}`}
-                        onClick={() => setActiveTab('apero')}
+                        className="btn"
+                        onClick={() => setActiveTab('color')}
+                        style={activeTab === 'color'
+                            ? { background: '#ffc107', color: '#000', borderColor: '#ffc107' }
+                            : { background: 'transparent', color: '#ffc107', borderColor: '#ffc107' }}
                     >
-                        🍻 APÉRO QUIZ
+                        🌈 COULEUR MOI
                     </button>
                 </div>
                 <div style={{ width: 100 }}></div> {/* Spacer for alignment */}

@@ -101,6 +101,20 @@ async function initDatabase() {
             )
         `);
 
+        // Table des personnages de CouleurMoi
+        await db.run(`
+            CREATE TABLE IF NOT EXISTS color_characters (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                part TEXT NOT NULL,
+                source TEXT NOT NULL,
+                target_h INTEGER NOT NULL,
+                target_s INTEGER NOT NULL,
+                target_b INTEGER NOT NULL,
+                image_path TEXT NOT NULL
+            )
+        `);
+
         console.log('[DATABASE] Schéma de la base SQLite initialisé.');
 
         // Exécuter l'import automatique des fichiers JSON (Seeding)
@@ -182,6 +196,22 @@ async function seedFromJSON() {
                 );
             }
             console.log(`[DATABASE] Migration : ${locations.length} lieux GeoTrackr importés.`);
+        }
+
+        // 5. Seeding Color Characters
+        const colorJsonFile = path.join(__dirname, 'data', 'colorCharacters.json');
+        const countColors = await db.get('SELECT COUNT(*) as count FROM color_characters');
+        if (countColors.count === 0 && fs.existsSync(colorJsonFile)) {
+            console.log('[DATABASE] Migration : Importation de colorCharacters.json vers SQLite...');
+            const rawData = fs.readFileSync(colorJsonFile, 'utf8');
+            const characters = JSON.parse(rawData);
+            for (const char of characters) {
+                await db.run(
+                    'INSERT OR REPLACE INTO color_characters (id, name, part, source, target_h, target_s, target_b, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [char.id, char.name, char.part, char.source, char.target_h, char.target_s, char.target_b, char.image_path]
+                );
+            }
+            console.log(`[DATABASE] Migration : ${characters.length} personnages CouleurMoi importés.`);
         }
 
     } catch (error) {

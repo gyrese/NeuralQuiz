@@ -9,7 +9,7 @@ const originalFetch = window.fetch;
 window.fetch = async function (url, options = {}) {
     const token = localStorage.getItem('admin_token');
     const urlStr = typeof url === 'string' ? url : (url && url.url) ? url.url : '';
-    const isApiRequest = urlStr.includes('/api/quizzes') || urlStr.includes('/api/admin') || urlStr.includes('/api/apero');
+    const isApiRequest = urlStr.includes('/api/quizzes') || urlStr.includes('/api/admin');
 
     if (token && isApiRequest) {
         options.headers = {

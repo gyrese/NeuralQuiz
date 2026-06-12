@@ -1,0 +1,566 @@
+/**
+ * CouleurMoi (Toon Tone clone) Game Manager
+ */
+
+const crypto = require('crypto');
+const colorCharacters = require('./colorCharacters');
+
+class ColorGameManager {
+    constructor() {
+        this.rooms = new Map(); // Map<roomCode, ColorRoom>
+        
+        // Periodic cleanup of dead rooms (every 5 mins)
+        setInterval(() => this.cleanupRooms(), 5 * 60 * 1000);
+    }
+
+    cleanupRooms() {
+        const now = Date.now();
+        const GAME_END_TTL = 30 * 60 * 1000; // 30 min after GAME_END
+        const STALE_TTL = 60 * 60 * 1000;    // 1h without activity
+
+        for (const [code, room] of this.rooms) {
+            const gameEndRef = room.gameEndTime || room.roundStartTime;
+            if (room.gameState === 'GAME_END' && gameEndRef && (now - gameEndRef) > GAME_END_TTL) {
+                console.log(`[COLOR] Cleanup: room ${code} (GAME_END for ${Math.round((now - gameEndRef) / 60000)} min)`);
+                this.deleteRoom(code);
+                continue;
+            }
+            const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
+            if (activePlayers.length === 0 && room.players.size > 0 && room.roundStartTime && (now - room.roundStartTime) > STALE_TTL) {
+                console.log(`[COLOR] Cleanup: room ${code} (no active players for ${Math.round((now - room.roundStartTime) / 60000)} min)`);
+                this.deleteRoom(code);
+            }
+        }
+    }
+
+    generateRoomCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+    }
+
+    createRoom(hostId, settings = {}) {
+        const roomCode = this.generateRoomCode();
+        const defaultSettings = {
+            roundsCount: 5,        // Number of rounds
+            timePerRound: 60,      // Seconds per round
+        };
+
+        this.rooms.set(roomCode, {
+            code: roomCode,
+            remoteToken: crypto.randomBytes(16).toString('hex'),
+            hostId: hostId,
+            players: new Map(),    // Map<socketId, PlayerData>
+            gameState: 'LOBBY',    // LOBBY, PLAYING, ROUND_END, GAME_END
+            currentRound: 0,
+            totalRounds: settings.roundsCount || defaultSettings.roundsCount,
+            timePerRound: settings.timePerRound || defaultSettings.timePerRound,
+            characters: [],        // Selected characters for this game
+            currentCharacter: null, // Current character metadata
+            roundStartTime: null,
+            settings: { ...defaultSettings, ...settings }
+        });
+
+        return roomCode;
+    }
+
+    getRoom(roomCode) {
+        return this.rooms.get(roomCode);
+    }
+
+    joinRoom(roomCode, playerId, playerName, avatar) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        // Check for reconnection
+        let existingPlayerId = null;
+        for (const [id, p] of room.players) {
+            if (p.name.toLowerCase() === playerName.toLowerCase()) {
+                existingPlayerId = id;
+                break;
+            }
+        }
+
+        if (existingPlayerId) {
+            const playerData = room.players.get(existingPlayerId);
+            room.players.delete(existingPlayerId);
+
+            playerData.id = playerId;
+            playerData.disconnected = false;
+            if (avatar) playerData.avatar = avatar;
+
+            room.players.set(playerId, playerData);
+
+            console.log(`[COLOR] Player ${playerName} reconnected to room ${roomCode}`);
+
+            return {
+                success: true,
+                room,
+                reconnected: true,
+                gameState: room.gameState,
+                currentRound: room.currentRound,
+                totalRounds: room.totalRounds,
+                character: room.currentCharacter,
+                roundStartTime: room.roundStartTime,
+                timePerRound: room.timePerRound,
+                myScore: playerData.totalScore
+            };
+        }
+
+        const isLateJoin = room.gameState !== 'LOBBY';
+        const missedRounds = isLateJoin ? room.currentRound - 1 : 0;
+
+        room.players.set(playerId, {
+            id: playerId,
+            name: playerName,
+            avatar: avatar || null,
+            totalScore: 0,
+            roundScores: Array(missedRounds).fill(0),
+            roundGuesses: Array(missedRounds).fill(null),
+            currentGuess: null,
+            hasGuessed: room.gameState === 'PLAYING' ? false : true,
+            roundTimes: Array(missedRounds).fill(null),
+            roundHints: Array(missedRounds).fill(false),
+            hintUsedThisRound: false,
+            lateJoin: isLateJoin,
+            joinedAtRound: isLateJoin ? room.currentRound : 0
+        });
+
+        console.log(`[COLOR] Player ${playerName} joined room ${roomCode}${isLateJoin ? ` (late join at round ${room.currentRound})` : ''}`);
+
+        return {
+            success: true,
+            room,
+            lateJoin: isLateJoin,
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            totalRounds: room.totalRounds,
+            character: room.currentCharacter,
+            roundStartTime: room.roundStartTime,
+            timePerRound: room.timePerRound,
+            missedRounds
+        };
+    }
+
+    async startGame(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        room.gameState = 'PLAYING';
+        room.currentRound = 1;
+        room.characters = await colorCharacters.getRandomSet(room.totalRounds);
+        
+        if (room.characters.length === 0) {
+            return { error: 'Aucun personnage disponible dans la base de données' };
+        }
+
+        // Adjust total rounds if we have fewer characters in database
+        if (room.characters.length < room.totalRounds) {
+            room.totalRounds = room.characters.length;
+        }
+
+        // Pre-generate random initial HSB colors for all characters
+        room.characters.forEach(char => {
+            char.random_h = Math.floor(Math.random() * 360);
+            char.random_s = Math.floor(Math.random() * 60) + 30; // 30% - 90%
+            char.random_b = Math.floor(Math.random() * 60) + 30; // 30% - 90%
+        });
+
+        room.currentCharacter = room.characters[0];
+        room.roundStartTime = Date.now();
+
+        // Reset player scores
+        for (const player of room.players.values()) {
+            player.totalScore = 0;
+            player.roundScores = [];
+            player.roundGuesses = [];
+            player.roundTimes = [];
+            player.roundHints = [];
+            player.currentGuess = null;
+            player.hasGuessed = false;
+            player.hintUsedThisRound = false;
+        }
+
+        return {
+            success: true,
+            character: room.currentCharacter,
+            round: 1,
+            total: room.totalRounds
+        };
+    }
+
+    submitGuess(roomCode, playerId, h, s, b, hintUsed) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+        if (room.gameState !== 'PLAYING') return { error: 'Partie non en cours' };
+
+        const player = room.players.get(playerId);
+        if (!player) return { error: 'Joueur introuvable' };
+        if (player.hasGuessed) return { error: 'Déjà répondu' };
+
+        const guess = { h, s, b };
+        const target = {
+            h: room.currentCharacter.target_h,
+            s: room.currentCharacter.target_s,
+            b: room.currentCharacter.target_b
+        };
+
+        const score = this.calculateScore(guess, target, hintUsed);
+        const timeTaken = (Date.now() - room.roundStartTime) / 1000;
+
+        player.currentGuess = guess;
+        player.hasGuessed = true;
+        player.hintUsedThisRound = hintUsed;
+
+        player.roundScores.push(score);
+        player.totalScore += score;
+        player.roundGuesses.push(guess);
+        player.roundTimes.push(timeTaken);
+        player.roundHints.push(hintUsed);
+
+        const allGuessed = this.allPlayersGuessed(roomCode);
+
+        return {
+            success: true,
+            score,
+            allGuessed
+        };
+    }
+
+    calculateScore(guess, target, hintUsed) {
+        // Perceptual HSB Distance Formula
+        let hDiff = Math.abs(guess.h - target.h);
+        if (hDiff > 180) hDiff = 360 - hDiff;
+        const hDist = hDiff / 180; // 0 to 1
+
+        const sDist = Math.abs(guess.s - target.s) / 100; // 0 to 1
+        const bDist = Math.abs(guess.b - target.b) / 100; // 0 to 1
+
+        // If either color is very low saturation or brightness, Hue matters less to the eye
+        const targetSat = target.s / 100;
+        const guessSat = guess.s / 100;
+        const targetBright = target.b / 100;
+        const guessBright = guess.b / 100;
+
+        const effectiveSat = Math.min(targetSat, guessSat);
+        const effectiveBright = Math.min(targetBright, guessBright);
+
+        // Adjust hue weight: if gray or black, hue differences are unperceivable
+        let hWeight = 0.5;
+        if (effectiveSat < 0.1 || effectiveBright < 0.1) {
+            hWeight = 0.05;
+        } else if (effectiveSat < 0.25) {
+            hWeight = 0.2;
+        }
+
+        const sWeight = 0.25;
+        const bWeight = 0.25;
+
+        const totalWeight = hWeight + sWeight + bWeight;
+        const weightedDist = Math.sqrt((hWeight * hDist * hDist + sWeight * sDist * sDist + bWeight * bDist * bDist) / totalWeight);
+
+        // Map to 0 - 10 score
+        let score = Math.max(0, 10 - weightedDist * 10);
+
+        // Deduct 1.0 point if hint was used
+        if (hintUsed) {
+            score = Math.max(0, score - 1.0);
+        }
+
+        return Math.round(score * 100) / 100; // 2 decimal places
+    }
+
+    endRound(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        if (room.gameState === 'ROUND_END') {
+            const results = [];
+            for (const player of room.players.values()) {
+                results.push({
+                    id: player.id,
+                    name: player.name,
+                    avatar: player.avatar,
+                    guess: player.currentGuess,
+                    roundScore: player.roundScores[player.roundScores.length - 1] || 0,
+                    totalScore: player.totalScore,
+                    hasGuessed: player.hasGuessed,
+                    hintUsed: player.hintUsedThisRound
+                });
+            }
+            results.sort((a, b) => b.roundScore - a.roundScore);
+            return {
+                success: true,
+                character: room.currentCharacter,
+                results,
+                currentRound: room.currentRound,
+                totalRounds: room.totalRounds
+            };
+        }
+
+        if (room.gameState !== 'PLAYING') {
+            return { error: `Cannot end round: game is in state ${room.gameState}` };
+        }
+
+        room.gameState = 'ROUND_END';
+
+        const results = [];
+        for (const player of room.players.values()) {
+            if (!player.hasGuessed) {
+                player.roundScores.push(0);
+                player.roundGuesses.push(null);
+                player.roundTimes.push(null);
+                player.roundHints.push(false);
+            }
+
+            results.push({
+                id: player.id,
+                name: player.name,
+                avatar: player.avatar,
+                guess: player.currentGuess,
+                roundScore: player.roundScores[player.roundScores.length - 1] || 0,
+                totalScore: player.totalScore,
+                hasGuessed: player.hasGuessed,
+                hintUsed: player.hintUsedThisRound
+            });
+        }
+
+        results.sort((a, b) => b.roundScore - a.roundScore);
+
+        return {
+            success: true,
+            character: room.currentCharacter,
+            results,
+            currentRound: room.currentRound,
+            totalRounds: room.totalRounds
+        };
+    }
+
+    nextRound(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        if (room.gameState !== 'ROUND_END') {
+            return { error: `Cannot advance: game is in state ${room.gameState}` };
+        }
+
+        room.currentRound++;
+
+        if (room.currentRound > room.totalRounds) {
+            room.gameState = 'GAME_END';
+            room.gameEndTime = Date.now();
+
+            const finalResults = [];
+            for (const player of room.players.values()) {
+                finalResults.push({
+                    id: player.id,
+                    name: player.name,
+                    avatar: player.avatar,
+                    totalScore: player.totalScore,
+                    roundScores: player.roundScores
+                });
+            }
+            finalResults.sort((a, b) => b.totalScore - a.totalScore);
+
+            return {
+                gameOver: true,
+                results: finalResults,
+                awards: this.calculateAwards(roomCode)
+            };
+        }
+
+        room.gameState = 'PLAYING';
+        room.currentCharacter = room.characters[room.currentRound - 1];
+        room.roundStartTime = Date.now();
+
+        for (const player of room.players.values()) {
+            player.currentGuess = null;
+            player.hasGuessed = false;
+            player.hintUsedThisRound = false;
+        }
+
+        return {
+            success: true,
+            round: room.currentRound,
+            total: room.totalRounds,
+            timePerRound: room.timePerRound,
+            character: room.currentCharacter
+        };
+    }
+
+    restartGame(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        room.gameState = 'LOBBY';
+        room.currentRound = 0;
+        room.currentCharacter = null;
+        room.characters = [];
+        room.roundStartTime = null;
+        room.gameEndTime = null;
+
+        for (const player of room.players.values()) {
+            player.totalScore = 0;
+            player.roundScores = [];
+            player.roundGuesses = [];
+            player.roundTimes = [];
+            player.roundHints = [];
+            player.currentGuess = null;
+            player.hasGuessed = false;
+            player.hintUsedThisRound = false;
+            player.disconnected = false;
+        }
+
+        return { success: true, room };
+    }
+
+    kickPlayer(roomCode, playerId) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+
+        if (room.players.has(playerId)) {
+            room.players.delete(playerId);
+            return { success: true };
+        }
+        return { error: 'Joueur introuvable' };
+    }
+
+    deleteRoom(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (room) {
+            if (room.roundTimer) {
+                clearTimeout(room.roundTimer);
+                room.roundTimer = null;
+            }
+            this.rooms.delete(roomCode);
+            console.log(`[COLOR] Room ${roomCode} deleted`);
+        }
+    }
+
+    removePlayer(playerId) {
+        for (const [code, room] of this.rooms) {
+            if (room.hostId === playerId) {
+                room.hostDisconnected = true;
+                return { roomCode: code, room, isHost: true };
+            }
+
+            if (room.players.has(playerId)) {
+                if (room.gameState !== 'LOBBY') {
+                    const player = room.players.get(playerId);
+                    player.disconnected = true;
+                    return { roomCode: code, room, isHost: false, type: 'disconnected', player };
+                }
+
+                room.players.delete(playerId);
+                return { roomCode: code, room, isHost: false, type: 'left' };
+            }
+        }
+        return null;
+    }
+
+    getPlayersInRoom(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return [];
+        return Array.from(room.players.values());
+    }
+
+    allPlayersGuessed(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return false;
+
+        const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
+        if (activePlayers.length === 0) return false;
+
+        for (const player of activePlayers) {
+            if (!player.hasGuessed) return false;
+        }
+        return true;
+    }
+
+    calculateAwards(roomCode) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return [];
+
+        let fastestPlayer = null;
+        let fastestTime = Infinity;
+
+        let colorblindPlayer = null;
+        let lowestAverageScore = Infinity;
+
+        let perfectionistPlayer = null;
+        let highestSingleScore = -1;
+
+        for (const player of room.players.values()) {
+            if (player.roundTimes.length === 0) continue;
+
+            // Average response time
+            const validTimes = player.roundTimes.filter(t => t !== null);
+            if (validTimes.length > 0) {
+                const avgTime = validTimes.reduce((a, b) => a + b, 0) / validTimes.length;
+                if (avgTime < fastestTime) {
+                    fastestTime = avgTime;
+                    fastestPlayer = player;
+                }
+            }
+
+            // Lowest average score
+            const validScores = player.roundScores.filter(s => s !== null);
+            if (validScores.length > 0) {
+                const avgScore = validScores.reduce((a, b) => a + b, 0) / validScores.length;
+                if (avgScore < lowestAverageScore) {
+                    lowestAverageScore = avgScore;
+                    colorblindPlayer = player;
+                }
+
+                // Highest single score
+                const maxScore = Math.max(...validScores);
+                if (maxScore > highestSingleScore) {
+                    highestSingleScore = maxScore;
+                    perfectionistPlayer = player;
+                }
+            }
+        }
+
+        const awards = [];
+        if (fastestPlayer && fastestTime < Infinity) {
+            awards.push({
+                type: 'fastest',
+                title: 'L\'Éclair',
+                icon: '⚡',
+                playerId: fastestPlayer.id,
+                playerName: fastestPlayer.name,
+                avatar: fastestPlayer.avatar,
+                value: `${fastestTime.toFixed(1)}s (moyenne)`
+            });
+        }
+        if (colorblindPlayer && lowestAverageScore < 10) {
+            awards.push({
+                type: 'colorblind',
+                title: 'Le Daltonien',
+                icon: '🕶️',
+                playerId: colorblindPlayer.id,
+                playerName: colorblindPlayer.name,
+                avatar: colorblindPlayer.avatar,
+                value: `${lowestAverageScore.toFixed(2)}/10 (moyenne)`
+            });
+        }
+        if (perfectionistPlayer && highestSingleScore > 0) {
+            awards.push({
+                type: 'perfectionist',
+                title: 'Le Perfectionniste',
+                icon: '🎯',
+                playerId: perfectionistPlayer.id,
+                playerName: perfectionistPlayer.name,
+                avatar: perfectionistPlayer.avatar,
+                value: `${highestSingleScore.toFixed(2)}/10 (max)`
+            });
+        }
+
+        return awards;
+    }
+}
+
+module.exports = new ColorGameManager();

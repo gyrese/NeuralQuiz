@@ -1,0 +1,600 @@
+/**
+ * CouleurMoi (Toon Tone clone) Controller
+ * Handles Socket.IO events and Express API routes for admin CRUD / upload
+ */
+
+const colorGameManager = require('../colorGameManager');
+const colorCharacters = require('../colorCharacters');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const authMiddleware = require('../middleware/authMiddleware');
+
+// Ensure upload directory exists
+const UPLOAD_DIR = path.join(__dirname, '../uploads/color');
+if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// Multer Storage configuration
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, UPLOAD_DIR);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'char-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Seules les images sont autorisées !'));
+        }
+    }
+});
+
+// Helper for safe callbacks
+const safeCallback = (callback, data) => {
+    if (typeof callback === 'function') callback(data);
+};
+
+const HOST_GRACE_PERIOD_MS = 120000; // 2 minutes grace period for host disconnect
+const hostDisconnectTimers = new Map();
+
+// ================================================
+// Express REST API Routes
+// ================================================
+function setupColorRoutes(app) {
+    // List all characters (used by Admin & client optionally)
+    app.get('/api/color/characters', async (req, res) => {
+        try {
+            res.json(await colorCharacters.getAll());
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Get single character
+    app.get('/api/color/characters/:id', async (req, res) => {
+        try {
+            const char = await colorCharacters.getById(req.params.id);
+            if (!char) return res.status(404).json({ error: 'Personnage non trouvé' });
+            res.json(char);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Upload character WebP image
+    app.post('/api/admin/color/upload', authMiddleware, upload.single('image'), (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ error: 'Aucun fichier uploadé' });
+            }
+            // Return relative URL for static service
+            const fileUrl = `/uploads/color/${req.file.filename}`;
+            res.json({ url: fileUrl });
+        } catch (error) {
+            console.error('[COLOR] Upload error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Create a new character
+    app.post('/api/admin/color/characters', authMiddleware, async (req, res) => {
+        try {
+            const charData = req.body;
+            // Validate unique ID
+            const existing = await colorCharacters.getById(charData.id);
+            if (existing) {
+                return res.status(400).json({ error: 'Cet identifiant existe déjà' });
+            }
+            const success = await colorCharacters.addCharacter(charData);
+            if (success) {
+                res.json({ success: true, character: charData });
+            } else {
+                res.status(500).json({ error: 'Erreur lors de la création en base' });
+            }
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Update character
+    app.put('/api/admin/color/characters/:id', authMiddleware, async (req, res) => {
+        try {
+            const success = await colorCharacters.updateCharacter(req.params.id, req.body);
+            if (success) {
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: 'Personnage non trouvé ou aucune modification' });
+            }
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Delete character
+    app.delete('/api/admin/color/characters/:id', authMiddleware, async (req, res) => {
+        try {
+            // Optional: delete associated file from filesystem
+            const char = await colorCharacters.getById(req.params.id);
+            if (char && char.image_path.startsWith('/uploads/color/')) {
+                const filePath = path.join(__dirname, '..', char.image_path);
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            }
+
+            const success = await colorCharacters.deleteCharacter(req.params.id);
+            if (success) {
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: 'Personnage non trouvé' });
+            }
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    console.log('[COLOR] REST API routes initialized');
+}
+
+// ================================================
+// Socket.IO Connection Handler
+// ================================================
+function handleConnection(io, socket) {
+    
+    // 1. Host Create Room
+    socket.on('color-create-room', (data, callback) => {
+        try {
+            const { settings } = data || {};
+            const roomCode = colorGameManager.createRoom(socket.id, settings);
+            const room = colorGameManager.getRoom(roomCode);
+            socket.join(`color-${roomCode}`);
+            safeCallback(callback, { roomCode, remoteToken: room.remoteToken });
+            console.log(`[COLOR] Room created: ${roomCode} by host socket ${socket.id}`);
+        } catch (error) {
+            console.error('[COLOR] Error in color-create-room:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 2. Host Reconnect
+    socket.on('color-host-reconnect', (data, callback) => {
+        try {
+            const { roomCode } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (room) {
+                // Cancel deletion timer if host returned in time
+                if (hostDisconnectTimers.has(roomCode)) {
+                    clearTimeout(hostDisconnectTimers.get(roomCode));
+                    hostDisconnectTimers.delete(roomCode);
+                    console.log(`[COLOR] Host reconnected: cancelled cleanup timer for ${roomCode}`);
+                }
+                
+                room.hostId = socket.id;
+                room.hostDisconnected = false;
+                socket.join(`color-${roomCode}`);
+                console.log(`[COLOR] Host reconnected to room ${roomCode}`);
+
+                const players = colorGameManager.getPlayersInRoom(roomCode).map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    avatar: p.avatar,
+                    totalScore: p.totalScore || 0,
+                    disconnected: p.disconnected || false
+                }));
+
+                safeCallback(callback, {
+                    success: true,
+                    roomCode,
+                    gameState: room.gameState,
+                    currentRound: room.currentRound,
+                    totalRounds: room.totalRounds,
+                    players,
+                    timePerRound: room.timePerRound,
+                    character: room.currentCharacter,
+                    roundStartTime: room.roundStartTime
+                });
+
+                // Notify players
+                socket.to(`color-${roomCode}`).emit('color-host-reconnected');
+            } else {
+                safeCallback(callback, { error: 'Salon non trouvé' });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-host-reconnect:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 3. Player Join Room
+    socket.on('color-join-room', (data, callback) => {
+        try {
+            const { roomCode, playerName, avatar } = data || {};
+            const result = colorGameManager.joinRoom(roomCode, socket.id, playerName, avatar);
+            if (result.error) {
+                safeCallback(callback, { error: result.error });
+            } else {
+                socket.join(`color-${roomCode}`);
+
+                if (result.reconnected) {
+                    safeCallback(callback, {
+                        success: true,
+                        reconnected: true,
+                        gameState: result.gameState,
+                        currentRound: result.currentRound,
+                        totalRounds: result.totalRounds,
+                        character: result.character,
+                        roundStartTime: result.roundStartTime,
+                        timePerRound: result.timePerRound,
+                        myScore: result.myScore
+                    });
+                    console.log(`[COLOR] Player ${playerName} reconnected to room ${roomCode}`);
+                } else if (result.lateJoin) {
+                    safeCallback(callback, {
+                        success: true,
+                        lateJoin: true,
+                        gameState: result.gameState,
+                        currentRound: result.currentRound,
+                        totalRounds: result.totalRounds,
+                        character: result.character,
+                        roundStartTime: result.roundStartTime,
+                        timePerRound: result.timePerRound,
+                        missedRounds: result.missedRounds
+                    });
+                    console.log(`[COLOR] Player ${playerName} late joined room ${roomCode}`);
+                } else {
+                    safeCallback(callback, { success: true });
+                    console.log(`[COLOR] Player ${playerName} joined room ${roomCode}`);
+                }
+
+                // Broadcast player list update to room
+                io.to(`color-${roomCode}`).emit('color-player-joined', colorGameManager.getPlayersInRoom(roomCode));
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-join-room:', error);
+            safeCallback(callback, { error: 'Erreur serveur lors de la connexion' });
+        }
+    });
+
+    // 4. Host Update Settings (e.g. rounds count, time limits)
+    socket.on('color-update-settings', (data) => {
+        try {
+            const { roomCode, settings } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) return;
+
+            if (settings) {
+                room.totalRounds = settings.roundsCount || room.totalRounds;
+                room.timePerRound = settings.timePerRound || room.timePerRound;
+                room.settings = { ...room.settings, ...settings };
+                
+                io.to(`color-${roomCode}`).emit('color-settings-updated', {
+                    roundsCount: room.totalRounds,
+                    timePerRound: room.timePerRound
+                });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-update-settings:', error);
+        }
+    });
+
+    // 5. Host Start Game
+    socket.on('color-start-game', async (data, callback) => {
+        try {
+            const { roomCode, settings } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) {
+                safeCallback(callback, { error: 'Salon non trouvé ou droit insuffisant' });
+                return;
+            }
+
+            if (room.gameState !== 'LOBBY') {
+                safeCallback(callback, { error: 'Partie déjà démarrée' });
+                return;
+            }
+
+            if (settings) {
+                room.totalRounds = settings.roundsCount || room.totalRounds;
+                room.timePerRound = settings.timePerRound || room.timePerRound;
+                room.settings = { ...room.settings, ...settings };
+            }
+
+            const result = await colorGameManager.startGame(roomCode);
+            if (result.success) {
+                safeCallback(callback, {
+                    success: true,
+                    character: result.character,
+                    round: result.round,
+                    total: result.total,
+                    timePerRound: room.timePerRound,
+                    roundStartTime: room.roundStartTime
+                });
+
+                io.to(`color-${roomCode}`).emit('color-game-started', {
+                    round: result.round,
+                    total: result.total,
+                    character: result.character,
+                    timePerRound: room.timePerRound,
+                    roundStartTime: room.roundStartTime
+                });
+
+                // Server security timer (auto-end round if client lags)
+                setupServerRoundTimer(io, roomCode, room);
+
+                console.log(`[COLOR] Game started in room ${roomCode}`);
+            } else {
+                safeCallback(callback, { error: result.error });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-start-game:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 6. Player submit color guess
+    socket.on('color-submit-guess', (data, callback) => {
+        try {
+            const { roomCode, h, s, b, hintUsed } = data || {};
+            const result = colorGameManager.submitGuess(roomCode, socket.id, h, s, b, hintUsed);
+            if (result.success) {
+                safeCallback(callback, {
+                    success: true,
+                    score: result.score
+                });
+
+                // Notify room that player has submitted
+                io.to(`color-${roomCode}`).emit('color-player-guessed', { playerId: socket.id });
+
+                if (result.allGuessed) {
+                    console.log(`[COLOR] All players guessed in room ${roomCode}`);
+                    io.to(`color-${roomCode}`).emit('color-all-guessed');
+                }
+            } else {
+                safeCallback(callback, { error: result.error });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-submit-guess:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 7. End Round (reveal answers and scores)
+    socket.on('color-end-round', (data, callback) => {
+        try {
+            const { roomCode } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) {
+                safeCallback(callback, { error: 'Non autorisé' });
+                return;
+            }
+
+            if (room.roundTimer) {
+                clearTimeout(room.roundTimer);
+                room.roundTimer = null;
+            }
+
+            const result = colorGameManager.endRound(roomCode);
+            if (result.success) {
+                safeCallback(callback, result);
+
+                io.to(`color-${roomCode}`).emit('color-round-ended', {
+                    results: result.results,
+                    character: result.character,
+                    currentRound: result.currentRound,
+                    totalRounds: result.totalRounds
+                });
+
+                console.log(`[COLOR] Round ${result.currentRound} ended in room ${roomCode}`);
+            } else {
+                safeCallback(callback, { error: result.error });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-end-round:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 8. Next Round (next character or show game over)
+    socket.on('color-next-round', (data, callback) => {
+        try {
+            const { roomCode } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) {
+                safeCallback(callback, { error: 'Non autorisé' });
+                return;
+            }
+
+            const result = colorGameManager.nextRound(roomCode);
+            if (result.gameOver) {
+                safeCallback(callback, result);
+                io.to(`color-${roomCode}`).emit('color-game-over', {
+                    results: result.results,
+                    awards: result.awards
+                });
+                console.log(`[COLOR] Game over in room ${roomCode}`);
+            } else if (result.success) {
+                safeCallback(callback, result);
+                io.to(`color-${roomCode}`).emit('color-next-round', {
+                    round: result.round,
+                    total: result.total,
+                    character: result.character,
+                    timePerRound: room.timePerRound,
+                    roundStartTime: room.roundStartTime
+                });
+
+                setupServerRoundTimer(io, roomCode, room);
+
+                console.log(`[COLOR] Round ${result.round} started in room ${roomCode}`);
+            } else {
+                safeCallback(callback, { error: result.error });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-next-round:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 9. Restart Game
+    socket.on('color-restart-game', (data, callback) => {
+        try {
+            const { roomCode } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) {
+                safeCallback(callback, { error: 'Non autorisé' });
+                return;
+            }
+
+            const result = colorGameManager.restartGame(roomCode);
+            if (result.success) {
+                safeCallback(callback, { success: true });
+                io.to(`color-${roomCode}`).emit('color-game-restarted');
+            } else {
+                safeCallback(callback, { error: result.error });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-restart-game:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 10. Kick Player
+    socket.on('color-kick-player', (data, callback) => {
+        try {
+            const { roomCode, playerId } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) {
+                safeCallback(callback, { error: 'Non autorisé' });
+                return;
+            }
+
+            const result = colorGameManager.kickPlayer(roomCode, playerId);
+            if (result.success) {
+                safeCallback(callback, { success: true });
+                io.to(playerId).emit('color-kicked');
+                io.sockets.sockets.get(playerId)?.leave(`color-${roomCode}`);
+                io.to(`color-${roomCode}`).emit('color-player-left', colorGameManager.getPlayersInRoom(roomCode));
+            } else {
+                safeCallback(callback, { error: result.error });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-kick-player:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 11. Delete Room
+    socket.on('color-delete-room', (data, callback) => {
+        try {
+            const { roomCode } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (!room || room.hostId !== socket.id) {
+                safeCallback(callback, { error: 'Non autorisé' });
+                return;
+            }
+
+            if (hostDisconnectTimers.has(roomCode)) {
+                clearTimeout(hostDisconnectTimers.get(roomCode));
+                hostDisconnectTimers.delete(roomCode);
+            }
+
+            io.to(`color-${roomCode}`).emit('color-host-disconnected');
+            colorGameManager.deleteRoom(roomCode);
+            safeCallback(callback, { success: true });
+        } catch (error) {
+            console.error('[COLOR] Error in color-delete-room:', error);
+            safeCallback(callback, { error: 'Erreur serveur' });
+        }
+    });
+
+    // 12. Emoji Reactions
+    socket.on('color-reaction', (data) => {
+        try {
+            const { roomCode, emoji, playerName } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (room) {
+                io.to(`color-${roomCode}`).emit('color-reaction', {
+                    emoji,
+                    playerName,
+                    playerId: socket.id
+                });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-reaction:', error);
+        }
+    });
+
+    // 13. Chat messages
+    socket.on('color-chat-message', (data) => {
+        try {
+            const { roomCode, message, playerName } = data || {};
+            const room = colorGameManager.getRoom(roomCode);
+            if (room) {
+                io.to(`color-${roomCode}`).emit('color-chat-message', {
+                    message,
+                    playerName,
+                    playerId: socket.id,
+                    id: Date.now() + Math.random().toString(36).substring(2, 7)
+                });
+            }
+        } catch (error) {
+            console.error('[COLOR] Error in color-chat-message:', error);
+        }
+    });
+
+    // 14. Handle disconnection
+    socket.on('disconnect', () => {
+        const result = colorGameManager.removePlayer(socket.id);
+        if (result) {
+            const { roomCode, isHost } = result;
+            if (isHost) {
+                // Grace period: host disconnected, wait 2 mins before deletion
+                const timer = setTimeout(() => {
+                    hostDisconnectTimers.delete(roomCode);
+                    io.to(`color-${roomCode}`).emit('color-host-disconnected');
+                    colorGameManager.deleteRoom(roomCode);
+                    console.log(`[COLOR] Room ${roomCode} deleted after host grace period`);
+                }, HOST_GRACE_PERIOD_MS);
+                hostDisconnectTimers.set(roomCode, timer);
+                console.log(`[COLOR] Host disconnected from ${roomCode}, grace period active`);
+            } else {
+                io.to(`color-${roomCode}`).emit('color-player-left', colorGameManager.getPlayersInRoom(roomCode));
+            }
+        }
+    });
+}
+
+// Server security timer (auto-ends round if host fails to click)
+function setupServerRoundTimer(io, roomCode, room) {
+    if (room.roundTimer) {
+        clearTimeout(room.roundTimer);
+    }
+    // +5s margin for network lag
+    const delay = (room.timePerRound + 5) * 1000;
+    room.roundTimer = setTimeout(() => {
+        room.roundTimer = null;
+        const currentRoom = colorGameManager.getRoom(roomCode);
+        if (!currentRoom || currentRoom.gameState !== 'PLAYING') return;
+
+        console.log(`[COLOR] Server timer: auto-end round ${currentRoom.currentRound} for room ${roomCode}`);
+        const result = colorGameManager.endRound(roomCode);
+        if (result.success) {
+            io.to(`color-${roomCode}`).emit('color-round-ended', {
+                results: result.results,
+                character: result.character,
+                currentRound: result.currentRound,
+                totalRounds: result.totalRounds
+            });
+        }
+    }, delay);
+}
+
+module.exports = { setupColorRoutes, handleConnection };

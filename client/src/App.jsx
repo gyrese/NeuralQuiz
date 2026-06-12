@@ -11,6 +11,11 @@ import QuizSelectPage from './pages/quiz/QuizSelectPage';
 import HostView from './components/Host/HostView';
 import PlayerView from './components/Player/PlayerView';
 
+// CouleurMoi
+import ColorSelectPage from './pages/color/ColorSelectPage';
+import ColorHostView from './components/Color/ColorHostView';
+import ColorPlayerView from './components/Color/ColorPlayerView';
+
 // Geo
 import GeoSelectPage from './pages/geo/GeoSelectPage';
 import GeoHostView from './components/Geo/GeoHostView';
@@ -21,12 +26,6 @@ import GeoRemoteView from './components/Geo/GeoRemoteView';
 import DrawSelectPage from './pages/draw/DrawSelectPage';
 import DrawHostView from './components/Draw/DrawHostView';
 import DrawPlayerView from './components/Draw/DrawPlayerView';
-
-// Apéro
-import AperoSelectPage from './pages/apero/AperoSelectPage';
-import AperoHostView from './components/Apero/AperoHostView';
-import AperoPlayerView from './components/Apero/AperoPlayerView';
-import AperoAdmin from './components/Apero/AperoAdmin';
 
 // Admin
 import AdminView from './components/Admin/AdminView';
@@ -75,6 +74,12 @@ function App() {
           <Route path="/quiz/play" element={<PlayerView />} />
           <Route path="/quiz/play/:roomCode" element={<PlayerView />} />
 
+          {/* CouleurMoi */}
+          <Route path="/color" element={<ColorSelectPage />} />
+          <Route path="/color/host" element={<ColorHostView />} />
+          <Route path="/color/play" element={<ColorPlayerView />} />
+          <Route path="/color/play/:roomCode" element={<ColorPlayerView />} />
+
           {/* GeoTrackr */}
           <Route path="/geo" element={<GeoSelectPage />} />
           <Route path="/geo/host" element={<GeoHostView />} />
@@ -88,13 +93,6 @@ function App() {
           <Route path="/draw/host" element={<DrawHostView />} />
           <Route path="/draw/play" element={<DrawPlayerView />} />
           <Route path="/draw/play/:roomCode" element={<DrawPlayerView />} />
-
-          {/* Apéro Quiz */}
-          <Route path="/apero" element={<AperoSelectPage />} />
-          <Route path="/apero/host" element={<AperoHostView />} />
-          <Route path="/apero/play" element={<AperoPlayerView />} />
-          <Route path="/apero/play/:roomCode" element={<AperoPlayerView />} />
-          <Route path="/apero/admin" element={<AperoAdmin />} />
 
           {/* Admin */}
           <Route path="/admin" element={<AdminView />} />

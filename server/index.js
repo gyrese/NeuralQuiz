@@ -29,7 +29,7 @@ const quizController = require('./controllers/quizController');
 const geoController = require('./controllers/geoController');
 const drawController = require('./controllers/drawController');
 const adminController = require('./controllers/adminController');
-const aperoController = require('./controllers/aperoController');
+const colorController = require('./controllers/colorController');
 
 const rateLimit = require('express-rate-limit');
 
@@ -51,8 +51,8 @@ app.use('/api/', apiLimiter);
 
 // Setup Admin Routes
 adminController.setupRoutes(app);
-// Setup Apero API Routes
-aperoController.setupAperoRoutes(app);
+// Setup Color API Routes
+colorController.setupColorRoutes(app);
 
 // Servir les fichiers uploadés (Images, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -83,6 +83,37 @@ app.delete('/api/quizzes/:id', authMiddleware, async (req, res) => {
     const success = await quizManager.deleteQuiz(req.params.id);
     if (success) res.json({ success: true });
     else res.status(404).json({ error: 'Quiz not found' });
+});
+
+// Universal room resolver endpoint (checks all game managers)
+app.get('/api/room/:code', (req, res) => {
+    const roomCode = req.params.code.toUpperCase();
+    
+    // Check Neural Quiz
+    const quizGameManager = require('./gameManager');
+    if (quizGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'quiz' });
+    }
+    
+    // Check GeoTrackr
+    const geoGameManager = require('./geoGameManager');
+    if (geoGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'geo' });
+    }
+    
+    // Check DrawUp
+    const drawGameManager = require('./drawGameManager');
+    if (drawGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'draw' });
+    }
+    
+    // Check CouleurMoi
+    const colorGameManager = require('./colorGameManager');
+    if (colorGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'color' });
+    }
+    
+    res.status(404).json({ error: 'Salon non trouvé' });
 });
 
 // --- HTTPS / HTTP SERVER SETUP ---
@@ -169,7 +200,7 @@ io.on('connection', (socket) => {
         quizController.handleConnection(io, socket);
         geoController.handleConnection(io, socket);
         drawController.handleConnection(io, socket);
-        aperoController.handleConnection(io, socket);
+        colorController.handleConnection(io, socket);
         console.log('[SERVER] All controllers initialized for socket:', socket.id);
     } catch (error) {
         console.error('[SERVER] ERROR initializing controllers for socket', socket.id, ':', error);

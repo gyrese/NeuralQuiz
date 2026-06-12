@@ -42,6 +42,9 @@ function JoinPage() {
             case 'apero':
                 navigate(`/apero/play/${code}`);
                 break;
+            case 'color':
+                navigate(`/color/play/${code}`);
+                break;
             case 'remote':
                 navigate(`/geo/remote/${code}`);
                 break;
@@ -61,7 +64,12 @@ function JoinPage() {
 
         try {
             // Try to detect game type from server
-            const res = await fetch(`${window.location.protocol}//${window.location.hostname}:3001/api/room/${roomCode.toUpperCase()}`);
+            const isHttps = window.location.protocol === 'https:';
+            const port = isHttps ? 3443 : 3005;
+            const serverUrl = import.meta.env.VITE_SERVER_URL || 
+                (!import.meta.env.DEV ? '' : `${window.location.protocol}//${window.location.hostname}:${port}`);
+            
+            const res = await fetch(`${serverUrl}/api/room/${roomCode.toUpperCase()}`);
 
             if (res.ok) {
                 const data = await res.json();

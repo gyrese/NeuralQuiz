@@ -62,7 +62,7 @@ const GAMES = [
     },
     {
         id: 'apero',
-        route: '/apero',
+        href: 'https://ltnhout.ltn.re',
         name: 'APÉRO_QUIZ',
         description: 'Quiz de bar interactif — Les équipes répondent sur leur téléphone',
         tags: ['Quiz', 'Par Équipe', 'Bar'],
@@ -79,12 +79,35 @@ const GAMES = [
             </svg>
         ),
     },
+    {
+        id: 'color',
+        route: '/color',
+        name: 'COULEUR_MOI',
+        description: 'Clone de Toon Tone : devinez la couleur exacte de personnages célèbres',
+        tags: ['Couleurs', 'Mémoire', 'Multijoueur'],
+        color: '#ffc107',
+        colorRgb: '255, 193, 7',
+        icon: (
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 36C6 34 4 28 4 22C4 12 12 4 24 4C36 4 44 12 44 22C44 28 42 34 36 36L30 38C28 39 26 41 26 43C26 44 25 45 24 45C23 45 22 44 22 43C22 41 20 39 18 38L12 36Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                <circle cx="14" cy="16" r="3" fill="currentColor"/>
+                <circle cx="20" cy="11" r="3" fill="currentColor"/>
+                <circle cx="28" cy="11" r="3" fill="currentColor"/>
+                <circle cx="34" cy="16" r="3" fill="currentColor"/>
+                <circle cx="37" cy="24" r="3" fill="currentColor"/>
+                <path d="M22 28C22 28 23 25 24 25C25 25 26 28 26 28 L28 32 L20 32 Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="currentColor"/>
+            </svg>
+        ),
+    },
 ];
 
 function GameCard({ game, index }) {
+    const Wrapper = game.href
+        ? ({ children, ...props }) => <a href={game.href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+        : ({ children, ...props }) => <Link to={game.route} {...props}>{children}</Link>;
+
     return (
-        <Link
-            to={game.route}
+        <Wrapper
             className="group relative block focus:outline-none"
             aria-label={`Jouer à ${game.name}`}
             style={{ '--card-color': game.color, '--card-rgb': game.colorRgb }}
@@ -180,7 +203,7 @@ function GameCard({ game, index }) {
                     </svg>
                 </div>
             </div>
-        </Link>
+        </Wrapper>
     );
 }
 
@@ -324,7 +347,7 @@ function HomePage() {
                         {/* Status indicators */}
                         <div className="flex items-center justify-center gap-6 mt-6">
                             {[
-                                { label: '4 JEUX', color: '#00ff41' },
+                                { label: '5 JEUX', color: '#00ff41' },
                                 { label: 'MULTIJOUEUR', color: '#00dbde' },
                                 { label: 'TEMPS RÉEL', color: '#bd00ff' },
                             ].map(({ label, color }) => (

@@ -1,0 +1,338 @@
+/* ═══════════════════════════════════════════
+   CouleurMoi — Super Toon Design System
+   ═══════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:ital,wght@0,700;0,800;0,900;1,900&display=swap');
+
+:root {
+  --t-dark:   #1A1A2E;
+  --t-coral:  #FF5263;
+  --t-teal:   #00C2B3;
+  --t-yellow: #FFD93D;
+  --t-green:  #4ADE80;
+  --t-purple: #C084FC;
+  --t-orange: #FF9A3C;
+  --t-bg:     #FFFBEB;
+  --t-white:  #FFFFFF;
+  --t-sh:     4px 4px 0px var(--t-dark);
+  --t-sh-sm:  2px 2px 0px var(--t-dark);
+  --t-sh-lg:  7px 7px 0px var(--t-dark);
+}
+
+/* ── Base ── */
+.color-game-bg {
+    background-color: var(--t-bg) !important;
+    font-family: 'Nunito', 'Space Grotesk', sans-serif !important;
+    min-height: 100vh;
+    color: var(--t-dark);
+    overflow-x: hidden;
+}
+
+.color-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+/* ── Halftone background dots ── */
+.toon-dots {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image: radial-gradient(circle, rgba(26,26,46,0.10) 1.5px, transparent 1.5px);
+    background-size: 22px 22px;
+}
+
+/* ── Cards ── */
+.toon-card {
+    background: var(--t-white);
+    border: 3px solid var(--t-dark);
+    border-radius: 18px;
+    box-shadow: var(--t-sh-lg);
+}
+
+/* ── Buttons ── */
+.toon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 3px solid var(--t-dark);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    box-shadow: var(--t-sh);
+    position: relative;
+    white-space: nowrap;
+}
+
+.toon-btn:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0px var(--t-dark); }
+.toon-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0px var(--t-dark); }
+.toon-btn:disabled {
+    background: #D1D5DB !important; color: #9CA3AF !important;
+    border-color: #9CA3AF !important; box-shadow: 2px 2px 0px #9CA3AF !important;
+    cursor: not-allowed; transform: none !important;
+}
+
+/* ── Shadows util ── */
+.toon-shadow    { box-shadow: var(--t-sh); }
+.toon-shadow-sm { box-shadow: var(--t-sh-sm); }
+.toon-shadow-lg { box-shadow: var(--t-sh-lg); }
+
+/* ── Timer bar ── */
+.timer-container {
+    height: 16px;
+    width: 100%;
+    background: var(--t-white);
+    border: 3px solid var(--t-dark);
+    box-shadow: var(--t-sh-sm);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.timer-bar {
+    height: 100%;
+    background: var(--t-teal);
+    transition: width 0.1s linear, background-color 0.5s;
+    border-radius: 99px;
+}
+
+/* ── Horizontal HSB sliders (player view) ── */
+.hsb-slider-container { margin-bottom: 16px; }
+
+.hsb-slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    margin-bottom: 5px;
+    letter-spacing: 0.06em;
+    color: var(--t-dark);
+}
+
+.hsb-slider-track {
+    position: relative;
+    height: 38px;
+    border: 3px solid var(--t-dark);
+    box-shadow: var(--t-sh-sm);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.hsb-slider-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    outline: none;
+    position: relative;
+    z-index: 10;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.hsb-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 26px;
+    height: 42px;
+    background: var(--t-white);
+    border: 3px solid var(--t-dark);
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px var(--t-dark);
+    transition: transform 0.1s;
+}
+.hsb-slider-input::-webkit-slider-thumb:hover { transform: scaleY(1.08); }
+.hsb-slider-input::-moz-range-thumb {
+    width: 26px; height: 42px;
+    background: var(--t-white);
+    border: 3px solid var(--t-dark);
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px var(--t-dark);
+}
+
+/* ── Character display box ── */
+.character-box {
+    position: relative;
+    border: 3px solid var(--t-dark);
+    box-shadow: var(--t-sh-lg);
+    border-radius: 18px;
+    overflow: hidden;
+    aspect-ratio: 1;
+    background-color: var(--t-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease;
+}
+
+/* ── Flip card reveal ── */
+.flip-card { background: transparent; perspective: 1000px; }
+.flip-card-inner {
+    position: relative; width: 100%; height: 100%; text-align: center;
+    transition: transform 0.8s cubic-bezier(0.175,0.885,0.32,1.275);
+    transform-style: preserve-3d;
+}
+.flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+.flip-card-front, .flip-card-back {
+    position: absolute; width: 100%; height: 100%;
+    -webkit-backface-visibility: hidden; backface-visibility: hidden;
+    border-radius: 18px; border: 3px solid var(--t-dark); box-shadow: var(--t-sh);
+}
+.flip-card-front { background: var(--t-white); }
+.flip-card-back  { background: var(--t-bg); transform: rotateY(180deg); }
+
+/* ── Floating emoji reactions ── */
+@keyframes floatReaction {
+    0%   { transform: translateY(105vh) translateX(0) scale(0.3) rotate(0deg); opacity:0; }
+    10%  { opacity:1; transform: translateY(80vh) translateX(var(--reaction-drift-x-1,15px)) scale(1.5) rotate(var(--reaction-rot-1,10deg)); }
+    50%  { transform: translateY(40vh) translateX(var(--reaction-drift-x-2,-15px)) scale(1.2) rotate(var(--reaction-rot-2,-10deg)); }
+    90%  { opacity:1; }
+    100% { transform: translateY(-15vh) translateX(var(--reaction-drift-x-3,5px)) scale(0.7) rotate(0deg); opacity:0; }
+}
+.floating-reaction {
+    position: fixed; bottom: -50px; font-size: 3.5rem;
+    pointer-events: none; z-index: 1000;
+    animation: floatReaction 4.5s ease-in-out forwards;
+}
+
+/* ── Chat overlay ── */
+.host-chat-container {
+    position: absolute; bottom: 24px; left: 24px;
+    width: 300px; max-height: 250px;
+    overflow: hidden; z-index: 50;
+    display: flex; flex-direction: column-reverse; gap: 8px;
+    pointer-events: none;
+}
+.host-chat-bubble {
+    background: var(--t-white);
+    border: 2.5px solid var(--t-dark);
+    box-shadow: var(--t-sh-sm);
+    padding: 7px 12px;
+    border-radius: 10px;
+    animation: slideInChat 0.3s cubic-bezier(0.18,0.89,0.32,1.28) forwards;
+    pointer-events: auto;
+}
+@keyframes slideInChat {
+    from { transform: translateY(30px) scale(0.8); opacity:0; }
+    to   { transform: translateY(0) scale(1);     opacity:1; }
+}
+
+/* ── Vertical sliders (player gameplay panel) ── */
+.vertical-slider-wrap {
+    position: relative; width: 38px; height: 190px;
+    border: 3px solid var(--t-dark); border-radius: 99px;
+    overflow: hidden; box-shadow: var(--t-sh-sm);
+    background: var(--t-white);
+}
+.vertical-slider-track-bg { position: absolute; inset: 0; z-index: 1; }
+.vertical-slider-field {
+    position: absolute; top: 50%; left: 50%;
+    width: 190px; height: 38px;
+    transform: translate(-50%,-50%) rotate(-90deg);
+    -webkit-appearance: none; appearance: none;
+    background: transparent; outline: none;
+    cursor: pointer; margin: 0; z-index: 5;
+}
+.vertical-slider-field::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--t-white);
+    border: 3px solid var(--t-dark);
+    cursor: pointer; box-shadow: 2px 2px 0px var(--t-dark);
+    transition: transform 0.1s;
+}
+.vertical-slider-field::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.vertical-slider-field::-moz-range-thumb {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--t-white); border: 3px solid var(--t-dark);
+    cursor: pointer; box-shadow: 2px 2px 0px var(--t-dark);
+}
+
+/* ── Speech bubble ── */
+.speech-bubble {
+    position: relative;
+    background: var(--t-white);
+    border: 3px solid var(--t-dark);
+    border-radius: 18px;
+    box-shadow: var(--t-sh);
+    padding: 16px 20px;
+}
+.speech-bubble::after {
+    content: '';
+    position: absolute; bottom: -17px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 12px solid transparent; border-right: 12px solid transparent;
+    border-top: 17px solid var(--t-dark);
+}
+.speech-bubble::before {
+    content: ''; z-index: 1;
+    position: absolute; bottom: -13px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 10px solid transparent; border-right: 10px solid transparent;
+    border-top: 14px solid var(--t-white);
+}
+
+/* ── Silhouette fallback ── */
+.silhouette-fallback {
+    position: relative; width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px; text-align: center; font-weight: 800;
+}
+.silhouette-fallback svg { width: 100px; height: 100px; margin-bottom: 12px; opacity: 0.6; }
+
+/* ── Waiting dots ── */
+@keyframes waitDots { 0%,20%{content:'.';} 40%{content:'..';} 60%,100%{content:'...';} }
+.dots::after { content:'.'; animation: waitDots 1.5s steps(5,end) infinite; }
+
+/* ── Animations ── */
+@keyframes toonBounce {
+    0%,100% { transform: scale(1) rotate(-1.5deg); }
+    50%     { transform: scale(1.05) rotate(1.5deg); }
+}
+.toon-bounce { animation: toonBounce 2.5s ease-in-out infinite; }
+
+@keyframes popIn {
+    0%  { transform: scale(0.4); opacity:0; }
+    70% { transform: scale(1.12); }
+    100%{ transform: scale(1);   opacity:1; }
+}
+.pop-in { animation: popIn 0.4s cubic-bezier(0.18,0.89,0.32,1.28) forwards; }
+
+@keyframes wiggle {
+    0%,100%{ transform: rotate(0deg); }
+    25%    { transform: rotate(-6deg); }
+    75%    { transform: rotate(6deg); }
+}
+.wiggle { animation: wiggle 0.55s ease-in-out; }
+
+@keyframes floatUp {
+    0%,100%{ transform: translateY(0); }
+    50%    { transform: translateY(-8px); }
+}
+.float-up { animation: floatUp 3s ease-in-out infinite; }
+
+@keyframes pulse-title {
+    0%,100% { transform: scale(1) rotate(-1deg); }
+    50%     { transform: scale(1.03) rotate(1deg); }
+}
+.pulse-title { animation: pulse-title 3s ease-in-out infinite; }
+
+@keyframes starSpin {
+    0%   { transform: rotate(0deg)   scale(1); }
+    50%  { transform: rotate(180deg) scale(1.2); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+.star-spin { display: inline-block; animation: starSpin 6s linear infinite; color: var(--t-yellow); }

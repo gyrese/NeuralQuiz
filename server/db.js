@@ -199,7 +199,8 @@ async function seedFromJSON() {
         }
 
         // 5. Seeding Color Characters
-        const colorJsonFile = path.join(__dirname, 'data', 'colorCharacters.json');
+        // Note : hors de server/data/ (volume Docker) pour être présent dans l'image et seeder même sur un volume existant
+        const colorJsonFile = path.join(__dirname, 'colorCharacters.json');
         const countColors = await db.get('SELECT COUNT(*) as count FROM color_characters');
         if (countColors.count === 0 && fs.existsSync(colorJsonFile)) {
             console.log('[DATABASE] Migration : Importation de colorCharacters.json vers SQLite...');

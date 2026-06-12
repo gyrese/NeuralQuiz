@@ -1,123 +1,23 @@
 [
   {
-    "id": "pikachu-skin",
-    "name": "Pikachu",
-    "part": "La peau",
-    "source": "Pokémon",
-    "target_h": 47,
-    "target_s": 77,
-    "target_b": 99,
-    "image_path": "/uploads/color/pikachu.webp"
+    "id": "bugsbunny",
+    "name": "Bugs Bunny",
+    "part": "Le pelage",
+    "source": "Looney Tunes",
+    "target_h": 0,
+    "target_s": 0,
+    "target_b": 60,
+    "image_path": "/color/bugsbunny.webp"
   },
   {
-    "id": "goku-hair",
-    "name": "Goku Super Saiyan",
-    "part": "Les cheveux",
-    "source": "Dragon Ball Z",
-    "target_h": 50,
-    "target_s": 75,
-    "target_b": 95,
-    "image_path": "/uploads/color/goku.webp"
-  },
-  {
-    "id": "homer-skin",
-    "name": "Homer Simpson",
-    "part": "La peau",
-    "source": "Les Simpson",
-    "target_h": 47,
-    "target_s": 95,
-    "target_b": 95,
-    "image_path": "/uploads/color/homer.webp"
-  },
-  {
-    "id": "shrek-skin",
-    "name": "Shrek",
-    "part": "La peau",
-    "source": "Shrek",
-    "target_h": 85,
-    "target_s": 55,
-    "target_b": 75,
-    "image_path": "/uploads/color/shrek.webp"
-  },
-  {
-    "id": "spongebob-body",
-    "name": "Bob l'Éponge",
-    "part": "Le corps",
-    "source": "Bob l'Éponge",
-    "target_h": 56,
-    "target_s": 100,
-    "target_b": 100,
-    "image_path": "/uploads/color/spongebob.webp"
-  },
-  {
-    "id": "doraemon-body",
-    "name": "Doraemon",
-    "part": "Le corps bleu",
-    "source": "Doraemon",
-    "target_h": 200,
+    "id": "cartman",
+    "name": "Eric Cartman",
+    "part": "Le manteau",
+    "source": "South Park",
+    "target_h": 0,
     "target_s": 85,
     "target_b": 90,
-    "image_path": "/uploads/color/doraemon.webp"
-  },
-  {
-    "id": "smurf-skin",
-    "name": "Un Schtroumpf",
-    "part": "La peau",
-    "source": "Les Schtroumpfs",
-    "target_h": 205,
-    "target_s": 90,
-    "target_b": 95,
-    "image_path": "/uploads/color/smurf.webp"
-  },
-  {
-    "id": "mickey-shorts",
-    "name": "Mickey Mouse",
-    "part": "Le short",
-    "source": "Mickey Mouse",
-    "target_h": 0,
-    "target_s": 90,
-    "target_b": 85,
-    "image_path": "/uploads/color/mickey.webp"
-  },
-  {
-    "id": "minion-body",
-    "name": "Un Minion",
-    "part": "Le corps",
-    "source": "Moi, moche et méchant",
-    "target_h": 50,
-    "target_s": 90,
-    "target_b": 100,
-    "image_path": "/uploads/color/minion.webp"
-  },
-  {
-    "id": "patrick-body",
-    "name": "Patrick Étoile",
-    "part": "Le corps",
-    "source": "Bob l'Éponge",
-    "target_h": 350,
-    "target_s": 40,
-    "target_b": 98,
-    "image_path": "/uploads/color/patrick.webp"
-  },
-  {
-    "id": "pinkpanther-skin",
-    "name": "La Panthère Rose",
-    "part": "La peau",
-    "source": "La Panthère Rose",
-    "target_h": 340,
-    "target_s": 35,
-    "target_b": 95,
-    "image_path": "/uploads/color/pinkpanther.webp"
-  },
-  {
-    "id": "scoobydoo-fur",
-    "name": "Scooby-Doo",
-    "part": "Le pelage",
-    "source": "Scooby-Doo",
-    "target_h": 25,
-    "target_s": 65,
-    "target_b": 50,
-    "image_path": "/uploads/color/scoobydoo.webp"
+    "image_path": "/color/cartman.webp"
   },
   {
     "id": "donald-jacket",
@@ -127,7 +27,17 @@
     "target_h": 220,
     "target_s": 95,
     "target_b": 70,
-    "image_path": "/uploads/color/donald.webp"
+    "image_path": "/color/donald.webp"
+  },
+  {
+    "id": "doraemon-body",
+    "name": "Doraemon",
+    "part": "Le corps bleu",
+    "source": "Doraemon",
+    "target_h": 200,
+    "target_s": 85,
+    "target_b": 90,
+    "image_path": "/color/doraemon.webp"
   },
   {
     "id": "garfield-fur",
@@ -137,7 +47,97 @@
     "target_h": 28,
     "target_s": 90,
     "target_b": 95,
-    "image_path": "/uploads/color/garfield.webp"
+    "image_path": "/color/garfield.webp"
+  },
+  {
+    "id": "goku-hair",
+    "name": "Goku",
+    "part": "Le kimono",
+    "source": "Dragon Ball Z",
+    "target_h": 24,
+    "target_s": 90,
+    "target_b": 95,
+    "image_path": "/color/goku.webp"
+  },
+  {
+    "id": "goofy",
+    "name": "Dingo",
+    "part": "Le chapeau",
+    "source": "Mickey Mouse",
+    "target_h": 100,
+    "target_s": 75,
+    "target_b": 60,
+    "image_path": "/color/goofy.webp"
+  },
+  {
+    "id": "homer-skin",
+    "name": "Homer Simpson",
+    "part": "La peau",
+    "source": "Les Simpson",
+    "target_h": 47,
+    "target_s": 95,
+    "target_b": 95,
+    "image_path": "/color/homer.webp"
+  },
+  {
+    "id": "luckyluke",
+    "name": "Lucky Luke",
+    "part": "La chemise jaune",
+    "source": "Lucky Luke",
+    "target_h": 52,
+    "target_s": 100,
+    "target_b": 100,
+    "image_path": "/color/luckyluke.webp"
+  },
+  {
+    "id": "luffy",
+    "name": "Luffy",
+    "part": "Le short",
+    "source": "One Piece",
+    "target_h": 210,
+    "target_s": 85,
+    "target_b": 75,
+    "image_path": "/color/luffy.webp"
+  },
+  {
+    "id": "mickey-shorts",
+    "name": "Mickey Mouse",
+    "part": "Le short",
+    "source": "Mickey Mouse",
+    "target_h": 0,
+    "target_s": 90,
+    "target_b": 85,
+    "image_path": "/color/mickey.webp"
+  },
+  {
+    "id": "minion-body",
+    "name": "Un Minion",
+    "part": "Le corps",
+    "source": "Moi, moche et méchant",
+    "target_h": 50,
+    "target_s": 90,
+    "target_b": 100,
+    "image_path": "/color/minion.webp"
+  },
+  {
+    "id": "morty",
+    "name": "Morty",
+    "part": "Le t-shirt",
+    "source": "Rick et Morty",
+    "target_h": 50,
+    "target_s": 90,
+    "target_b": 100,
+    "image_path": "/color/morty.webp"
+  },
+  {
+    "id": "patrick-body",
+    "name": "Patrick Étoile",
+    "part": "Le corps",
+    "source": "Bob l'Éponge",
+    "target_h": 350,
+    "target_s": 40,
+    "target_b": 98,
+    "image_path": "/color/patrick.webp"
   },
   {
     "id": "perry-fur",
@@ -147,6 +147,86 @@
     "target_h": 180,
     "target_s": 60,
     "target_b": 70,
-    "image_path": "/uploads/color/perry.webp"
+    "image_path": "/color/perry.webp"
+  },
+  {
+    "id": "pikachu-skin",
+    "name": "Pikachu",
+    "part": "La peau",
+    "source": "Pokémon",
+    "target_h": 47,
+    "target_s": 77,
+    "target_b": 99,
+    "image_path": "/color/pikachu.webp"
+  },
+  {
+    "id": "pinkpanther-skin",
+    "name": "La Panthère Rose",
+    "part": "La peau",
+    "source": "La Panthère Rose",
+    "target_h": 340,
+    "target_s": 35,
+    "target_b": 95,
+    "image_path": "/color/pinkpanther.webp"
+  },
+  {
+    "id": "scoobydoo-fur",
+    "name": "Sammy (Shaggy)",
+    "part": "Le t-shirt",
+    "source": "Scooby-Doo",
+    "target_h": 85,
+    "target_s": 60,
+    "target_b": 65,
+    "image_path": "/color/shaggy.webp"
+  },
+  {
+    "id": "shrek-skin",
+    "name": "Shrek",
+    "part": "La peau",
+    "source": "Shrek",
+    "target_h": 85,
+    "target_s": 55,
+    "target_b": 75,
+    "image_path": "/color/shrek.webp"
+  },
+  {
+    "id": "smurf-skin",
+    "name": "Un Schtroumpf",
+    "part": "La peau",
+    "source": "Les Schtroumpfs",
+    "target_h": 205,
+    "target_s": 90,
+    "target_b": 95,
+    "image_path": "/color/smurf.webp"
+  },
+  {
+    "id": "spongebob-body",
+    "name": "Bob l'Éponge",
+    "part": "Le corps",
+    "source": "Bob l'Éponge",
+    "target_h": 56,
+    "target_s": 100,
+    "target_b": 100,
+    "image_path": "/color/spongebob.webp"
+  },
+  {
+    "id": "tom",
+    "name": "Tom",
+    "part": "Le pelage",
+    "source": "Tom et Jerry",
+    "target_h": 200,
+    "target_s": 30,
+    "target_b": 60,
+    "image_path": "/color/tom.webp"
+  },
+  {
+    "id": "winnie",
+    "name": "Winnie l'Ourson",
+    "part": "Le corps",
+    "source": "Winnie l'Ourson",
+    "target_h": 45,
+    "target_s": 90,
+    "target_b": 100,
+    "image_path": "/color/winnie.webp"
   }
 ]

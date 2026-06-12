@@ -8,15 +8,25 @@ services:
     image: neural-quiz-app:latest
     restart: unless-stopped
     ports:
-      - "3005:3005"
+      - "3007:3007"
     environment:
-      - PORT=3005
+      - PORT=3007
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD requis dans .env}
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET requis dans .env}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
     volumes:
       - quiz_data:/app/server/data
       - quiz_uploads:/app/server/uploads
+    networks:
+      # Réseau interne du projet
+      - default
+      # Réseau partagé avec Nginx Proxy Manager (il route vers hubgameltnre-app-1:3007)
+      # Indispensable pour que NPM résolve le conteneur par son nom — survit aux recreate.
+      - nginx-proxy-network
+
+networks:
+  nginx-proxy-network:
+    external: true
 
 volumes:
   quiz_data:
